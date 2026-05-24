@@ -1,0 +1,2004 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Arcade Brawl</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#05050f;overflow:hidden;font-family:'Impact','Arial Black',system-ui,sans-serif;color:#fff;user-select:none}
+canvas{display:block;image-rendering:pixelated}
+.wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.7);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.55)}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,15,.85);backdrop-filter:blur(4px);z-index:50;font-family:system-ui}
+.ov h1{font-size:4rem;font-weight:900;letter-spacing:-.02em;background:linear-gradient(135deg,#f43f5e,#a855f7,#06b6d4);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 30px rgba(168,85,247,.3);margin-bottom:6px}
+.ov h2{font-size:1.6rem;color:#fbbf24;margin-bottom:18px}
+.ov p{color:#94a3b8;font-size:14px;text-align:center;line-height:1.7;max-width:520px;margin-bottom:8px}
+.ks{display:grid;grid-template-columns:auto auto;gap:6px 18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 22px;margin:12px 0 18px;font-size:13px;color:#cbd5e1}
+.ks b{color:#a855f7;font-weight:700;font-family:'JetBrains Mono',monospace}
+.btn{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;padding:15px 40px;border-radius:12px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.05em;transition:.15s;font-family:system-ui;box-shadow:0 4px 24px rgba(168,85,247,.4)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(168,85,247,.6)}
+.btn.alt{background:#1e1e3a;box-shadow:none;margin-left:8px}
+.cd{font-size:8rem;font-weight:900;color:#fbbf24;text-shadow:0 0 50px rgba(251,191,36,.7),0 0 20px rgba(244,63,94,.5);animation:cdp .9s ease-out}
+@keyframes cdp{from{transform:scale(2);opacity:0}to{transform:scale(1);opacity:1}}
+.fight{font-size:8rem;font-weight:900;background:linear-gradient(135deg,#f43f5e,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent;animation:cdp .5s ease-out;letter-spacing:.05em}
+.ko{font-size:11rem;font-weight:900;color:#fff;text-shadow:0 0 60px #f43f5e,0 0 30px #f43f5e,0 0 12px #fff;animation:koa .4s ease-out;font-family:'Impact',sans-serif;letter-spacing:.04em}
+@keyframes koa{0%{transform:scale(3) rotate(-8deg);opacity:0}50%{transform:scale(1.4) rotate(2deg)}100%{transform:scale(1) rotate(0)}}
+.rndbadge{font-size:1.8rem;color:#cbd5e1;margin-top:4px;font-weight:700;font-family:system-ui}
+.win-banner{font-size:5rem;font-weight:900;letter-spacing:.04em;margin-bottom:8px}
+/* Hero selection */
+.hero-grid{display:flex;gap:18px;margin:18px 0 14px;flex-wrap:wrap;justify-content:center}
+.hero-card{width:200px;background:linear-gradient(160deg,rgba(255,255,255,.04),rgba(0,0,0,.5));border:2px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;cursor:pointer;transition:.18s;text-align:center;position:relative;overflow:hidden;font-family:system-ui}
+.hero-card:not(.locked):hover{transform:translateY(-4px);border-color:#fbbf24;box-shadow:0 8px 30px rgba(251,191,36,.3)}
+.hero-card.selected{border-color:#f97316;box-shadow:0 0 0 2px #f97316,0 8px 30px rgba(249,115,22,.45);background:linear-gradient(160deg,rgba(249,115,22,.18),rgba(0,0,0,.5))}
+.hero-card.locked{opacity:.45;cursor:not-allowed;filter:grayscale(.7)}
+.hero-canvas{width:170px;height:200px;background:radial-gradient(circle at 50% 30%,#1a0f2e 0%,#05050a 80%);border-radius:8px;margin:0 auto;display:block}
+.hero-locked-art{font-size:100px;color:#374151;height:200px;line-height:200px;background:radial-gradient(circle at 50% 30%,#0f0f1e 0%,#05050a 80%);border-radius:8px;font-weight:900}
+.hero-name{font-size:14px;font-weight:900;color:#fbbf24;letter-spacing:.06em;margin-top:10px}
+.hero-title{font-size:10px;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
+.hero-quote{font-size:11px;color:#cbd5e1;font-style:italic;margin-top:8px;line-height:1.4;min-height:30px}
+.hero-tag{position:absolute;top:8px;right:8px;background:#f97316;color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px;letter-spacing:.08em}
+.diff-row{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
+.hero-back{margin-top:8px;background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,.15);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:system-ui;letter-spacing:.08em}
+.hero-back:hover{color:#fff;background:rgba(255,255,255,.06)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="ov" id="ov-s">
+  <h1>ARCADE BRAWL</h1>
+  <h2>NEON FIGHT NIGHT</h2>
+  <p>Knock out your opponent. Best of 3 rounds. 60 seconds each.</p>
+  <div class="ks">
+    <span><b>A / D</b> · ← / →</span><span>Walk</span>
+    <span><b>W</b> · ↑</span><span>Jump</span>
+    <span><b>S</b></span><span>Block (reduces damage)</span>
+    <span><b>J</b></span><span>Light Punch — fast, low dmg</span>
+    <span><b>K</b></span><span>Heavy Kick — slow, big dmg</span>
+    <span><b>L</b></span><span>螺旋丸 Rasengan — 15 chakra · 22 dmg</span>
+    <span><b>U</b></span><span>螺旋手里剑 Rasen Shuriken — 30 chakra · 5s hold · 27 dmg</span>
+    <span><b>I</b></span><span>影分身 Shadow Clone — 50 rage · clone strikes once</span>
+  </div>
+  <div>
+    <button class="btn" onclick="openHeroSelect()">CHOOSE FIGHTER</button>
+  </div>
+</div>
+
+<div class="ov" id="ov-hero" style="display:none">
+  <h1 style="background:linear-gradient(135deg,#f97316,#fbbf24,#fb923c);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:2.6rem">SELECT YOUR FIGHTER</h1>
+  <h2 style="color:#94a3b8;font-size:1rem;letter-spacing:.2em">Roster · 1 of 3 unlocked</h2>
+  <div class="hero-grid">
+    <div class="hero-card selected" data-hero="naruto" onclick="selectHero('naruto')">
+      <span class="hero-tag">NEW</span>
+      <canvas class="hero-canvas" id="hero-canvas-naruto" width="170" height="200"></canvas>
+      <div class="hero-name">NARUTO UZUMAKI</div>
+      <div class="hero-title">Hidden Leaf · Ninja</div>
+      <div class="hero-quote">"I'm gonna be the Hokage one day!"</div>
+    </div>
+    <div class="hero-card locked">
+      <div class="hero-locked-art">?</div>
+      <div class="hero-name">— LOCKED —</div>
+      <div class="hero-title">Coming Soon</div>
+      <div class="hero-quote">More heroes incoming…</div>
+    </div>
+    <div class="hero-card locked">
+      <div class="hero-locked-art">?</div>
+      <div class="hero-name">— LOCKED —</div>
+      <div class="hero-title">Coming Soon</div>
+      <div class="hero-quote">Stay tuned.</div>
+    </div>
+  </div>
+  <div class="diff-row">
+    <button class="btn" onclick="confirmHero('normal')">FIGHT</button>
+    <button class="btn alt" onclick="confirmHero('hard')">HARD MODE</button>
+  </div>
+  <button class="hero-back" onclick="backFromHero()">← Back</button>
+</div>
+
+<div class="ov" id="ov-cd" style="display:none">
+  <div class="cd" id="cd-num">3</div>
+</div>
+
+<div class="ov" id="ov-ko" style="display:none">
+  <div class="ko">K.O.</div>
+  <div class="rndbadge" id="rnd-msg"></div>
+</div>
+
+<div class="ov" id="ov-end" style="display:none">
+  <div class="win-banner" id="win-txt"></div>
+  <p id="end-stats" style="font-size:18px;color:#cbd5e1;margin-bottom:18px"></p>
+  <div>
+    <button class="btn" onclick="hideEnd();start(lastDiff)">REMATCH</button>
+    <button class="btn alt" onclick="backToMenu()">MAIN MENU</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  ARCADE BRAWL — neon fighting game
+// ═══════════════════════════════════════════════════════════════
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+C.width=960; C.height=540;
+const W=C.width, H=C.height, GROUND=H-72;
+
+// ── Input ──────────────────────────────────────────────────────
+const KEYS={};
+const PRESSED={}; // edge-triggered
+addEventListener('keydown',e=>{
+  if(!KEYS[e.code])PRESSED[e.code]=true;
+  KEYS[e.code]=true;
+  if(['Space','KeyJ','KeyK','KeyL','KeyU','KeyI','ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code))e.preventDefault();
+});
+addEventListener('keyup',e=>{KEYS[e.code]=false});
+
+// ── Game state ────────────────────────────────────────────────
+let f1=null, f2=null;
+let phase='menu'; // menu | countdown | play | ko | end
+let cdTimer=0, koTimer=0, roundTimer=60, frameTimer=0;
+let p1Wins=0, p2Wins=0, round=1, totalRounds=5;
+let particles=[], hitSparks=[], damageNums=[];
+let projectiles=[], shadowClones=[];
+let shake=0, hitstop=0, frame=0;
+let lastDiff='normal', aiDiff='normal';
+let bgTime=0;
+
+// ── Palettes ──────────────────────────────────────────────────
+const PAL={
+  p1:{skin:'#fcd5b5',hair:'#1e1b4b',top:'#a855f7',pants:'#06b6d4',accent:'#ec4899',glow:'#c084fc'},
+  p2:{skin:'#fde2c8',hair:'#7c2d12',top:'#dc2626',pants:'#0f172a',accent:'#f59e0b',glow:'#fb7185'},
+};
+
+// ── Heroes (selectable fighters) ───────────────────────────────
+const HEROES = {
+  naruto: {
+    id: 'naruto',
+    name: 'NARUTO UZUMAKI',
+    colors: {
+      skin: '#e8b890',        // wheat / tan skin
+      hair: '#fbbf24',        // golden blonde
+      top: '#f97316',         // orange jacket
+      topDark: '#0a0a0a',     // black shoulders + collar
+      topAccent: '#fb923c',   // brighter orange zipper line
+      pants: '#f97316',       // orange pants
+      belt: '#000000',        // black belt
+      accent: '#1d4ed8',      // blue accent (eyes / headband)
+      glow: '#fb923c',        // orange chakra glow
+      headband: '#1e40af',    // blue forehead protector
+      plate: '#c0c5d0',       // metal headband plate
+      eyeWhite: '#ffffff',
+      eyeIris: '#1d4ed8',
+      whisker: '#3d2817',
+    },
+    features: {
+      hairStyle: 'spiky',
+      hasHeadband: true,
+      whiskers: 'profile',  // only on the visible cheek (side view)
+      mouth: 'grin',
+      profileEye: true,     // single blue eye in profile
+      shoulderPatches: true,
+    },
+  },
+};
+
+let selectedHeroId = 'naruto';
+
+function applyHero(palette, heroId){
+  const hero = HEROES[heroId];
+  if(!hero) return;
+  Object.assign(palette, hero.colors);
+  palette.heroId = hero.id;
+  palette.features = hero.features;
+}
+applyHero(PAL.p1, 'naruto');
+applyHero(PAL.p2, 'naruto'); // AI also Naruto
+
+// ── Fighter factory ───────────────────────────────────────────
+function mkFighter(x,facing,isP,name,colors){
+  return {
+    x, y:GROUND, vx:0, vy:0,
+    facing, isPlayer:isP, name, c:colors,
+    state:'idle', sTime:0,
+    hp:100, maxHp:100, meter:0, maxMeter:100,   // meter = CHAKRA
+    rage:0, maxRage:100,
+    onGround:true, blocking:false,
+    hitFlash:0, hitstun:0, ko:false,
+    combo:0, comboTimer:0,
+    walkPhase:0,
+    aiTimer:0, aiPlan:'wait', aiBlock:0,
+    hitThisAttack:false,
+    holdingShuriken:0,    // frames remaining while wielding Rasen Shuriken (0 = none)
+    shurikenCool:0,       // post-throw cooldown
+    rasenganCool:0,       // post-launch cooldown
+    cloneCool:0,          // shadow-clone cooldown
+  };
+}
+
+// ── Move data ──────────────────────────────────────────────────
+// active = [startFrame, endFrame]; damage; knockback; meterGain; reach; height
+const MOVES={
+  punch:  {dur:18, active:[6,10],  dmg:6,  kb:3,  meter:8,  reach:78,  height:42, hStart:-18, name:'punch'},
+  kick:   {dur:30, active:[12,18], dmg:13, kb:7,  meter:14, reach:96,  height:50, hStart:-12, name:'kick'},
+  special:{dur:55, active:[20,32], dmg:32, kb:14, meter:0,  reach:130, height:90, hStart:-50, name:'special'},
+  // Push gesture for Rasengan — short, no melee damage (Rasengan projectile does it)
+  rasenganCast:{dur:24, active:[0,0], dmg:0, kb:0, meter:0, reach:0, height:0, hStart:0, name:'rasenganCast'},
+  // Casting pose during Shadow Clone — locks the caster in place
+  cloneCast:{dur:90, active:[0,0], dmg:0, kb:0, meter:0, reach:0, height:0, hStart:0, name:'cloneCast'},
+};
+
+// ── Init / restart ─────────────────────────────────────────────
+function start(diff){
+  hideAllOv();
+  aiDiff=lastDiff=diff;
+  p1Wins=0; p2Wins=0; round=1;
+  applyHero(PAL.p1, selectedHeroId);
+  applyHero(PAL.p2, 'naruto');  // AI is always Naruto for now
+  initRound(0,0);
+}
+
+// Render a hero portrait into a preview canvas
+function drawHeroPortrait(canvasId, heroId){
+  const cv = document.getElementById(canvasId);
+  if(!cv) return;
+  const g = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  g.clearRect(0,0,W,H);
+
+  // Background glow
+  const bgg = g.createRadialGradient(W/2, H*0.3, 4, W/2, H*0.5, W*0.8);
+  bgg.addColorStop(0,'rgba(249,115,22,0.25)');
+  bgg.addColorStop(1,'rgba(5,5,10,0)');
+  g.fillStyle = bgg;
+  g.fillRect(0,0,W,H);
+  // Floor shadow
+  g.fillStyle = 'rgba(0,0,0,0.45)';
+  g.beginPath(); g.ellipse(W/2, H-22, 38, 7, 0, 0, Math.PI*2); g.fill();
+
+  if(heroId !== 'naruto') return;
+  const c = HEROES.naruto.colors;
+  // ═══ Side profile (facing right) ═══
+  const cx = W/2 - 8;
+  const baseY = H - 28;
+
+  // Front shoe (visible foot)
+  g.fillStyle = '#0a0a0a';
+  rRect(g, cx-2, baseY-4, 22, 6, 2); g.fill();
+  // Back shoe (slightly behind)
+  g.fillStyle = '#070707';
+  rRect(g, cx-14, baseY-3, 18, 5, 2); g.fill();
+
+  // Pants (narrower in profile)
+  g.fillStyle = c.pants;
+  rRect(g, cx-12, baseY-46, 26, 44, 4); g.fill();
+  // Leg separation line
+  g.fillStyle = 'rgba(0,0,0,0.18)';
+  g.fillRect(cx+0, baseY-30, 1.5, 28);
+
+  // Belt
+  g.fillStyle = c.belt;
+  rRect(g, cx-13, baseY-52, 28, 7, 1); g.fill();
+  g.fillStyle = '#fbbf24';
+  rRect(g, cx-2, baseY-51, 5, 5, 1); g.fill();
+
+  // Jacket body (orange, profile)
+  g.fillStyle = c.top;
+  rRect(g, cx-14, baseY-104, 30, 56, 5); g.fill();
+  // Black shoulder cap (top of jacket on visible side)
+  g.fillStyle = c.topDark;
+  rRect(g, cx-14, baseY-104, 30, 18, 5); g.fill();
+  // Re-paint lower jacket bottom with orange (just border the black to top)
+  // already orange below
+  // Collar (small black notch at neck)
+  g.fillStyle = c.topDark;
+  rRect(g, cx-3, baseY-104, 14, 8, 2); g.fill();
+  // Orange zipper line down the front (right side of body in profile)
+  g.fillStyle = c.topAccent;
+  g.fillRect(cx+13, baseY-92, 2, 42);
+  // Zipper teeth
+  g.fillStyle = '#000';
+  for(let zy = baseY-86; zy < baseY-50; zy += 5){
+    g.fillRect(cx+12, zy, 4, 1.4);
+  }
+
+  // Arm (front arm, hanging slightly forward — orange sleeve, black shoulder cap)
+  g.fillStyle = c.top;
+  rRect(g, cx+8, baseY-94, 11, 38, 4); g.fill();
+  g.fillStyle = c.topDark;
+  rRect(g, cx+8, baseY-94, 11, 10, 4); g.fill();
+  // Hand (skin)
+  g.fillStyle = c.skin;
+  g.beginPath(); g.arc(cx+13, baseY-52, 5, 0, Math.PI*2); g.fill();
+
+  // Neck (profile)
+  g.fillStyle = c.skin;
+  g.beginPath();
+  g.moveTo(cx-3, baseY-104);
+  g.lineTo(cx+8, baseY-104);
+  g.lineTo(cx+7, baseY-114);
+  g.lineTo(cx-2, baseY-114);
+  g.closePath(); g.fill();
+
+  // ── Head in profile ──
+  const hy = baseY - 130;
+
+  // Head silhouette (egg shape, nose pointing right)
+  g.fillStyle = c.skin;
+  g.beginPath();
+  g.moveTo(cx-14, hy+2);          // top back of skull
+  g.bezierCurveTo(cx-15, hy-15, cx+5, hy-20, cx+15, hy-10);
+  g.bezierCurveTo(cx+20, hy-4, cx+21, hy+2, cx+19, hy+6);
+  // Nose bridge & tip
+  g.lineTo(cx+22, hy+4);
+  g.lineTo(cx+24, hy+8);
+  g.lineTo(cx+22, hy+10);
+  g.lineTo(cx+19, hy+10);
+  // Upper lip / philtrum
+  g.lineTo(cx+18, hy+12);
+  // Mouth area
+  g.lineTo(cx+19, hy+14);
+  // Chin
+  g.bezierCurveTo(cx+16, hy+22, cx+4, hy+24, cx-6, hy+20);
+  // Jaw to back of head
+  g.bezierCurveTo(cx-13, hy+14, cx-15, hy+8, cx-14, hy+2);
+  g.closePath();
+  g.fill();
+
+  // Ear (visible on back side)
+  g.fillStyle = c.skin;
+  g.beginPath(); g.ellipse(cx-9, hy+6, 3, 5, 0, 0, Math.PI*2); g.fill();
+  g.strokeStyle = 'rgba(70,40,20,0.5)';
+  g.lineWidth = 1;
+  g.beginPath(); g.arc(cx-9, hy+6, 1.8, -0.5, Math.PI*1.2); g.stroke();
+
+  // ── Spiky blonde hair (side view) ──
+  g.fillStyle = c.hair;
+  g.beginPath();
+  g.moveTo(cx-14, hy+2);
+  // Back spikes
+  g.lineTo(cx-16, hy-6);
+  g.lineTo(cx-12, hy-12);
+  g.lineTo(cx-15, hy-18);
+  // Going up over the head
+  const spikes = [
+    [-8, -16], [-10, -23], [-3, -20], [-2, -28], [3, -22],
+    [6, -28], [10, -22], [13, -25], [16, -18], [18, -10],
+  ];
+  for(const [dx, dy] of spikes) g.lineTo(cx+dx, hy+dy);
+  g.bezierCurveTo(cx+18, hy-5, cx+18, hy-2, cx+15, hy-2);
+  g.closePath();
+  g.fill();
+
+  // Hair darker tips
+  g.fillStyle = 'rgba(120,80,10,0.35)';
+  for(const [dx,dy] of [[-12,-12],[-2,-28],[6,-28],[13,-25]]){
+    g.beginPath();
+    g.moveTo(cx+dx, hy+dy);
+    g.lineTo(cx+dx-3, hy+dy+5);
+    g.lineTo(cx+dx+3, hy+dy+5);
+    g.closePath(); g.fill();
+  }
+
+  // Hair strand falling over the front of the headband
+  g.fillStyle = c.hair;
+  g.beginPath();
+  g.moveTo(cx+10, hy-6);
+  g.lineTo(cx+13, hy-2);
+  g.lineTo(cx+8, hy-3);
+  g.closePath(); g.fill();
+
+  // ── Headband (blue band wrapping around, metal plate on front) ──
+  // Wraps from back to front
+  g.fillStyle = c.headband;
+  g.beginPath();
+  g.moveTo(cx-13, hy-3);
+  g.lineTo(cx+18, hy-6);
+  g.lineTo(cx+19, hy-1);
+  g.lineTo(cx-13, hy+2);
+  g.closePath(); g.fill();
+  // Metal plate (on the front portion of the band)
+  g.fillStyle = c.plate;
+  g.beginPath();
+  g.moveTo(cx-2, hy-4);
+  g.lineTo(cx+18, hy-6);
+  g.lineTo(cx+19, hy-1);
+  g.lineTo(cx-2, hy+1);
+  g.closePath(); g.fill();
+  // Plate shading
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  g.fillRect(cx-2, hy-1, 21, 1.5);
+  // Konoha leaf symbol (simplified swirl)
+  g.strokeStyle = '#1c1310';
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.arc(cx+9, hy-3, 2.4, -0.4, Math.PI*1.5);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(cx+6, hy-1.5); g.lineTo(cx+12, hy-1);
+  g.stroke();
+  // Headband ties trailing down behind
+  g.fillStyle = c.headband;
+  g.beginPath();
+  g.moveTo(cx-13, hy+1);
+  g.lineTo(cx-22, hy+18);
+  g.lineTo(cx-17, hy+20);
+  g.lineTo(cx-11, hy+1);
+  g.closePath(); g.fill();
+  g.beginPath();
+  g.moveTo(cx-13, hy+3);
+  g.lineTo(cx-19, hy+22);
+  g.lineTo(cx-15, hy+24);
+  g.lineTo(cx-10, hy+3);
+  g.closePath(); g.fill();
+
+  // ── Single eye in profile ──
+  g.fillStyle = c.eyeWhite;
+  g.beginPath(); g.ellipse(cx+11, hy+6, 3.6, 3.3, 0, 0, Math.PI*2); g.fill();
+  g.fillStyle = c.eyeIris;
+  g.beginPath(); g.arc(cx+12, hy+6, 2.2, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#000';
+  g.beginPath(); g.arc(cx+13, hy+6, 1, 0, Math.PI*2); g.fill();
+  g.fillStyle = '#fff';
+  g.beginPath(); g.arc(cx+13, hy+5, 0.7, 0, Math.PI*2); g.fill();
+  // Eyebrow
+  g.fillStyle = c.hair;
+  g.fillRect(cx+8, hy+2, 9, 1.8);
+
+  // Whisker marks (3 on visible cheek)
+  g.strokeStyle = c.whisker;
+  g.lineWidth = 1.3;
+  for(let i = -1; i <= 1; i++){
+    const wy = hy + 11 + i*3;
+    g.beginPath();
+    g.moveTo(cx+7, wy); g.lineTo(cx+18, wy);
+    g.stroke();
+  }
+
+  // Big grin (profile)
+  g.strokeStyle = '#3d1c0a';
+  g.lineWidth = 1.8;
+  g.beginPath();
+  g.arc(cx+14, hy+15, 5, -0.2, Math.PI*0.75);
+  g.stroke();
+  // Visible tooth
+  g.fillStyle = '#fff';
+  rRect(g, cx+11, hy+13.5, 7, 2.4, 1); g.fill();
+  // Mouth corner shadow
+  g.fillStyle = 'rgba(0,0,0,0.2)';
+  g.fillRect(cx+10, hy+15.5, 9, 0.8);
+
+  // Subtle chakra glow
+  const glow = g.createRadialGradient(cx+4, hy+30, 5, cx+4, hy+30, 100);
+  glow.addColorStop(0,'rgba(251,191,36,0.08)');
+  glow.addColorStop(1,'rgba(251,191,36,0)');
+  g.fillStyle = glow;
+  g.fillRect(0,0,W,H);
+}
+
+function rRect(g, x, y, w, h, r){
+  g.beginPath();
+  if(g.roundRect) g.roundRect(x, y, w, h, r);
+  else g.rect(x, y, w, h);
+}
+
+// Hero selection screen control
+function openHeroSelect(){
+  hideAllOv();
+  showOv('ov-hero');
+  // Default selection
+  document.querySelectorAll('.hero-card').forEach(c=>c.classList.remove('selected'));
+  const card = document.querySelector(`.hero-card[data-hero="${selectedHeroId}"]`);
+  if(card) card.classList.add('selected');
+  // Render preview
+  drawHeroPortrait('hero-canvas-naruto', 'naruto');
+}
+function selectHero(id){
+  if(!HEROES[id]) return;
+  selectedHeroId = id;
+  document.querySelectorAll('.hero-card').forEach(c=>c.classList.remove('selected'));
+  const card = document.querySelector(`.hero-card[data-hero="${id}"]`);
+  if(card) card.classList.add('selected');
+}
+function confirmHero(diff){ start(diff); }
+function backFromHero(){ hideAllOv(); showOv('ov-s'); }
+
+function initRound(m1,m2){
+  f1=mkFighter(260,1,true,'YOU',PAL.p1);
+  f2=mkFighter(W-260,-1,false,'CPU',PAL.p2);
+  f1.meter=m1; f2.meter=m2;
+  particles=[]; hitSparks=[]; damageNums=[];
+  projectiles=[]; shadowClones=[];
+  shake=0; hitstop=0; roundTimer=60; frameTimer=0;
+  phase='countdown'; cdTimer=3*60;
+  showOv('ov-cd'); document.getElementById('cd-num').textContent='3';
+}
+
+function hideAllOv(){['ov-s','ov-hero','ov-cd','ov-ko','ov-end'].forEach(id=>document.getElementById(id).style.display='none')}
+function showOv(id){document.getElementById(id).style.display='flex'}
+function hideEnd(){document.getElementById('ov-end').style.display='none'}
+function backToMenu(){hideAllOv();showOv('ov-s');phase='menu'}
+
+// ── Per-frame controls / actions ───────────────────────────────
+function actionFor(f, opp){
+  if(f.isPlayer){
+    return {
+      move:(KEYS.KeyA||KEYS.ArrowLeft?-1:0)+(KEYS.KeyD||KEYS.ArrowRight?1:0),
+      jump: KEYS.KeyW||KEYS.ArrowUp,
+      block: KEYS.KeyS,
+      punch: PRESSED.KeyJ,
+      kick:  PRESSED.KeyK,
+      special: PRESSED.KeyL,
+      rasengan: PRESSED.KeyL,
+      rasenShuriken: PRESSED.KeyU,
+      shadowClone: PRESSED.KeyI,
+    };
+  }
+  return aiAction(f, opp);
+}
+
+// ── AI ─────────────────────────────────────────────────────────
+function aiAction(f, opp){
+  const a={move:0,jump:false,block:false,punch:false,kick:false,special:false};
+  if(f.state!=='idle' && f.state!=='walk' && f.state!=='jump' && f.state!=='crouch' && f.state!=='block')return a;
+
+  const dx = opp.x - f.x;
+  const adx = Math.abs(dx);
+  const facingOpp = (dx>0?1:-1) === f.facing;
+  const oppAttacking = ['punch','kick','special'].includes(opp.state);
+  const isHard = aiDiff==='hard';
+
+  // Block reaction to opponent attack
+  if(oppAttacking && adx<160){
+    const blockChance = isHard?0.78:0.45;
+    if(Math.random()<blockChance/4){a.block=true; return a;}
+  }
+  if(f.aiBlock>0){f.aiBlock--; a.block=true; return a}
+
+  // Tactical decisions throttled
+  f.aiTimer--;
+  if(f.aiTimer>0){
+    // continue current plan
+    if(f.aiPlan==='approach')a.move=dx>0?1:-1;
+    else if(f.aiPlan==='retreat')a.move=dx>0?-1:1;
+    else if(f.aiPlan==='attack'){
+      a.move=dx>0?1:-1;
+      if(adx<110)a.punch=true;
+    }
+    return a;
+  }
+  f.aiTimer=isHard?rndI(8,18):rndI(16,32);
+
+  // Naruto AI: throw Rasengan when chakra ready (it's a projectile, useful at range)
+  const naruto = f.c.heroId === 'naruto';
+  const specialThresh = naruto ? 15 : 100;
+  const specialRange = naruto ? 360 : 170;
+  if(f.meter>=specialThresh && adx<specialRange && facingOpp && Math.random()<(isHard?0.45:0.22)){
+    a.special=true; f.aiPlan='wait'; return a;
+  }
+
+  // Attack if in range
+  if(adx<130 && facingOpp){
+    if(Math.random()<(isHard?0.7:0.5)){
+      if(Math.random()<0.55)a.punch=true; else a.kick=true;
+      f.aiPlan='attack'; f.aiTimer=isHard?14:22;
+      return a;
+    }
+  }
+
+  // Close range: maybe jump in
+  if(adx<280 && adx>140 && Math.random()<(isHard?0.18:0.08)){
+    a.jump=true; a.move=dx>0?1:-1;
+    f.aiPlan='approach'; return a;
+  }
+
+  // Pick movement plan
+  if(adx>180){ f.aiPlan='approach'; a.move=dx>0?1:-1; }
+  else if(adx<70){ f.aiPlan='retreat'; a.move=dx>0?-1:1; }
+  else { f.aiPlan=Math.random()<0.5?'approach':'wait'; a.move=f.aiPlan==='approach'?(dx>0?1:-1):0 }
+
+  return a;
+}
+const rndI=(a,b)=>Math.floor(a+Math.random()*(b-a));
+
+// ── Constants ──────────────────────────────────────────────────
+const WALK=2.6, JUMP_VY=-12, GRAV=0.62;
+
+// ── Update one fighter ─────────────────────────────────────────
+function updateFighter(f, opp){
+  // Gravity (always except certain locks)
+  f.vy+=GRAV;
+  f.y+=f.vy;
+  if(f.y>=GROUND){f.y=GROUND;f.vy=0;
+    if(!f.onGround && f.state==='jump'){f.state='idle';f.sTime=0}
+    f.onGround=true;
+  } else f.onGround=false;
+
+  f.x+=f.vx;
+  f.vx*=0.78;
+  f.x=Math.max(60,Math.min(W-60,f.x));
+
+  // Face opponent (when grounded & free)
+  if(f.onGround && ['idle','walk','crouch','block'].includes(f.state)){
+    f.facing = opp.x>f.x ? 1 : -1;
+  }
+
+  // Tick timers
+  f.sTime++;
+  if(f.hitFlash>0)f.hitFlash--;
+  if(f.hitstun>0)f.hitstun--;
+  if(f.comboTimer>0)f.comboTimer--; else f.combo=0;
+  if(f.rasenganCool>0)f.rasenganCool--;
+  if(f.shurikenCool>0)f.shurikenCool--;
+  if(f.cloneCool>0)f.cloneCool--;
+  if(f.holdingShuriken>0){
+    f.holdingShuriken--;
+    // Auto-throw at the end of the 5-second window if still in hand
+    if(f.holdingShuriken<=0){ throwShuriken(f, opp); }
+  }
+  // Pending Rasengan release (during the push animation)
+  if(f.pendingRasengan > 0){
+    f.pendingRasengan--;
+    if(f.pendingRasengan === 0){
+      spawnRasengan(f, opp);
+    }
+  }
+  // Slow chakra regeneration over time
+  if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 0.15);
+
+  if(f.ko){
+    if(f.state!=='ko'){f.state='ko';f.sTime=0}
+    return;
+  }
+  if(f.hitstun>0){
+    if(f.state!=='hit'){f.state='hit';f.sTime=0}
+    return;
+  }
+
+  // Decide / handle action
+  const act = actionFor(f, opp);
+
+  // While attacking, lock out new actions
+  const atking = ['punch','kick','special','rasenganCast','cloneCast'].includes(f.state);
+  if(atking){
+    const dur = MOVES[f.state] ? MOVES[f.state].dur : 22;
+    if(f.sTime>=dur){f.state='idle';f.sTime=0;f.hitThisAttack=false}
+    return;
+  }
+
+  // Block
+  if(act.block && f.onGround){
+    if(f.state!=='block'){f.state='block';f.sTime=0}
+    f.blocking=true; return;
+  }
+  f.blocking=false;
+
+  // ─── Naruto jutsu (works for both player and AI) ───
+  const isNaruto = f.c.heroId === 'naruto';
+  if(isNaruto && f.onGround){
+    // Shadow Clone — requires FULL rage (100); AI uses it randomly when ready
+    const wantsClone = f.isPlayer
+      ? (act.shadowClone)
+      : (f.rage>=100 && Math.abs(opp.x-f.x)<320 && Math.random()<0.03);
+    if(wantsClone && f.rage>=100 && f.cloneCool<=0){
+      triggerShadowClone(f, opp);
+      return;
+    }
+    // Rasen Shuriken (player only — AI doesn't manage the 5s hold)
+    if(f.isPlayer && act.rasenShuriken && f.meter>=30 && f.holdingShuriken<=0 && f.shurikenCool<=0){
+      f.meter -= 30;
+      f.holdingShuriken = 300; // 5s @ 60fps
+      f.shurikenCool = 30;
+      pulseRing(f);
+      return;
+    }
+    if(f.holdingShuriken>0 && (act.punch || act.kick || act.rasengan)){
+      throwShuriken(f, opp);
+      return;
+    }
+    // Rasengan — player via L, AI via 'special' decision
+    const wantsRasengan = f.isPlayer ? act.rasengan : act.special;
+    if(wantsRasengan && f.meter>=15 && f.rasenganCool<=0 && f.holdingShuriken<=0){
+      f.meter -= 15;
+      f.rasenganCool = 28;
+      f.state='rasenganCast'; f.sTime=0; f.hitThisAttack=false;
+      // Project spawns a few frames in (after the push gesture starts)
+      f.pendingRasengan = 6;
+      return;
+    }
+  }
+
+  // Special (legacy super; used by non-Naruto AI)
+  if(act.special && !isNaruto && f.meter>=100 && f.onGround){
+    f.state='special'; f.sTime=0; f.meter=0; f.hitThisAttack=false;
+    pulseRing(f);
+    return;
+  }
+  // Kick
+  if(act.kick && f.onGround){
+    f.state='kick'; f.sTime=0; f.hitThisAttack=false;
+    return;
+  }
+  // Punch
+  if(act.punch && f.onGround){
+    f.state='punch'; f.sTime=0; f.hitThisAttack=false;
+    return;
+  }
+  // Jump
+  if(act.jump && f.onGround){
+    f.vy = JUMP_VY;
+    f.state='jump'; f.sTime=0;
+    if(act.move!==0) f.vx = act.move * WALK * 1.6;
+    return;
+  }
+  // Move
+  if(f.onGround){
+    if(act.move!==0){
+      f.vx = act.move * WALK;
+      f.walkPhase+=0.22;
+      if(f.state!=='walk'){f.state='walk';f.sTime=0}
+    } else {
+      if(f.state!=='idle'){f.state='idle';f.sTime=0}
+    }
+  } else {
+    // air control
+    if(act.move!==0) f.vx += act.move*0.3;
+    f.vx = Math.max(-4,Math.min(4,f.vx));
+  }
+}
+
+// ── Attack hit detection ───────────────────────────────────────
+function checkHits(){
+  for(const [a,d] of [[f1,f2],[f2,f1]]){
+    if(!['punch','kick','special'].includes(a.state))continue;
+    if(a.hitThisAttack)continue;
+    const mv = MOVES[a.state];
+    if(a.sTime<mv.active[0] || a.sTime>mv.active[1])continue;
+
+    // Hitbox in world coords
+    const hx = a.x + a.facing * (mv.reach*0.55);
+    const hy = a.y + mv.hStart - mv.height*0.5 + mv.height*0.5; // anchor
+    const hbX = a.x + (a.facing>0 ? 10 : -mv.reach-10);
+    const hbY = a.y - 110 + mv.hStart + 20;
+    const hbW = mv.reach;
+    const hbH = mv.height;
+
+    // Defender body rect approx (head+torso+legs)
+    const dW = 56, dH = 130;
+    const dbX = d.x - dW/2;
+    const dbY = d.y - dH;
+
+    if(rectsOverlap(hbX,hbY,hbW,hbH, dbX,dbY,dW,dH)){
+      registerHit(a, d, mv);
+      a.hitThisAttack = true;
+    }
+  }
+}
+
+function rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh){
+  return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
+}
+
+function registerHit(att, def, mv){
+  let dmg = mv.dmg;
+  let kb = mv.kb;
+  const blocked = def.blocking && def.facing !== att.facing;
+  if(blocked){
+    dmg = Math.max(1, Math.floor(dmg*0.18));
+    kb = Math.max(2, Math.floor(kb*0.35));
+    def.meter = Math.min(def.maxMeter, def.meter + 3);
+  } else {
+    def.hitstun = mv.name==='special'?32:(mv.name==='kick'?18:13);
+    def.hitFlash = 8;
+    att.combo++; att.comboTimer = 80;
+  }
+  def.hp = Math.max(0, def.hp - dmg);
+  // RAGE: defender gains rage equal to damage taken from opponent's attacks
+  def.rage = Math.min(def.maxRage, (def.rage||0) + dmg);
+  def.vx = att.facing * kb;
+  if(mv.name==='special'){def.vy = -7; def.y -= 1}
+  if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
+
+  att.meter = Math.min(att.maxMeter, att.meter + mv.meter);
+
+  // VFX
+  const hx = def.x - def.facing*22;
+  const hy = def.y - 70 - (mv.name==='special'?15:0);
+  spawnHitSpark(hx, hy, blocked, mv.name);
+  spawnDamageNum(hx, hy-20, dmg, blocked);
+  if(!blocked){
+    shake = Math.min(22, shake + (mv.name==='special'?14:(mv.name==='kick'?7:3)));
+    hitstop = mv.name==='special'?12:(mv.name==='kick'?5:2);
+  }
+
+  if(def.hp<=0){
+    def.ko=true; def.vy=-8; def.vx=att.facing*6;
+    triggerKO(att, def);
+  }
+}
+
+// ── Effects ────────────────────────────────────────────────────
+function spawnHitSpark(x,y,blocked,kind){
+  const n = kind==='special'?26:(kind==='kick'?14:8);
+  const col = blocked?'#06b6d4':(kind==='special'?'#fbbf24':'#fff');
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2;
+    const sp = 3+Math.random()*(kind==='special'?9:5);
+    hitSparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,col,r:2+Math.random()*3});
+  }
+  // Star burst
+  hitSparks.push({x,y,life:1,col:blocked?'#06b6d4':'#fff',star:true,r:kind==='special'?60:(kind==='kick'?40:26)});
+}
+function spawnDamageNum(x,y,dmg,blocked){
+  damageNums.push({x,y,vy:-2.2,life:1,txt:blocked?'BLOCK':String(dmg),col:blocked?'#06b6d4':(dmg>20?'#fbbf24':'#f43f5e')});
+}
+function pulseRing(f){
+  hitSparks.push({x:f.x, y:f.y-65, life:1, col:f.c.glow, star:true, r:90, ringOnly:true});
+}
+
+// ── Naruto jutsu spawners ──────────────────────────────────────
+function spawnRasengan(att, def){
+  // Brief two-hands-together flash on the player
+  hitSparks.push({x: att.x + att.facing*22, y: att.y-58, life:1, col:'#bfdbfe', star:true, r:30, ringOnly:true});
+  projectiles.push({
+    type: 'rasengan',
+    x: att.x + att.facing*36,
+    y: att.y - 56,
+    vx: att.facing * 10,
+    owner: att,
+    damage: 22,
+    radius: 18,         // ~fist sized
+    life: 70,
+    spin: 0,
+    alive: true,
+  });
+}
+
+function throwShuriken(att, def){
+  if(att.holdingShuriken<=0) return;
+  att.holdingShuriken = 0;
+  att.shurikenCool = 30;
+  hitSparks.push({x: att.x + att.facing*30, y: att.y-65, life:1, col:'#fff', star:true, r:50, ringOnly:true});
+  projectiles.push({
+    type: 'rasenShuriken',
+    x: att.x + att.facing*40,
+    y: att.y - 64,
+    vx: att.facing * 8.5,
+    owner: att,
+    damage: 27,          // Rasengan(22) + 5
+    radius: 36,          // ~2x Rasengan
+    life: 110,
+    spin: 0,
+    alive: true,
+  });
+}
+
+// SHADOW CLONE JUTSU — requires full rage (100)
+// Freezes the enemy and spawns 4 clones (2 on each side) that punch sequentially.
+// Total damage across all clones = 30. After the sequence, clones disappear.
+function triggerShadowClone(att, def){
+  att.rage = 0;            // consume full rage
+  att.cloneCool = 200;
+  att.meter = Math.min(att.maxMeter, att.meter); // no chakra change
+  // Caster pose
+  att.state = 'cloneCast';
+  att.sTime = 0;
+  att.hitThisAttack = false;
+  // Freeze the opponent: long hitstun, zero velocity, no block
+  def.hitstun = Math.max(def.hitstun, 90);
+  def.vx = 0;
+  def.blocking = false;
+  // VFX: big ring
+  pulseRing(att);
+  // Spawn 4 clones around the opponent
+  const positions = [
+    {x: def.x - 130, side:  1, delay:  0},  // far left,  facing right
+    {x: def.x -  70, side:  1, delay: 12},  // close left
+    {x: def.x +  70, side: -1, delay: 24},  // close right, facing left
+    {x: def.x + 130, side: -1, delay: 36},  // far right
+  ];
+  for(const pos of positions){
+    // Smoke puff at the spawn location
+    for(let i=0;i<10;i++){
+      const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
+      particles.push({x:pos.x, y:def.y-50, vx:Math.cos(a)*sp, vy:-Math.random()*2-1,
+        life:1, col:'rgba(225,225,235,1)', r:6+Math.random()*4});
+    }
+    shadowClones.push({
+      x: pos.x, y: def.y,
+      facing: pos.side,
+      owner: att,
+      target: def,
+      state: 'wait',          // wait for delay
+      sTime: 0,
+      wait: pos.delay,
+      hasHit: false,
+      damage: 7.5,            // 4 clones × 7.5 = 30 total
+      alive: true,
+    });
+  }
+}
+
+function triggerKO(winner, loser){
+  phase='ko'; koTimer=120;
+  if(loser===f2)p1Wins++; else p2Wins++;
+  showOv('ov-ko');
+  const msg = `Round ${round} — ${winner.name} wins!  ·  Score ${p1Wins} - ${p2Wins}`;
+  document.getElementById('rnd-msg').textContent = msg;
+}
+
+function endRound(){
+  hideAllOv();
+  if(p1Wins>=Math.ceil(totalRounds/2) || p2Wins>=Math.ceil(totalRounds/2)){
+    showEnd(); return;
+  }
+  round++;
+  initRound(f1.meter, f2.meter);
+}
+
+// ── Projectile update / hit detection ──────────────────────────
+function updateProjectiles(){
+  for(const p of projectiles){
+    p.x += p.vx;
+    p.spin += p.type==='rasenShuriken' ? 0.45 : 0.32;
+    p.life--;
+    if(p.life<=0 || p.x<-50 || p.x>W+50){ p.alive=false; continue; }
+    const opp = p.owner===f1 ? f2 : f1;
+    if(!opp || opp.ko) continue;
+    // Body box approx
+    const dx = opp.x - p.x;
+    const dy = (opp.y-65) - p.y;
+    if(Math.abs(dx) < p.radius+24 && Math.abs(dy) < 70){
+      applyProjectileHit(p, opp);
+      p.alive=false;
+    }
+  }
+  projectiles = projectiles.filter(p=>p.alive);
+}
+
+function applyProjectileHit(proj, def){
+  const att = proj.owner;
+  let dmg = proj.damage;
+  const blocked = def.blocking && def.facing !== att.facing;
+  if(blocked){
+    dmg = Math.max(2, Math.floor(dmg*0.35));
+    def.meter = Math.min(def.maxMeter, def.meter + 5);
+  } else {
+    def.hitstun = proj.type==='rasenShuriken' ? 34 : 26;
+    def.hitFlash = 12;
+    att.combo++; att.comboTimer = 80;
+  }
+  def.hp = Math.max(0, def.hp - dmg);
+  // Rage gain from skill damage
+  def.rage = Math.min(def.maxRage, def.rage + dmg);
+  def.vx = att.facing * (proj.type==='rasenShuriken' ? 14 : 10);
+  if(!blocked){ def.vy = -6; def.y -= 1; }
+  // VFX
+  spawnHitSpark(proj.x, proj.y, blocked, proj.type==='rasenShuriken'?'special':'kick');
+  spawnDamageNum(proj.x, proj.y-22, dmg, blocked);
+  if(!blocked){
+    shake = Math.min(26, shake + (proj.type==='rasenShuriken' ? 14 : 8));
+    hitstop = proj.type==='rasenShuriken' ? 9 : 5;
+  }
+  if(def.hp<=0){
+    def.ko=true; def.vy=-8; def.vx=att.facing*6;
+    triggerKO(att, def);
+  }
+}
+
+// ── Shadow clone update + attack ───────────────────────────────
+function updateShadowClones(){
+  for(const c of shadowClones){
+    c.sTime++;
+    if(c.state==='wait'){
+      // Stagger spawn — wait then enter attack
+      if(c.sTime >= c.wait){ c.state='attack'; c.sTime=0; }
+    } else if(c.state==='attack'){
+      const opp = c.target;
+      // Keep the target frozen for the duration of the jutsu
+      if(opp && !opp.ko){ opp.hitstun = Math.max(opp.hitstun, 4); opp.vx = 0; }
+      // Hit window
+      if(c.sTime>=6 && c.sTime<=12 && !c.hasHit && opp && !opp.ko){
+        const dmg = c.damage;
+        opp.hp = Math.max(0, opp.hp - dmg);
+        opp.rage = Math.min(opp.maxRage, opp.rage + dmg);
+        opp.hitFlash = 8;
+        spawnHitSpark(opp.x - c.facing*22, opp.y-65, false, 'punch');
+        spawnDamageNum(opp.x - c.facing*22, opp.y-90, Math.ceil(dmg), false);
+        shake = Math.min(20, shake + 4);
+        c.hasHit = true;
+        if(opp.hp<=0){
+          opp.ko=true; opp.vy=-7; opp.vx=c.facing*5;
+          triggerKO(c.owner, opp);
+        }
+      }
+      if(c.sTime > 22){ c.state='leave'; c.sTime=0; }
+    } else if(c.state==='leave'){
+      if(c.sTime===1){
+        for(let i=0;i<12;i++){
+          const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
+          particles.push({x:c.x, y:c.y-50, vx:Math.cos(a)*sp, vy:-Math.random()*2-0.5,
+            life:1, col:'rgba(225,225,235,1)', r:5+Math.random()*4});
+        }
+      }
+      if(c.sTime > 8){ c.alive=false; }
+    }
+  }
+  shadowClones = shadowClones.filter(c=>c.alive);
+}
+
+function showEnd(){
+  phase='end';
+  showOv('ov-end');
+  const playerWon = p1Wins>p2Wins;
+  const el = document.getElementById('win-txt');
+  el.textContent = playerWon ? 'VICTORY!' : 'DEFEAT';
+  el.style.background = playerWon
+    ? 'linear-gradient(135deg,#fbbf24,#f43f5e,#a855f7)'
+    : 'linear-gradient(135deg,#475569,#1e293b)';
+  el.style.webkitBackgroundClip='text';
+  el.style.backgroundClip='text';
+  el.style.color='transparent';
+  el.style.textShadow = playerWon?'0 0 40px rgba(251,191,36,.5)':'none';
+  document.getElementById('end-stats').textContent = `Final Score: ${p1Wins} – ${p2Wins}`;
+}
+
+// ── Background ────────────────────────────────────────────────
+function drawBg(){
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#1e0a3c');
+  sky.addColorStop(0.45,'#3b0764');
+  sky.addColorStop(0.75,'#581c87');
+  sky.addColorStop(1,'#0c0a2e');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+
+  // Distant sun/moon
+  const cx = W*0.72, cy = H*0.30;
+  const sun = ctx.createRadialGradient(cx,cy,10,cx,cy,160);
+  sun.addColorStop(0,'rgba(244,63,94,0.85)');
+  sun.addColorStop(0.5,'rgba(168,85,247,0.35)');
+  sun.addColorStop(1,'rgba(168,85,247,0)');
+  ctx.fillStyle=sun;
+  ctx.beginPath(); ctx.arc(cx,cy,160,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,200,180,0.9)';
+  ctx.beginPath(); ctx.arc(cx,cy,42,0,Math.PI*2); ctx.fill();
+
+  // Skyline silhouette
+  ctx.fillStyle='rgba(8,8,18,0.92)';
+  const buildings=[[40,180,140],[180,140,90],[270,180,120],[390,90,160],[480,120,110],[590,200,140],[730,150,100],[820,90,180]];
+  for(const [x,w,h] of buildings){
+    ctx.fillRect(x, H-130-h, w, h);
+    // Windows
+    ctx.fillStyle='rgba(251,191,36,0.55)';
+    for(let wy=H-130-h+12; wy<H-140; wy+=14){
+      for(let wx=x+6; wx<x+w-6; wx+=10){
+        if(((wx*7+wy*3)%23)<8) ctx.fillRect(wx, wy, 4, 6);
+      }
+    }
+    ctx.fillStyle='rgba(8,8,18,0.92)';
+  }
+
+  // Neon horizontal lines (grid floor effect)
+  ctx.strokeStyle='rgba(168,85,247,0.35)';
+  ctx.lineWidth=1;
+  for(let i=0;i<14;i++){
+    const y = H-130 + i*(130/14);
+    const a = 0.05 + i/14 * 0.4;
+    ctx.strokeStyle=`rgba(168,85,247,${a})`;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+  }
+  // Vanishing perspective lines
+  const vpx = W/2, vpy = H-138;
+  for(let i=0;i<24;i++){
+    const a = 0.06 + (i%3===0?0.25:0.1);
+    ctx.strokeStyle=`rgba(244,63,94,${a*0.5})`;
+    ctx.beginPath(); ctx.moveTo(i*(W/24), H); ctx.lineTo(vpx, vpy); ctx.stroke();
+  }
+
+  // Floor
+  ctx.fillStyle='#0a0a18';
+  ctx.fillRect(0,GROUND+12,W,H-GROUND);
+  // Floor reflection of sun
+  const refl=ctx.createLinearGradient(0,GROUND+12,0,H);
+  refl.addColorStop(0,'rgba(244,63,94,0.18)');
+  refl.addColorStop(1,'rgba(244,63,94,0)');
+  ctx.fillStyle=refl;
+  ctx.fillRect(W*0.45,GROUND+12,W*0.4,H-GROUND-12);
+  // Stage edge glow
+  ctx.fillStyle='#a855f7';
+  ctx.fillRect(0,GROUND+10,W,2);
+  ctx.fillStyle='rgba(168,85,247,0.3)';
+  ctx.fillRect(0,GROUND+6,W,4);
+}
+
+// ── Fighter drawing ────────────────────────────────────────────
+function drawFighter(f, opp){
+  const c=f.c;
+  ctx.save();
+  // Shadow
+  ctx.fillStyle='rgba(0,0,0,0.45)';
+  const shadowW = f.onGround?42:32;
+  ctx.beginPath(); ctx.ellipse(f.x, GROUND+8, shadowW, 8, 0, 0, Math.PI*2); ctx.fill();
+
+  // Hit flash filter overlay
+  const flash = f.hitFlash>0 ? Math.min(1,f.hitFlash/8) : 0;
+
+  // Compute pose
+  const pose = computePose(f);
+
+  // Translate + flip
+  ctx.translate(f.x, f.y);
+  ctx.scale(f.facing, 1);
+
+  // Special move aura
+  if(f.state==='special'){
+    const t = f.sTime / MOVES.special.dur;
+    const auraR = 20 + Math.sin(t*Math.PI*4)*10 + t*40;
+    const g = ctx.createRadialGradient(0,-60,5,0,-60,auraR);
+    g.addColorStop(0,c.glow+'cc'); g.addColorStop(1,c.glow+'00');
+    ctx.fillStyle=g;
+    ctx.beginPath(); ctx.arc(0,-60,auraR,0,Math.PI*2); ctx.fill();
+  }
+
+  // Limbs first (behind body)
+  // Far leg
+  drawLeg(pose.legFar, c.pants, c.skin, true);
+  // Far arm
+  drawArm(pose.armFar, c.top, c.skin, true);
+
+  // Torso
+  drawTorso(pose, c);
+
+  // Near leg
+  drawLeg(pose.legNear, c.pants, c.skin, false);
+  // Near arm
+  drawArm(pose.armNear, c.top, c.skin, false);
+
+  // Head
+  drawHead(pose, c);
+
+  // Held Rasen Shuriken in the near hand
+  if(f.holdingShuriken > 0){
+    const t = f.sTime;
+    const hx = pose.armNear.fx + 18;
+    const hy = pose.armNear.fy - 4;
+    const r = 28;
+    const spin = t * 0.55;
+    ctx.save();
+    ctx.translate(hx, hy);
+    ctx.rotate(spin);
+    // Halo
+    const halo = ctx.createRadialGradient(0,0,3, 0,0, r*1.6);
+    halo.addColorStop(0,'rgba(255,255,255,0.95)');
+    halo.addColorStop(0.5,'rgba(186,230,253,0.5)');
+    halo.addColorStop(1,'rgba(125,211,252,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(0,0, r*1.6, 0, Math.PI*2); ctx.fill();
+    // 4 blades
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#bae6fd';
+    ctx.lineWidth = 1.5;
+    for(let b=0;b<4;b++){
+      ctx.save();
+      ctx.rotate(b * Math.PI/2);
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      ctx.lineTo(r*0.55, -r*0.22);
+      ctx.lineTo(r*1.0, 0);
+      ctx.lineTo(r*0.55, r*0.22);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    // Blue core
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath(); ctx.arc(0,0, r*0.28, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#dbeafe';
+    ctx.beginPath(); ctx.arc(0,0, r*0.18, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    // Countdown bar above the player's head (in fighter-local coords)
+    const pct = f.holdingShuriken / 300;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(-22, -150, 44, 5);
+    const bgrad = ctx.createLinearGradient(-22, 0, 22, 0);
+    bgrad.addColorStop(0, '#fff'); bgrad.addColorStop(1, '#7dd3fc');
+    ctx.fillStyle = bgrad;
+    ctx.fillRect(-22, -150, 44*pct, 5);
+  }
+
+  // Flash overlay
+  if(flash>0){
+    ctx.globalCompositeOperation='source-atop';
+    ctx.fillStyle=`rgba(255,255,255,${flash*0.7})`;
+    ctx.fillRect(-50,-130,100,140);
+    ctx.globalCompositeOperation='source-over';
+  }
+
+  // Weapon trail / fist glow during active frames
+  if(['punch','kick','special'].includes(f.state)){
+    const mv=MOVES[f.state];
+    if(f.sTime>=mv.active[0]-2 && f.sTime<=mv.active[1]+2){
+      ctx.fillStyle=c.glow;
+      ctx.globalAlpha=0.55;
+      ctx.shadowBlur=20; ctx.shadowColor=c.glow;
+      const tx = pose.fistX, ty = pose.fistY;
+      ctx.beginPath(); ctx.arc(tx,ty, f.state==='special'?22:12, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha=1; ctx.shadowBlur=0;
+    }
+  }
+  // Chakra glow forming between Naruto's hands during Rasengan cast (push pose)
+  if(f.state==='rasenganCast'){
+    const tx = pose.fistX, ty = pose.fistY;
+    ctx.fillStyle='#bfdbfe';
+    ctx.globalAlpha=0.7;
+    ctx.shadowBlur=22; ctx.shadowColor='#3b82f6';
+    ctx.beginPath(); ctx.arc(tx, ty, 10+Math.min(8, f.sTime*0.6), 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1; ctx.shadowBlur=0;
+  }
+  // Hand-seal sparkle during clone-cast pose
+  if(f.state==='cloneCast'){
+    ctx.fillStyle='rgba(255,255,255,0.6)';
+    ctx.shadowBlur=18; ctx.shadowColor='#fbbf24';
+    ctx.beginPath(); ctx.arc(0, -76, 4+Math.sin(f.sTime*0.3)*2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+  }
+  ctx.restore();
+
+  // Name above
+  ctx.font='bold 12px system-ui'; ctx.textAlign='center';
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.fillText(f.name, f.x+1, f.y-148);
+  ctx.fillStyle=c.glow;
+  ctx.fillText(f.name, f.x, f.y-149);
+}
+
+function drawTorso(pose, c){
+  const feat = c.features || {};
+  // Pants/shorts
+  ctx.fillStyle=c.pants;
+  roundRect(-15, -52, 30, 28, 5); ctx.fill();
+  // Top (jacket)
+  ctx.fillStyle=c.top;
+  roundRect(-18, -98, 36, 50, 8); ctx.fill();
+
+  if(feat.shoulderPatches){
+    // Black shoulder patches (Naruto's jacket)
+    ctx.fillStyle = c.topDark || '#000';
+    roundRect(-18, -98, 10, 18, 5); ctx.fill();
+    roundRect(8, -98, 10, 18, 5); ctx.fill();
+    // Black collar
+    ctx.fillStyle = c.topDark || '#000';
+    roundRect(-14, -98, 28, 7, 3); ctx.fill();
+    // Orange zipper stripe down the middle
+    ctx.fillStyle = c.topAccent || '#fb923c';
+    ctx.fillRect(-1, -90, 2, 38);
+    // Two small zipper dots
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-2, -78, 4, 2);
+    ctx.fillRect(-2, -68, 4, 2);
+    ctx.fillRect(-2, -58, 4, 2);
+  } else {
+    // Default accent stripe
+    ctx.fillStyle=c.accent;
+    ctx.fillRect(-18, -76, 36, 4);
+  }
+  // Belt
+  ctx.fillStyle = c.belt || '#0f172a';
+  ctx.fillRect(-18, -52, 36, 5);
+  if(!feat.shoulderPatches){
+    ctx.fillStyle=c.accent;
+    ctx.fillRect(-3, -52, 6, 5);
+  }
+}
+
+function drawHead(pose, c){
+  const feat = c.features || {};
+  const tilt = pose.headTilt||0;
+  ctx.save();
+  ctx.translate(0,-108);
+  ctx.rotate(tilt);
+
+  // Skin (head)
+  ctx.fillStyle=c.skin;
+  ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
+
+  // Hair
+  ctx.fillStyle=c.hair;
+  if(feat.hairStyle === 'spiky'){
+    // Spiky Naruto hair — multiple zigzag points
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    const spikes = [
+      [-13,-9], [-10,-3], [-7,-15], [-3,-5],
+      [0,-18], [4,-5], [7,-16], [10,-3],
+      [13,-9], [14, 0]
+    ];
+    for(const [x,y] of spikes) ctx.lineTo(x,y);
+    ctx.quadraticCurveTo(0, -3, -14, 0);
+    ctx.closePath();
+    ctx.fill();
+    // Inner shadow at base
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(-14, 0);
+    ctx.quadraticCurveTo(0, -5, 14, 0);
+    ctx.quadraticCurveTo(0, -1, -14, 0);
+    ctx.fill();
+    // A few darker hair tips
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(-7,-15); ctx.lineTo(-6,-9); ctx.lineTo(-4,-13); ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(7,-16); ctx.lineTo(6,-10); ctx.lineTo(4,-14); ctx.closePath(); ctx.fill();
+  } else {
+    // Default sweep hair
+    ctx.beginPath();
+    ctx.moveTo(-14,-2);
+    ctx.quadraticCurveTo(-16,-18, 4,-15);
+    ctx.quadraticCurveTo(16,-14, 14,2);
+    ctx.lineTo(14,-4);
+    ctx.quadraticCurveTo(8,-12, -2,-10);
+    ctx.quadraticCurveTo(-12,-8, -14,-2);
+    ctx.fill();
+  }
+
+  // Headband (Naruto's blue forehead protector with metal plate)
+  if(feat.hasHeadband){
+    ctx.fillStyle = c.headband || '#1e40af';
+    ctx.fillRect(-14, -7, 28, 4);
+    ctx.fillStyle = c.plate || '#c0c5d0';
+    ctx.fillRect(-9, -7, 18, 4);
+    // Plate shading
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(-9, -4, 18, 1);
+    // Leaf symbol (simplified swirl)
+    ctx.strokeStyle = '#3d2817';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(0, -5, 1.6, -0.5, Math.PI*1.4);
+    ctx.stroke();
+    // Headband side ties
+    ctx.fillStyle = c.headband || '#1e40af';
+    ctx.fillRect(-14, -3, 3, 5);
+    ctx.fillRect(11, -3, 3, 5);
+  }
+
+  // Eye (single, in profile)
+  if(feat.profileEye){
+    ctx.fillStyle = c.eyeWhite || '#fff';
+    ctx.beginPath(); ctx.ellipse(4, 1, 2.6, 2.8, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = c.eyeIris || '#1d4ed8';
+    ctx.beginPath(); ctx.arc(4.4, 1.2, 1.6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(5, 1.2, 0.7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(5.3, 0.5, 0.45, 0, Math.PI*2); ctx.fill();
+    // Eyebrow above
+    ctx.fillStyle = c.hair;
+    ctx.fillRect(1, -3, 7, 1.4);
+  } else {
+    ctx.fillStyle='#0f172a';
+    ctx.fillRect(3, -1, 3, 4);
+  }
+
+  // Whiskers — profile = visible cheek only
+  if(feat.whiskers){
+    ctx.strokeStyle = c.whisker || '#3d2817';
+    ctx.lineWidth = 0.8;
+    const sides = feat.whiskers === 'profile' ? [1] : [-1, 1];
+    for(const sd of sides){
+      for(let i = -1; i <= 1; i++){
+        const y = 5 + i * 2;
+        ctx.beginPath();
+        ctx.moveTo(sd*6, y); ctx.lineTo(sd*11, y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Mouth
+  if(feat.mouth === 'grin'){
+    // Big toothy grin
+    ctx.strokeStyle = '#3d1c0a';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(0, 6, 5, 0.15, Math.PI - 0.15);
+    ctx.stroke();
+    // Open mouth fill (white teeth)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(0, 7, 4, 1.6, 0, 0, Math.PI*2);
+    ctx.fill();
+    // Mouth shadow inside
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(-3, 8.2, 6, 0.6);
+  } else {
+    ctx.fillStyle='#7c2d12';
+    ctx.fillRect(1, 6, 6, 1.5);
+  }
+
+  ctx.restore();
+}
+
+function drawArm(arm, top, skin, behind){
+  // arm: {sx,sy, ex,ey, fx,fy}  -- shoulder/elbow/fist
+  ctx.lineCap='round';
+  ctx.strokeStyle=top; ctx.lineWidth=behind?8:9;
+  ctx.beginPath(); ctx.moveTo(arm.sx,arm.sy); ctx.lineTo(arm.ex,arm.ey); ctx.stroke();
+  // Forearm (skin)
+  ctx.strokeStyle=skin; ctx.lineWidth=behind?7:8;
+  ctx.beginPath(); ctx.moveTo(arm.ex,arm.ey); ctx.lineTo(arm.fx,arm.fy); ctx.stroke();
+  // Fist
+  ctx.fillStyle=skin;
+  ctx.beginPath(); ctx.arc(arm.fx,arm.fy, behind?5:6, 0, Math.PI*2); ctx.fill();
+}
+
+function drawLeg(leg, pants, skin, behind){
+  ctx.lineCap='round';
+  ctx.strokeStyle=pants; ctx.lineWidth=behind?10:11;
+  ctx.beginPath(); ctx.moveTo(leg.hx,leg.hy); ctx.lineTo(leg.kx,leg.ky); ctx.stroke();
+  // Shin
+  ctx.strokeStyle=skin; ctx.lineWidth=behind?8:9;
+  ctx.beginPath(); ctx.moveTo(leg.kx,leg.ky); ctx.lineTo(leg.fx,leg.fy); ctx.stroke();
+  // Shoe
+  ctx.fillStyle='#0f172a';
+  ctx.beginPath();
+  ctx.ellipse(leg.fx+3, leg.fy+1, 9, 4, 0, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// ── Pose generator ─────────────────────────────────────────────
+function computePose(f){
+  // Defaults (facing right; will be flipped by canvas)
+  const breath = Math.sin(frame*0.05 + (f.isPlayer?0:1))*0.6;
+  let armNear={sx:6,sy:-92, ex:14,ey:-72, fx:18,fy:-52};
+  let armFar ={sx:-6,sy:-92, ex:-12,ey:-72, fx:-14,fy:-52};
+  let legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
+  let legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
+  let fistX=0, fistY=0, headTilt=0;
+
+  const s = f.state, st = f.sTime;
+
+  if(s==='idle'){
+    armNear.fy += breath; armFar.fy += breath;
+  }
+  if(s==='walk'){
+    const wp = f.walkPhase;
+    legNear.ky = -26 + Math.sin(wp)*4;
+    legNear.fx = 9 + Math.sin(wp)*6; legNear.fy = -2 - Math.max(0,Math.sin(wp))*4;
+    legFar.ky = -26 + Math.sin(wp+Math.PI)*4;
+    legFar.fx = -9 + Math.sin(wp+Math.PI)*6; legFar.fy = -2 - Math.max(0,Math.sin(wp+Math.PI))*4;
+    armNear.fy = -52 + Math.sin(wp+Math.PI)*5;
+    armFar.fy = -52 + Math.sin(wp)*5;
+  }
+  if(s==='jump'){
+    legNear={hx:6,hy:-50, kx:14,ky:-32, fx:18,fy:-22};
+    legFar ={hx:-6,hy:-50, kx:-2,ky:-30, fx:5,fy:-18};
+    armNear={sx:6,sy:-92, ex:20,ey:-88, fx:30,fy:-78};
+    armFar ={sx:-6,sy:-92, ex:-20,ey:-88, fx:-28,fy:-78};
+  }
+  if(s==='crouch'||s==='block'){
+    legNear={hx:8,hy:-30, kx:18,ky:-15, fx:14,fy:-2};
+    legFar ={hx:-8,hy:-30, kx:-12,ky:-15, fx:-9,fy:-2};
+    armNear={sx:8,sy:-72, ex:18,ey:-58, fx:24,fy:-44};
+    armFar ={sx:-2,sy:-72, ex:8,ey:-62, fx:18,fy:-48};
+    if(s==='block'){
+      armNear={sx:8,sy:-80, ex:22,ey:-72, fx:26,fy:-58};
+      armFar ={sx:-4,sy:-80, ex:10,ey:-72, fx:22,fy:-60};
+    }
+  }
+  if(s==='punch'){
+    const mv=MOVES.punch;
+    const t = phaseT(st, mv);
+    const extend = ease(t);
+    armNear={sx:6,sy:-92, ex:18+extend*22, ey:-82, fx:30+extend*40, fy:-78};
+    armFar ={sx:-6,sy:-92, ex:-14,ey:-72, fx:-12,fy:-58};
+    fistX=armNear.fx; fistY=armNear.fy;
+  }
+  if(s==='kick'){
+    const mv=MOVES.kick;
+    const t = phaseT(st, mv);
+    const extend = ease(t);
+    legNear={hx:6,hy:-50, kx:18+extend*20,ky:-50-extend*15, fx:30+extend*50,fy:-50-extend*10};
+    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
+    armNear={sx:6,sy:-92, ex:0,ey:-72, fx:-12,fy:-60};
+    armFar ={sx:-6,sy:-92, ex:-14,ey:-78, fx:-22,fy:-70};
+    fistX=legNear.fx; fistY=legNear.fy;
+    headTilt = -0.05;
+  }
+  if(s==='special'){
+    const mv=MOVES.special;
+    const t = phaseT(st, mv);
+    const extend = ease(t);
+    armNear={sx:6,sy:-92, ex:14+extend*26, ey:-100-extend*20, fx:30+extend*60, fy:-110-extend*30};
+    armFar ={sx:-6,sy:-92, ex:-2+extend*8, ey:-100-extend*20, fx:18+extend*40, fy:-115-extend*25};
+    legNear={hx:6,hy:-50, kx:12,ky:-28, fx:18,fy:-2};
+    legFar ={hx:-6,hy:-50, kx:-14,ky:-26, fx:-22,fy:-2};
+    fistX=armNear.fx; fistY=armNear.fy;
+    headTilt = 0.08;
+  }
+  if(s==='rasenganCast'){
+    // Hands come together at chest, brief PUSH forward (no full arm extension)
+    // Phase: 0..1 wind-up (clap), 1..2 push out, then settle
+    const total = MOVES.rasenganCast.dur;
+    const phase = st / total;
+    // Wind-up: hands meet near chest
+    // Push: brief forward push of palms
+    let push = 0;
+    if(phase < 0.35){
+      const t = phase/0.35; push = 0;
+    } else if(phase < 0.6){
+      const t = (phase-0.35)/0.25; push = ease(t) * 1;
+    } else {
+      const t = (phase-0.6)/0.4; push = 1 - ease(t)*0.5;
+    }
+    const fwd = push * 14;
+    // Both arms in close, hands together (no extension)
+    armNear={sx:6,sy:-92, ex:6, ey:-74, fx:14+fwd, fy:-66};
+    armFar ={sx:-6,sy:-92, ex:-2, ey:-74, fx:10+fwd, fy:-68};
+    legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
+    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
+    fistX = (armNear.fx + armFar.fx)/2;
+    fistY = (armNear.fy + armFar.fy)/2;
+    headTilt = 0.04;
+  }
+  if(s==='cloneCast'){
+    // Hand-seal pose: both hands raised together in front of chest
+    const t = Math.min(1, st/16);
+    const lift = ease(t);
+    armNear={sx:6,sy:-92, ex:4, ey:-86, fx:6, fy:-76 - lift*4};
+    armFar ={sx:-6,sy:-92, ex:-4, ey:-86, fx:-2, fy:-76 - lift*4};
+    legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
+    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
+    fistX = 0; fistY = -76;
+    headTilt = -0.03;
+  }
+  if(s==='hit'){
+    const t = Math.min(1, st/14);
+    armNear={sx:6,sy:-92, ex:-2,ey:-78, fx:-18,fy:-58};
+    armFar ={sx:-6,sy:-92, ex:-22,ey:-86, fx:-30,fy:-72};
+    headTilt = -0.18 + t*0.1;
+  }
+  if(s==='ko'){
+    // Lying down
+    const t = Math.min(1, st/40);
+    const rot = t * (Math.PI/2 - 0.08);
+    ctx.rotate(rot);
+    legNear={hx:6,hy:-50, kx:14,ky:-28, fx:22,fy:-6};
+    legFar ={hx:-6,hy:-50, kx:-14,ky:-30, fx:-22,fy:-8};
+    armNear={sx:6,sy:-92, ex:18,ey:-80, fx:28,fy:-66};
+    armFar ={sx:-6,sy:-92, ex:-18,ey:-80, fx:-28,fy:-66};
+    headTilt = 0.3;
+  }
+  return {armNear,armFar,legNear,legFar,fistX,fistY,headTilt};
+}
+function phaseT(st, mv){return Math.min(1, Math.max(0, (st-mv.active[0]+3)/(mv.active[1]-mv.active[0]+3)))}
+function ease(t){return t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2}
+
+// ── Sparks / numbers update + draw ─────────────────────────────
+function updateFx(){
+  for(const p of hitSparks){
+    if(p.star){ p.life -= 0.06; continue }
+    p.x += p.vx; p.y += p.vy; p.vy += 0.25;
+    p.life -= 0.045;
+  }
+  hitSparks = hitSparks.filter(p=>p.life>0);
+  for(const d of damageNums){ d.y += d.vy; d.vy *= 0.94; d.life -= 0.018 }
+  damageNums = damageNums.filter(d=>d.life>0);
+}
+function drawFx(){
+  for(const p of hitSparks){
+    ctx.globalAlpha = Math.max(0, p.life);
+    if(p.star){
+      // Burst rings
+      ctx.strokeStyle=p.col; ctx.lineWidth=3;
+      ctx.shadowBlur=18; ctx.shadowColor=p.col;
+      const sz = p.r*(1.2-p.life);
+      // Cross
+      if(!p.ringOnly){
+        ctx.beginPath();
+        for(let k=0;k<6;k++){
+          const a = k*Math.PI/3;
+          ctx.moveTo(p.x,p.y);
+          ctx.lineTo(p.x+Math.cos(a)*sz, p.y+Math.sin(a)*sz);
+        }
+        ctx.stroke();
+      }
+      // Ring
+      ctx.beginPath(); ctx.arc(p.x,p.y, sz*0.85, 0, Math.PI*2); ctx.stroke();
+      ctx.shadowBlur=0;
+    } else {
+      ctx.fillStyle=p.col;
+      ctx.shadowBlur=8; ctx.shadowColor=p.col;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+    }
+  }
+  ctx.globalAlpha=1;
+
+  for(const d of damageNums){
+    ctx.globalAlpha = Math.max(0, d.life);
+    ctx.font='bold 26px Impact, system-ui';
+    ctx.textAlign='center';
+    ctx.fillStyle='#000'; ctx.fillText(d.txt, d.x+2, d.y+2);
+    ctx.fillStyle=d.col; ctx.fillText(d.txt, d.x, d.y);
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── HUD ────────────────────────────────────────────────────────
+function drawHUD(){
+  // Top frame strip
+  const gd = ctx.createLinearGradient(0,0,0,80);
+  gd.addColorStop(0,'rgba(5,5,15,0.95)');
+  gd.addColorStop(1,'rgba(5,5,15,0.5)');
+  ctx.fillStyle=gd; ctx.fillRect(0,0,W,80);
+  ctx.strokeStyle='rgba(168,85,247,0.4)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,80); ctx.lineTo(W,80); ctx.stroke();
+
+  // Player HP (left, fills from right toward left for player2-mirror feel? Standard: P1 fills right-to-left losing)
+  drawHPBar(40, 24, 360, true, f1);
+  drawHPBar(W-40-360, 24, 360, false, f2);
+
+  // Names
+  ctx.font='bold 16px system-ui'; ctx.textAlign='left';
+  ctx.fillStyle=f1.c.glow;
+  ctx.fillText(f1.name, 40, 18);
+  ctx.textAlign='right';
+  ctx.fillStyle=f2.c.glow;
+  ctx.fillText(f2.name, W-40, 18);
+
+  // Round indicators (in center)
+  ctx.textAlign='center';
+  const wins = Math.ceil(totalRounds/2);
+  for(let i=0;i<wins;i++){
+    const x1 = W/2 - 30 + i*16;
+    const x2 = W/2 + 14 - i*16;
+    ctx.fillStyle = i<p1Wins ? f1.c.glow : 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.arc(x1, 18, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = i<p2Wins ? f2.c.glow : 'rgba(255,255,255,0.15)';
+    ctx.beginPath(); ctx.arc(x2, 18, 5, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Round timer + round number
+  ctx.font='bold 36px Impact, system-ui';
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillText(Math.ceil(roundTimer), W/2+2, 60+2);
+  const tcol = roundTimer<10 ? '#f43f5e' : '#fbbf24';
+  ctx.fillStyle=tcol;
+  ctx.shadowBlur=12; ctx.shadowColor=tcol;
+  ctx.fillText(Math.ceil(roundTimer), W/2, 60);
+  ctx.shadowBlur=0;
+  ctx.font='bold 11px system-ui';
+  ctx.fillStyle='#94a3b8';
+  ctx.fillText(`ROUND ${round}`, W/2, 72);
+
+  // Bottom resource bars: CHAKRA (blue) + RAGE (red), stacked
+  drawMeter(40, H-30, 240, f1, true);
+  drawMeter(W-40-240, H-30, 240, f2, false);
+  drawRageBar(40, H-50, 240, f1, true);
+  drawRageBar(W-40-240, H-50, 240, f2, false);
+
+  // Combo indicators
+  if(f1.combo>1){
+    ctx.font='bold 28px Impact, system-ui';
+    ctx.textAlign='left';
+    ctx.fillStyle='#fff';
+    ctx.shadowBlur=14; ctx.shadowColor=f1.c.glow;
+    ctx.fillText(`${f1.combo} HITS!`, 50, 110);
+    ctx.shadowBlur=0;
+  }
+  if(f2.combo>1){
+    ctx.textAlign='right';
+    ctx.fillStyle='#fff';
+    ctx.shadowBlur=14; ctx.shadowColor=f2.c.glow;
+    ctx.fillText(`${f2.combo} HITS!`, W-50, 110);
+    ctx.shadowBlur=0;
+  }
+}
+
+function drawHPBar(x,y,w,leftAlign,f){
+  const h=14;
+  // Back plate
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  roundRect(x-2,y-2,w+4,h+4,4); ctx.fill();
+  // Background
+  ctx.fillStyle='rgba(255,255,255,0.05)';
+  roundRect(x,y,w,h,3); ctx.fill();
+  // Fill
+  const pct = f.hp / f.maxHp;
+  const fw = w*pct;
+  const fx = leftAlign ? x : x + (w - fw);
+  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
+  if(pct>0.5){grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#10b981')}
+  else if(pct>0.25){grad.addColorStop(0,'#fbbf24');grad.addColorStop(1,'#f97316')}
+  else{grad.addColorStop(0,'#f43f5e');grad.addColorStop(1,'#dc2626')}
+  ctx.fillStyle=grad;
+  roundRect(fx,y,fw,h,3); ctx.fill();
+  // Sheen
+  ctx.fillStyle='rgba(255,255,255,0.2)';
+  roundRect(fx, y+1, fw, 3, 2); ctx.fill();
+  // Border
+  ctx.strokeStyle=f.c.glow; ctx.lineWidth=1;
+  roundRect(x,y,w,h,3); ctx.stroke();
+}
+
+function drawMeter(x,y,w,f,leftAlign){
+  const h=10;
+  ctx.fillStyle='rgba(0,0,0,0.65)';
+  roundRect(x,y,w,h,3); ctx.fill();
+  const pct = Math.max(0, Math.min(1, f.meter / f.maxMeter));
+  const fw = w*pct;
+  const fx = leftAlign ? x : x+(w-fw);
+  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
+  // Blue chakra gradient
+  grad.addColorStop(0,'#1e3a8a');
+  grad.addColorStop(0.5,'#3b82f6');
+  grad.addColorStop(1,'#93c5fd');
+  ctx.fillStyle=grad;
+  roundRect(fx,y,fw,h,3); ctx.fill();
+  // Sheen
+  ctx.fillStyle='rgba(255,255,255,0.25)';
+  roundRect(fx, y+1, fw, 2.5, 1.5); ctx.fill();
+  // Label + value
+  ctx.fillStyle = '#93c5fd';
+  ctx.shadowBlur = 6; ctx.shadowColor = '#3b82f6';
+  ctx.font='bold 10px system-ui'; ctx.textAlign=leftAlign?'left':'right';
+  ctx.fillText(`CHAKRA  ${Math.floor(f.meter)}/${f.maxMeter}`, leftAlign?x:x+w, y-3);
+  ctx.shadowBlur = 0;
+}
+
+function drawRageBar(x,y,w,f,leftAlign){
+  const h=8;
+  ctx.fillStyle='rgba(0,0,0,0.65)';
+  roundRect(x,y,w,h,3); ctx.fill();
+  const pct = Math.max(0, Math.min(1, (f.rage||0) / f.maxRage));
+  const fw = w*pct;
+  const fx = leftAlign ? x : x+(w-fw);
+  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
+  grad.addColorStop(0,'#7f1d1d');
+  grad.addColorStop(0.5,'#dc2626');
+  grad.addColorStop(1,'#fca5a5');
+  ctx.fillStyle=grad;
+  roundRect(fx,y,fw,h,3); ctx.fill();
+  // Sheen
+  ctx.fillStyle='rgba(255,255,255,0.22)';
+  roundRect(fx, y+1, fw, 2, 1.5); ctx.fill();
+  // Label
+  if(pct>=0.5){
+    ctx.shadowBlur = 8; ctx.shadowColor = '#dc2626';
+  }
+  ctx.fillStyle = pct>=0.5 ? '#fca5a5' : '#7f1d1d';
+  ctx.font='bold 9px system-ui'; ctx.textAlign=leftAlign?'left':'right';
+  ctx.fillText(`RAGE  ${Math.floor(f.rage||0)}/${f.maxRage}`, leftAlign?x:x+w, y-3);
+  ctx.shadowBlur = 0;
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);
+  else{
+    ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  }
+}
+
+// ── Main loop ──────────────────────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  frame++; bgTime+=0.01;
+
+  // Hitstop pause
+  if(hitstop>0){ hitstop--; drawAll(); resetPressed(); return; }
+
+  if(phase==='countdown'){
+    cdTimer--;
+    if(cdTimer<=0){phase='play';hideAllOv()}
+    else {
+      const sec = Math.ceil(cdTimer/60);
+      const el = document.getElementById('cd-num');
+      if(sec===0)el.textContent='FIGHT!'; else el.textContent=String(sec);
+      el.className = sec===0?'fight':'cd';
+    }
+  }
+
+  if(phase==='play'){
+    updateFighter(f1, f2);
+    updateFighter(f2, f1);
+    checkHits();
+    updateProjectiles();
+    updateShadowClones();
+    frameTimer++;
+    if(frameTimer>=60){frameTimer=0; roundTimer--;}
+    if(roundTimer<=0 && phase==='play'){
+      // Time over → higher HP wins
+      if(f1.hp>f2.hp){f2.ko=true; triggerKO(f1,f2)}
+      else if(f2.hp>f1.hp){f1.ko=true; triggerKO(f2,f1)}
+      else { // draw — both lose a chance, restart same round
+        showOv('ov-ko');
+        document.getElementById('rnd-msg').textContent='Time Up — Draw!';
+        phase='ko'; koTimer=120;
+      }
+    }
+  }
+
+  if(phase==='ko'){
+    // continue physics so fallen body falls
+    if(f1)updateFighter(f1, f2||f1);
+    if(f2)updateFighter(f2, f1||f2);
+    koTimer--;
+    if(koTimer<=0) endRound();
+  }
+
+  updateFx();
+  if(shake>0)shake*=0.86;
+  drawAll();
+  resetPressed();
+}
+
+function resetPressed(){ for(const k in PRESSED)PRESSED[k]=false }
+
+function drawAll(){
+  ctx.save();
+  if(shake>0.5){
+    ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
+  }
+  drawBg();
+  if(f1 && f2){
+    // Draw back-to-front (whoever is farther draws first)
+    if(f1.y < f2.y){ drawFighter(f1,f2); drawFighter(f2,f1); }
+    else{ drawFighter(f2,f1); drawFighter(f1,f2); }
+    drawShadowClones();
+    drawProjectiles();
+    drawFx();
+    drawHUD();
+  }
+  ctx.restore();
+}
+
+// ── Projectile rendering ───────────────────────────────────────
+function drawProjectiles(){
+  for(const p of projectiles){
+    if(p.type === 'rasengan'){
+      // Blue-white swirling sphere
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      // Outer glow
+      const halo = ctx.createRadialGradient(0,0,2, 0,0, p.radius*1.8);
+      halo.addColorStop(0,'rgba(191,219,254,0.9)');
+      halo.addColorStop(0.5,'rgba(59,130,246,0.45)');
+      halo.addColorStop(1,'rgba(30,58,138,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(0,0, p.radius*1.8, 0, Math.PI*2); ctx.fill();
+      // Solid core
+      ctx.fillStyle = '#dbeafe';
+      ctx.beginPath(); ctx.arc(0,0, p.radius*0.6, 0, Math.PI*2); ctx.fill();
+      // Swirling spiral lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2;
+      for(let i=0;i<3;i++){
+        const a0 = p.spin + i*(Math.PI*2/3);
+        ctx.beginPath();
+        for(let t=0; t<Math.PI*1.5; t+=0.2){
+          const r = p.radius * (1 - t/(Math.PI*3));
+          const x = Math.cos(a0+t)*r;
+          const y = Math.sin(a0+t)*r;
+          if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+      // Highlight dot
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(-3,-3, 2, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      // Trail
+      if(frame%2===0){
+        particles.push({x:p.x - p.vx*0.5, y:p.y, vx:0, vy:0, life:0.6,
+          col:'rgba(147,197,253,0.9)', r:p.radius*0.5});
+      }
+    } else if(p.type === 'rasenShuriken'){
+      // White 4-bladed shuriken
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.spin);
+      // Outer glow (windy)
+      const halo = ctx.createRadialGradient(0,0,2, 0,0, p.radius*1.7);
+      halo.addColorStop(0,'rgba(255,255,255,0.9)');
+      halo.addColorStop(0.6,'rgba(186,230,253,0.5)');
+      halo.addColorStop(1,'rgba(125,211,252,0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(0,0, p.radius*1.7, 0, Math.PI*2); ctx.fill();
+      // 4 blades (windmill)
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = '#bae6fd';
+      ctx.lineWidth = 1.5;
+      for(let b=0;b<4;b++){
+        ctx.save();
+        ctx.rotate(b * Math.PI/2);
+        ctx.beginPath();
+        ctx.moveTo(0,0);
+        ctx.lineTo(p.radius*0.6, -p.radius*0.25);
+        ctx.lineTo(p.radius*1.0, 0);
+        ctx.lineTo(p.radius*0.6, p.radius*0.25);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        ctx.restore();
+      }
+      // Center hub (blue rasengan core)
+      ctx.fillStyle = '#3b82f6';
+      ctx.beginPath(); ctx.arc(0,0, p.radius*0.28, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#dbeafe';
+      ctx.beginPath(); ctx.arc(0,0, p.radius*0.18, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      // Trail
+      if(frame%2===0){
+        particles.push({x:p.x - p.vx*0.6, y:p.y, vx:0, vy:0, life:0.5,
+          col:'rgba(255,255,255,0.8)', r:p.radius*0.4});
+      }
+    }
+  }
+}
+
+// ── Shadow clone rendering (orange Naruto silhouette) ──────────
+function drawShadowClones(){
+  for(const c of shadowClones){
+    const owner = c.owner;
+    const cl = owner.c;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.scale(c.dir, 1);
+    ctx.globalAlpha = 0.85;
+    // Body (jacket)
+    ctx.fillStyle = cl.top || '#f97316';
+    roundRect(-18, -98, 36, 50, 8); ctx.fill();
+    // Black shoulders
+    ctx.fillStyle = cl.topDark || '#000';
+    roundRect(-18, -98, 10, 18, 5); ctx.fill();
+    roundRect(8, -98, 10, 18, 5); ctx.fill();
+    // Pants
+    ctx.fillStyle = cl.pants || '#f97316';
+    roundRect(-15, -52, 30, 28, 5); ctx.fill();
+    // Head
+    ctx.fillStyle = cl.skin || '#e8b890';
+    ctx.beginPath(); ctx.arc(0, -108, 14, 0, Math.PI*2); ctx.fill();
+    // Spiky hair (simplified)
+    ctx.fillStyle = cl.hair || '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(-14, -106);
+    ctx.lineTo(-10, -118); ctx.lineTo(-5, -110);
+    ctx.lineTo(0, -122); ctx.lineTo(5, -110);
+    ctx.lineTo(10, -118); ctx.lineTo(14, -106);
+    ctx.closePath(); ctx.fill();
+    // Headband
+    ctx.fillStyle = cl.headband || '#1e40af';
+    ctx.fillRect(-14, -115, 28, 4);
+    ctx.fillStyle = cl.plate || '#c0c5d0';
+    ctx.fillRect(-9, -115, 18, 4);
+    // Punching arm during attack window
+    if(c.state==='attack' && c.sTime>=4 && c.sTime<=14){
+      const ext = (c.sTime-4)/10;
+      ctx.fillStyle = cl.top;
+      roundRect(8, -90, 20+ext*30, 9, 4); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(30+ext*30, -85, 7, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+    // Faint orange glow underneath
+    const g = ctx.createRadialGradient(c.x, c.y-50, 4, c.x, c.y-50, 80);
+    g.addColorStop(0,'rgba(249,115,22,0.18)');
+    g.addColorStop(1,'rgba(249,115,22,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(c.x, c.y-50, 80, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ── Boot ───────────────────────────────────────────────────────
+ctx.fillStyle='#05050f'; ctx.fillRect(0,0,W,H);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

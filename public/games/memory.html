@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Memory Match</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;user-select:none}
+h1{color:#e879f9;font-size:1.8rem;font-weight:900;text-shadow:0 0 20px rgba(232,121,249,.4);margin-bottom:10px}
+.top{display:flex;gap:14px;margin-bottom:14px}
+.box{background:#0f0f1a;border:2px solid #1e1e3a;border-radius:10px;padding:8px 18px;text-align:center}
+.box .lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+.box .val{font-size:20px;font-weight:800;color:#e879f9}
+.grid{display:grid;gap:8px}
+.card{width:70px;height:70px;position:relative;cursor:pointer;perspective:600px}
+.card-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .35s cubic-bezier(.4,0,.2,1);border-radius:10px}
+.card.flipped .card-inner{transform:rotateY(180deg)}
+.front,.back{position:absolute;inset:0;border-radius:10px;backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+.front{background:#0f0f1a;border:2px solid #1e1e3a;font-size:28px}
+.back{background:#16162a;border:2px solid #2d2d5a;transform:rotateY(180deg);font-size:32px}
+.card.matched .front{background:#1a0d2e;border-color:#7c3aed;box-shadow:0 0 12px rgba(168,85,247,.3)}
+.card.matched .back{background:#1a0d2e;border-color:#7c3aed;box-shadow:0 0 12px rgba(168,85,247,.3)}
+.card:not(.flipped):not(.matched):hover .card-inner{transform:rotateY(15deg)}
+.btn{background:#a855f7;color:#fff;border:none;padding:10px 28px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;margin-top:12px;transition:.15s}
+.btn:hover{background:#9333ea}
+.win{position:fixed;inset:0;background:rgba(7,7,13,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.win h2{font-size:2.5rem;color:#e879f9;text-shadow:0 0 20px rgba(232,121,249,.5)}
+.win p{color:#94a3b8;font-size:16px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<h1>🃏 Memory Match</h1>
+<div class="top">
+  <div class="box"><div class="lbl">Moves</div><div class="val" id="moves">0</div></div>
+  <div class="box"><div class="lbl">Pairs</div><div class="val" id="pairs">0</div></div>
+  <div class="box"><div class="lbl">Time</div><div class="val" id="timer">0s</div></div>
+</div>
+<div class="grid" id="grid"></div>
+<button class="btn" onclick="startGame()">New Game</button>
+
+<div class="win" id="win">
+  <h2>🎉 You Win!</h2>
+  <p id="win-stats"></p>
+  <button class="btn" onclick="startGame();document.getElementById('win').style.display='none'">Play Again</button>
+</div>
+
+<script>
+const EMOJIS=['🚀','🎮','⚡','🔥','💎','🌙','🎯','🦋','🌈','🎸','🏆','🍕','🦄','🎪','🎭','🌺'];
+let flipped=[],matched=0,moves=0,pairs=0,lock=false,timerVal=0,timerID,started=false;
+
+function startGame(){
+  clearInterval(timerID);
+  const cols=4,rows=4,total=cols*rows/2;
+  const emojis=[...EMOJIS.slice(0,total),...EMOJIS.slice(0,total)].sort(()=>Math.random()-.5);
+  const G=document.getElementById('grid');
+  G.style.gridTemplateColumns=`repeat(${cols},70px)`;
+  G.innerHTML='';
+  flipped=[];matched=0;moves=0;pairs=0;lock=false;timerVal=0;started=false;
+  upUI();
+  emojis.forEach((e,i)=>{
+    const card=document.createElement('div');
+    card.className='card';
+    card.dataset.emoji=e;
+    card.innerHTML=`<div class="card-inner"><div class="back">${e}</div><div class="front">?</div></div>`;
+    card.addEventListener('click',()=>flip(card));
+    G.appendChild(card);
+  });
+}
+
+function flip(card){
+  if(lock||card.classList.contains('flipped')||card.classList.contains('matched'))return;
+  if(!started){started=true;timerID=setInterval(()=>{timerVal++;document.getElementById('timer').textContent=timerVal+'s'},1000)}
+  card.classList.add('flipped');
+  flipped.push(card);
+  if(flipped.length===2){
+    moves++;upUI();lock=true;
+    const [a,b]=flipped;
+    if(a.dataset.emoji===b.dataset.emoji){
+      a.classList.add('matched');b.classList.add('matched');
+      matched++;pairs++;upUI();flipped=[];lock=false;
+      if(matched===8){clearInterval(timerID);setTimeout(showWin,300)}
+    } else {
+      setTimeout(()=>{a.classList.remove('flipped');b.classList.remove('flipped');flipped=[];lock=false},900);
+    }
+  }
+}
+
+function upUI(){
+  document.getElementById('moves').textContent=moves;
+  document.getElementById('pairs').textContent=`${pairs}/8`;
+}
+
+function showWin(){
+  document.getElementById('win-stats').textContent=`${moves} moves · ${timerVal} seconds`;
+  document.getElementById('win').style.display='flex';
+}
+
+startGame();
+</script>
+</body>
+</html>

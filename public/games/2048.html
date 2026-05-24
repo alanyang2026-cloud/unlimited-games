@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>2048</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;user-select:none}
+h1{color:#f59e0b;font-size:2.5rem;font-weight:900;text-shadow:0 0 20px rgba(245,158,11,.4);margin-bottom:8px}
+.top{display:flex;gap:12px;margin-bottom:14px;align-items:center}
+.sbox{background:#0f0f1a;border:2px solid #1e1e3a;border-radius:10px;padding:8px 18px;text-align:center}
+.sbox .lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
+.sbox .val{font-size:20px;font-weight:800;color:#f59e0b}
+.new-btn{background:#a855f7;color:#fff;border:none;padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;transition:.15s}
+.new-btn:hover{background:#9333ea}
+#board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#0f0f1a;border:2px solid #1e1e3a;padding:12px;border-radius:14px;width:340px}
+.cell{width:72px;height:72px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;transition:all .1s;background:#16162a}
+.c2{background:#a855f7;color:#fff;font-size:26px}
+.c4{background:#9333ea;color:#fff}
+.c8{background:#7c3aed;color:#fff}
+.c16{background:#6d28d9;color:#fff;font-size:20px}
+.c32{background:#f59e0b;color:#fff;font-size:20px}
+.c64{background:#f97316;color:#fff;font-size:18px}
+.c128{background:#ef4444;color:#fff;font-size:18px}
+.c256{background:#ec4899;color:#fff;font-size:16px}
+.c512{background:#06b6d4;color:#fff;font-size:16px}
+.c1024{background:#10b981;color:#fff;font-size:14px}
+.c2048{background:#fbbf24;color:#fff;font-size:14px;box-shadow:0 0 20px rgba(251,191,36,.5)}
+.pop{animation:pop .15s ease-out}
+@keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
+.ov{position:fixed;inset:0;background:rgba(7,7,13,.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.ov h2{font-size:2rem;color:#a855f7}
+.ov p{color:#94a3b8}
+.ov .btn{background:#a855f7;color:#fff;border:none;padding:12px 32px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer}
+.hint{color:#374151;font-size:12px;margin-top:10px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<h1>2048</h1>
+<div class="top">
+  <div class="sbox"><div class="lbl">Score</div><div class="val" id="sc">0</div></div>
+  <div class="sbox"><div class="lbl">Best</div><div class="val" id="bst">0</div></div>
+  <button class="new-btn" onclick="init()">New Game</button>
+</div>
+<div id="board"></div>
+<p class="hint">Arrow keys / WASD · Swipe on mobile</p>
+<div class="ov" id="ov">
+  <h2 id="ov-title">Game Over!</h2>
+  <p>Score: <b id="ov-sc" style="color:#a855f7"></b></p>
+  <button class="btn" onclick="init();document.getElementById('ov').style.display='none'">Play Again</button>
+</div>
+<script>
+let grid,score,best=0;
+const B=document.getElementById('board');
+
+function init(){
+  grid=Array.from({length:4},()=>Array(4).fill(0));
+  score=0;upsc();add();add();render();
+}
+
+function add(){
+  const empty=[];
+  grid.forEach((r,y)=>r.forEach((v,x)=>{if(!v)empty.push({x,y})}));
+  if(!empty.length)return;
+  const {x,y}=empty[~~(Math.random()*empty.length)];
+  grid[y][x]=Math.random()<.9?2:4;
+}
+
+function render(){
+  B.innerHTML='';
+  grid.forEach(row=>row.forEach(v=>{
+    const d=document.createElement('div');
+    d.className='cell'+(v?` c${v}`:'');
+    d.textContent=v||'';
+    if(v)d.classList.add('pop');
+    B.appendChild(d);
+  }));
+}
+
+function upsc(){
+  document.getElementById('sc').textContent=score;
+  if(score>best){best=score;document.getElementById('bst').textContent=best}
+}
+
+function slide(row){
+  let r=row.filter(v=>v),changed=false,pts=0;
+  for(let i=0;i<r.length-1;i++){
+    if(r[i]===r[i+1]){r[i]*=2;pts+=r[i];r.splice(i+1,1);changed=true;i++}
+  }
+  while(r.length<4)r.push(0);
+  return{r,changed,pts};
+}
+
+function move(dx,dy){
+  let moved=false,pts=0;
+  for(let i=0;i<4;i++){
+    let row=[];
+    for(let j=0;j<4;j++)row.push(dy===0?grid[i][dx<0?j:3-j]:grid[dx===0?j:3-j][i]);
+    const {r,changed,pts:p}=slide(row);
+    if(changed){moved=true;pts+=p}
+    for(let j=0;j<4;j++){
+      if(dy===0)grid[i][dx<0?j:3-j]=r[j];
+      else grid[dx===0?j:3-j][i]=r[j];
+    }
+  }
+  if(moved){score+=pts;upsc();add();render();checkEnd()}
+}
+
+function checkEnd(){
+  // win
+  if(grid.flat().includes(2048)){end('🎉 You Win!');return}
+  // lose
+  for(let y=0;y<4;y++)for(let x=0;x<4;x++){
+    if(!grid[y][x])return;
+    if(x<3&&grid[y][x]===grid[y][x+1])return;
+    if(y<3&&grid[y][x]===grid[y+1][x])return;
+  }
+  end('💀 Game Over');
+}
+
+function end(msg){
+  document.getElementById('ov-title').textContent=msg;
+  document.getElementById('ov-sc').textContent=score;
+  document.getElementById('ov').style.display='flex';
+}
+
+document.addEventListener('keydown',e=>{
+  const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1],
+           a:[-1,0],d:[1,0],w:[0,-1],s:[0,1]};
+  const v=m[e.key];if(!v)return;
+  e.preventDefault();move(...v);
+});
+
+let tx=0,ty=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>20)move(dx>0?1:-1,0);
+  else if(Math.abs(dy)>20)move(0,dy>0?1:-1);
+},{passive:true});
+
+init();
+</script>
+</body>
+</html>

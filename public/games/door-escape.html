@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Find the Door</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#05050a;overflow:hidden;font-family:system-ui,sans-serif;color:#e2e8f0;user-select:none;height:100vh}
+canvas{display:block;border-radius:6px;image-rendering:pixelated;image-rendering:crisp-edges}
+.wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.7);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.5)}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,10,.92);backdrop-filter:blur(8px);z-index:50;padding:24px}
+.ov h1{font-size:3.4rem;font-weight:900;letter-spacing:-.02em;background:linear-gradient(135deg,#a855f7,#06b6d4,#22c55e);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:6px;font-family:monospace}
+.ov h2{font-size:1.2rem;color:#94a3b8;margin-bottom:20px;font-weight:500}
+.ov p{color:#94a3b8;font-size:14px;text-align:center;line-height:1.7;max-width:480px;margin-bottom:8px}
+.ks{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 22px;margin:14px 0 22px;font-size:13px;line-height:1.9;color:#cbd5e1;font-family:monospace}
+.ks b{color:#a855f7}
+.ks i{color:#fbbf24;font-style:normal;display:block;margin-top:6px;font-size:12px}
+.btn{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;padding:13px 36px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.06em;transition:.15s;box-shadow:0 4px 20px rgba(168,85,247,.35);font-family:monospace}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(168,85,247,.55)}
+.btn.alt{background:#1e1e3a;box-shadow:none;margin-left:8px}
+.lvl-grid{display:grid;grid-template-columns:repeat(5,56px);gap:8px;margin:14px 0 20px}
+.lvl-btn{background:#1e293b;border:1px solid #334155;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;padding:10px;font-size:14px;transition:.15s;font-family:monospace}
+.lvl-btn:hover{background:#334155;transform:translateY(-1px)}
+.lvl-btn.done{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:#86efac}
+.lvl-btn.locked{opacity:.35;cursor:not-allowed}
+.lvl-btn.current{background:linear-gradient(135deg,#a855f7,#7c3aed);border-color:#c084fc;box-shadow:0 0 16px rgba(168,85,247,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<div class="wrap"><canvas id="c"></canvas></div>
+
+<div class="ov" id="ov-s">
+  <h1>FIND THE DOOR</h1>
+  <h2>Only one door is real. The rest will kill you.</h2>
+  <div class="ks">
+    <div><b>A / D</b> or <b>← →</b> — walk</div>
+    <div><b>W</b> / <b>↑</b> / <b>SPACE</b> — jump</div>
+    <div><b>R</b> — restart room</div>
+    <i>↑ A gold arrow floats above the REAL door.</i>
+    <i>Fake doors look almost the same. Touch one and you die.</i>
+  </div>
+  <div class="lvl-grid" id="lvl-grid"></div>
+  <button class="btn" onclick="startLevel(0)">START</button>
+</div>
+
+<div class="ov" id="ov-win" style="display:none">
+  <h1 style="background:linear-gradient(135deg,#fbbf24,#22c55e,#06b6d4);-webkit-background-clip:text;background-clip:text;color:transparent">YOU FOUND IT.</h1>
+  <h2 style="color:#fbbf24">All 10 rooms cleared.</h2>
+  <p>Total deaths: <span id="win-deaths" style="color:#fff;font-weight:700">0</span></p>
+  <p style="margin-bottom:18px">There was only ever one real door.</p>
+  <div>
+    <button class="btn" onclick="hideWin();reset();showMenu()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  FIND THE DOOR — Pixel-art trick puzzle (只有一道门 inspired)
+//  Door coordinates [x, y] = player's FEET position to enter.
+// ═══════════════════════════════════════════════════════════════
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+C.width=960; C.height=540;
+const W=C.width, H=C.height;
+ctx.imageSmoothingEnabled=false;
+
+// ── Pixel sprites (8 wide for proper eye separation) ──────────
+// '#'=black body, 'E'=eye(white), '.'=transparent
+const CHAR_IDLE=[
+  "..####..",
+  ".######.",
+  ".######.",
+  "##E##E##",
+  "########",
+  ".######.",
+  ".######.",
+  "########",
+  "########",
+  "########",
+  "########",
+  ".##..##.",
+  ".##..##.",
+  "##....##",
+];
+const CHAR_WALK_A=[
+  "..####..",
+  ".######.",
+  ".######.",
+  "##E##E##",
+  "########",
+  ".######.",
+  ".######.",
+  "########",
+  "########",
+  "########",
+  "########",
+  "..##.##.",
+  "..##.##.",
+  ".###..##",
+];
+const CHAR_WALK_B=[
+  "..####..",
+  ".######.",
+  ".######.",
+  "##E##E##",
+  "########",
+  ".######.",
+  ".######.",
+  "########",
+  "########",
+  "########",
+  "########",
+  ".##.##..",
+  ".##.##..",
+  "##..###.",
+];
+const CHAR_JUMP=[
+  "..####..",
+  ".######.",
+  ".######.",
+  "##E##E##",
+  "########",
+  ".######.",
+  "########",
+  "########",
+  "########",
+  "########",
+  ".######.",
+  ".##.##..",
+  ".##.##..",
+  "##..##..",
+];
+
+// Pixel-art door (A=frame, B=darkest wood, C=mid wood, D=light wood, H=gold handle, X=panel crack)
+const DOOR_REAL=[
+  "AAAAAAAA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABCDDHBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "AAAAAAAA",
+];
+const DOOR_FAKE=[
+  "AAAAAAAA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "ABCDXCBA",
+  "ABCDDCBA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABCDDCBA",
+  "ABCDXCBA",
+  "ABCDDCBA",
+  "ABBBBBBA",
+  "ABCDDCBA",
+  "AAAAAAAA",
+];
+const DOOR_COLORS={A:'#1c1310',B:'#451a03',C:'#78350f',D:'#b45309',H:'#fbbf24',X:'#3d1e0a'};
+const CHAR_COLORS={'#':'#000',E:'#fff'};
+
+const CHAR_SCALE=3;
+const CHAR_H = 14*CHAR_SCALE; // 42 (sprite height)
+const CHAR_HALF = 9;          // collision half-width
+
+// Key sprite
+const KEY_SPR=[
+  "..HHHH..",
+  ".H....H.",
+  "H.HHHH.H",
+  "H.HHHH.H",
+  ".H....H.",
+  "..HHHH..",
+  "...HH...",
+  "...HH...",
+  "...HH...",
+  "..HHHH..",
+  "...HH...",
+  "..HHHH..",
+];
+
+// ── Sprite renderer ───────────────────────────────────────────
+function drawPixelSprite(sprite, cx, cy, scale, colorMap, facing=1, alpha=1){
+  const rows=sprite.length, cols=sprite[0].length;
+  if(alpha<1)ctx.globalAlpha=alpha;
+  for(let r=0;r<rows;r++){
+    for(let c=0;c<cols;c++){
+      const ch=sprite[r][c];
+      if(ch==='.')continue;
+      const col=colorMap[ch];
+      if(!col)continue;
+      const px=facing<0?(cols-1-c):c;
+      const sx=Math.floor(cx+(px-cols/2)*scale);
+      const sy=Math.floor(cy-(rows-r)*scale);
+      ctx.fillStyle=col;
+      ctx.fillRect(sx,sy,scale,scale);
+    }
+  }
+  if(alpha<1)ctx.globalAlpha=1;
+}
+
+// ── Levels ────────────────────────────────────────────────────
+// door:[x,y]  — y is the player's FEET position to enter (= floor surface)
+// Obstacle types:
+//  wall   — solid block
+//  spike  — floor spikes (kill on touch)
+//  cspike — ceiling spikes
+//  axe    — pendulum
+//  fall   — falling spike (telegraph + drop)
+//  btn    — pressure plate (id activates same-id hwall/gate)
+//  gate   — solid until btn pressed
+//  fdoor  — fake door at [x,y] feet-position (kills on touch, triggers spike drop)
+//  crumb  — wall tile that crumbles after standing on
+//  flash  — spike that turns on/off on a timed cycle
+//  hwall  — hidden wall; solid until any matching btn is pressed
+//  key    — collectable required for needsKey doors
+const LEVELS=[
+  // ─── L1 — Walk to door ─────────────────────────────────────
+  { hint:'Walk to the door.',
+    spawn:[80,480], door:[860,480],
+    obs:[ {t:'wall',x:0,y:480,w:W,h:60} ] },
+
+  // ─── L2 — Jump the spike pit ───────────────────────────────
+  { hint:'Jump the spike pit.',
+    spawn:[60,480], door:[890,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:440,h:60},
+      {t:'spike',x:440,y:498,w:130,h:42},
+      {t:'wall',x:570,y:480,w:W-570,h:60},
+    ] },
+
+  // ─── L3 — The fake door (first trick) ──────────────────────
+  // Player sees a door midway. It has NO arrow above it. Touch = die.
+  // Real door is at the far right (with arrow).
+  { hint:'A door without an arrow is a lie.',
+    spawn:[40,480], door:[890,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      {t:'fdoor',x:420,y:480},
+      {t:'spike',x:630,y:464,w:80,h:18},
+    ] },
+
+  // ─── L4 — Two doors. Pick the one with the arrow ───────────
+  { hint:'Pick the door with the arrow.',
+    spawn:[460,480], door:[140,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      {t:'fdoor',x:830,y:480},
+      {t:'spike',x:280,y:464,w:140,h:18},
+      {t:'wall',x:230,y:436,w:130,h:14},
+      {t:'spike',x:620,y:464,w:80,h:18},
+    ] },
+
+  // ─── L5 — Crumble floor: don't stop ────────────────────────
+  { hint:'Don\'t stand still — floor falls.',
+    spawn:[60,480], door:[890,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:140,h:60},
+      ...crumbRow(140, 480, 60, 12),
+      {t:'wall',x:860,y:480,w:100,h:60},
+      {t:'spike',x:140,y:560,w:720,h:32},
+    ] },
+
+  // ─── L6 — The door is hidden. Find the button ──────────────
+  // The right side has an hwall covering the real door.
+  // A fake door tempts the player elsewhere. The button up high reveals.
+  { hint:'There must be another way…',
+    spawn:[50,480], door:[890,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      {t:'wall',x:240,y:380,w:140,h:14},
+      {t:'btn',x:268,y:368,id:'reveal'},
+      {t:'hwall',x:855,y:438,w:70,h:42,revealsDoor:true},
+      {t:'spike',x:500,y:464,w:80,h:18},
+      {t:'fdoor',x:700,y:480},
+      // Climb helper to reach the button
+      {t:'wall',x:120,y:430,w:60,h:14},
+    ] },
+
+  // ─── L7 — The shy door (teleports on a cycle) ──────────────
+  { hint:'The door is shy. Time your dash.',
+    spawn:[470,480], door:[880,480],
+    teleportPositions:[[880,480],[480,254],[80,480]],
+    teleportCycle:210,
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      {t:'spike',x:300,y:464,w:80,h:18},
+      {t:'spike',x:580,y:464,w:80,h:18},
+      // Stair to top door
+      {t:'wall',x:360,y:380,w:60,h:14},
+      {t:'wall',x:430,y:320,w:80,h:14},
+      {t:'wall',x:420,y:254,w:140,h:14},
+    ] },
+
+  // ─── L8 — Chase: spike wall from the left ──────────────────
+  { hint:'Run. Don\'t look back.',
+    spawn:[80,480], door:[900,480],
+    chase:{x:-60, vx:2.1, startX:-60},
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      // floor bumps you must jump
+      {t:'wall',x:280,y:460,w:24,h:20},
+      {t:'wall',x:460,y:445,w:24,h:35},
+      {t:'wall',x:640,y:430,w:24,h:50},
+    ] },
+
+  // ─── L9 — Flashing spikes (timing) ─────────────────────────
+  { hint:'Step when spikes sleep.',
+    spawn:[40,480], door:[890,480],
+    obs:[
+      {t:'wall',x:0,y:480,w:W,h:60},
+      {t:'flash',x:180,y:464,w:120,h:18,period:120,onFrom:40,onTo:95,phase:0},
+      {t:'flash',x:380,y:464,w:120,h:18,period:120,onFrom:40,onTo:95,phase:60},
+      {t:'flash',x:580,y:464,w:120,h:18,period:120,onFrom:40,onTo:95,phase:0},
+      {t:'flash',x:740,y:464,w:80,h:18,period:120,onFrom:40,onTo:95,phase:60},
+    ] },
+
+  // ─── L10 — Final: key + climb + traps + fake door ──────────
+  { hint:'Find the key. Find the real door.',
+    spawn:[40,480], door:[890,202],
+    needsKey:true,
+    obs:[
+      // Floor split by a deadly pit (no floor between 160-460)
+      {t:'wall',x:0,y:480,w:160,h:60},
+      {t:'wall',x:460,y:480,w:500,h:60},
+      ...crumbRow(160,480,60,5),
+      {t:'spike',x:160,y:560,w:300,h:32},
+      // fake door at floor level — tempting!
+      {t:'fdoor',x:830,y:480},
+      // climbing platforms (right side path)
+      {t:'wall',x:500,y:430,w:80,h:14},
+      {t:'wall',x:620,y:380,w:60,h:14},
+      {t:'wall',x:730,y:325,w:60,h:14},
+      {t:'wall',x:830,y:265,w:100,h:14},
+      {t:'wall',x:820,y:202,w:120,h:14},
+      // The key is on the LEFT (small detour before the climb)
+      {t:'wall',x:80,y:400,w:60,h:14},
+      {t:'wall',x:30,y:340,w:80,h:14},
+      {t:'key',x:60,y:305},
+      // Swinging axe across the climb
+      {t:'axe',cx:560,cy:120,len:200,speed:0.04,range:0.85,phase:0},
+    ] },
+];
+
+function crumbRow(x,y,size,count){
+  const r=[];
+  for(let i=0;i<count;i++)r.push({t:'crumb',x:x+i*size,y:y,w:size,h:60});
+  return r;
+}
+
+// ── Game state ────────────────────────────────────────────────
+let level=0, deaths=0, levelDeaths=0, frame=0, phase='menu';
+let player={x:0,y:0,vx:0,vy:0,onGround:false,alive:true,facing:1,deathT:0,hasKey:false};
+let particles=[];
+let buttons={};
+let cameraShake=0;
+let bestUnlocked=0;
+let levelDoneFlags=new Array(LEVELS.length).fill(false);
+let dropSpike=null;
+let messageT=0, message='';
+let teleportFlash=0;
+
+try{
+  const s=JSON.parse(localStorage.getItem('door-escape-progress')||'{}');
+  bestUnlocked=s.unlocked||0;
+  levelDoneFlags=s.done||levelDoneFlags;
+  deaths=s.deaths||0;
+}catch(e){}
+
+function saveProgress(){
+  try{localStorage.setItem('door-escape-progress',JSON.stringify({
+    unlocked:bestUnlocked,done:levelDoneFlags,deaths
+  }))}catch(e){}
+}
+
+// ── Input ─────────────────────────────────────────────────────
+const KEYS={}, PRESSED={};
+addEventListener('keydown',e=>{
+  if(!KEYS[e.code])PRESSED[e.code]=true;
+  KEYS[e.code]=true;
+  if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','KeyW','KeyS','KeyA','KeyD','KeyR'].includes(e.code))e.preventDefault();
+});
+addEventListener('keyup',e=>{KEYS[e.code]=false});
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+// ── Level start ───────────────────────────────────────────────
+function startLevel(n){
+  level=n;
+  const L=LEVELS[n];
+  player.x=L.spawn[0]; player.y=L.spawn[1];
+  player.vx=0; player.vy=0; player.onGround=false; player.alive=true;
+  player.facing=1; player.deathT=0; player.hasKey=false;
+  particles=[]; buttons={};
+  cameraShake=0; dropSpike=null;
+  messageT=0; teleportFlash=0;
+  for(const o of L.obs){
+    if(o.t==='fall'){o.y=96;o.vy=0;o.fallen=false}
+    if(o.t==='axe')o.t0=frame;
+    if(o.t==='crumb'){o.cracked=0;o.gone=false;o.standTime=0}
+    if(o.t==='hwall')o.revealed=false;
+    if(o.t==='key')o.taken=false;
+  }
+  if(L.chase)L.chase.x=L.chase.startX!==undefined?L.chase.startX:-40;
+  if(L.teleportPositions){
+    L.curTeleportIdx=0;
+    L.door=L.teleportPositions[0].slice();
+    L.teleportStart=frame;
+  }
+  hideMenu(); hideWin();
+  phase='play';
+}
+
+function die(){
+  if(!player.alive)return;
+  player.alive=false; player.deathT=0;
+  deaths++; levelDeaths++;
+  cameraShake=14;
+  const sx=player.x, sy=player.y-CHAR_H/2;
+  // pixel chunks scatter
+  for(let i=0;i<22;i++){
+    const a=Math.random()*Math.PI*2, sp=2+Math.random()*5;
+    particles.push({x:sx+rnd(-8,8),y:sy+rnd(-12,12),vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-3,life:1,col:'#000',r:CHAR_SCALE});
+  }
+  for(let i=0;i<14;i++){
+    const a=Math.random()*Math.PI*2, sp=1+Math.random()*4;
+    particles.push({x:sx,y:sy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-2,life:1,col:'#dc2626',r:CHAR_SCALE-1});
+  }
+  // eye dots
+  for(let i=0;i<2;i++){
+    particles.push({x:sx+rnd(-4,4),y:sy-12,vx:rnd(-3,3),vy:rnd(-4,-1),life:1,col:'#fff',r:CHAR_SCALE});
+  }
+  saveProgress();
+}
+
+function win(){
+  if(phase!=='play')return;
+  phase='cleared';
+  levelDoneFlags[level]=true;
+  bestUnlocked=Math.max(bestUnlocked,level+1);
+  saveProgress();
+  for(let i=0;i<14;i++){
+    particles.push({x:player.x,y:player.y-CHAR_H/2,vx:rnd(-2,2),vy:rnd(-4,-1),life:1,col:'#fbbf24',r:2});
+  }
+  setTimeout(()=>{
+    if(level+1>=LEVELS.length)showWinScreen();
+    else startLevel(level+1);
+  },800);
+}
+
+// ── Physics ───────────────────────────────────────────────────
+const GRAV=0.62, JUMP=12.6, WALK=3.4, MAXVY=15;
+
+function updatePlayer(){
+  if(!player.alive){player.deathT++;return}
+  if(phase!=='play')return;
+  const L=LEVELS[level];
+
+  const left=KEYS.KeyA||KEYS.ArrowLeft;
+  const right=KEYS.KeyD||KEYS.ArrowRight;
+  const jumpPressed=PRESSED.Space||PRESSED.KeyW||PRESSED.ArrowUp;
+
+  let mv=(right?1:0)-(left?1:0);
+  if(mv!==0)player.facing=mv;
+  const tvx=mv*WALK;
+  player.vx+=(tvx-player.vx)*(player.onGround?0.45:0.18);
+  if(Math.abs(player.vx)<0.05)player.vx=0;
+
+  if(jumpPressed&&player.onGround){player.vy=-JUMP;player.onGround=false}
+
+  player.vy+=GRAV;
+  if(player.vy>MAXVY)player.vy=MAXVY;
+
+  player.x+=player.vx;
+  collideAxis('x',L);
+  player.y+=player.vy;
+  player.onGround=false;
+  collideAxis('y',L);
+
+  if(player.x<8){player.x=8;player.vx=0}
+  if(player.x>W-8){player.x=W-8;player.vx=0}
+  if(player.y>H+60){die();return}
+
+  // Buttons
+  for(const o of L.obs){
+    if(o.t==='btn'){
+      const pb=playerBox();
+      if(rectOverlap(pb,{x:o.x,y:o.y,w:48,h:10})){
+        buttons[o.id]=true;
+        for(const ow of L.obs){
+          if(ow.t==='hwall' && ow.revealsDoor && !ow.revealed){
+            ow.revealed=true;
+            message='✦ HIDDEN DOOR REVEALED ✦';
+            messageT=120;
+            for(let i=0;i<10;i++){
+              particles.push({x:ow.x+ow.w/2,y:ow.y+ow.h/2,vx:rnd(-3,3),vy:rnd(-3,-1),life:1,col:'#fbbf24',r:2});
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Spikes
+  for(const o of L.obs){
+    const pb=playerBox();
+    if(o.t==='spike'&&rectOverlap(pb,{x:o.x,y:o.y,w:o.w,h:o.h})){die();return}
+    if(o.t==='cspike'&&rectOverlap(pb,{x:o.x,y:o.y,w:o.w,h:o.h})){die();return}
+    if(o.t==='flash'){
+      const ph=((frame+(o.phase||0))%o.period);
+      if(ph>=o.onFrom && ph<=o.onTo && rectOverlap(pb,{x:o.x,y:o.y,w:o.w,h:o.h})){die();return}
+    }
+  }
+
+  // Axe
+  for(const o of L.obs){
+    if(o.t==='axe'){
+      const ang=Math.sin((frame-o.t0)*o.speed+o.phase)*o.range;
+      o.hx=o.cx+Math.sin(ang)*o.len;
+      o.hy=o.cy+Math.cos(ang)*o.len;
+      const dx=o.hx-player.x, dy=o.hy-(player.y-CHAR_H/2);
+      if(dx*dx+dy*dy<28*28){die();return}
+    }
+  }
+
+  // Falling spike
+  for(const o of L.obs){
+    if(o.t==='fall'){
+      const ph=(frame+o.phase)%o.period;
+      if(ph<o.period*0.65){o.y=96;o.falling=false}
+      else if(ph<o.period*0.7){o.y=96+Math.sin(frame*1.2)*2}
+      else {
+        if(!o.falling){o.falling=true;o.vy=0}
+        o.vy+=1.1; o.y+=o.vy;
+        if(o.y>H+30){o.y=96;o.vy=0;o.falling=false}
+        const pb=playerBox();
+        if(rectOverlap(pb,{x:o.x-14,y:o.y,w:28,h:34})){die();return}
+      }
+    }
+  }
+
+  // Crumble tiles
+  for(const o of L.obs){
+    if(o.t==='crumb'&&!o.gone){
+      const standing = player.onGround && Math.abs(player.y-o.y)<3 &&
+        player.x+CHAR_HALF>o.x && player.x-CHAR_HALF<o.x+o.w;
+      if(standing){
+        o.standTime++;
+        if(o.standTime>15)o.cracked=Math.min(2,Math.floor((o.standTime-15)/8));
+        if(o.standTime>35){
+          o.gone=true;
+          for(let i=0;i<8;i++){
+            particles.push({x:o.x+o.w/2,y:o.y+10,vx:rnd(-2,2),vy:rnd(-2,1),life:1,col:'#475569',r:3});
+          }
+        }
+      }
+    }
+  }
+
+  // Fake door: collision with the door body kills
+  for(const o of L.obs){
+    if(o.t==='fdoor'){
+      const pb=playerBox();
+      const dbox={x:o.x-12,y:o.y-CHAR_H,w:24,h:CHAR_H};
+      if(rectOverlap(pb,dbox)){
+        dropSpike={x:o.x,y:o.y-220,vy:0,t:0};
+        cameraShake=12;
+        die();
+        return;
+      }
+    }
+  }
+
+  // Key pickup
+  for(const o of L.obs){
+    if(o.t==='key'&&!o.taken){
+      const pb=playerBox();
+      if(rectOverlap(pb,{x:o.x-12,y:o.y-30,w:24,h:36})){
+        o.taken=true;
+        player.hasKey=true;
+        for(let i=0;i<14;i++){
+          particles.push({x:o.x,y:o.y,vx:rnd(-2,2),vy:rnd(-3,-0.5),life:1,col:'#fbbf24',r:2});
+        }
+        message='✦ KEY ACQUIRED ✦';
+        messageT=120;
+      }
+    }
+  }
+
+  // Teleport door (time-based cycle)
+  if(L.teleportPositions){
+    const cycleLen=L.teleportCycle||210;
+    const idx=Math.floor((frame-L.teleportStart)/cycleLen)%L.teleportPositions.length;
+    if(idx!==L.curTeleportIdx){
+      const [oldDx,oldDy]=L.door;
+      L.curTeleportIdx=idx;
+      L.door=L.teleportPositions[idx].slice();
+      teleportFlash=22;
+      for(let i=0;i<12;i++){
+        particles.push({x:oldDx,y:oldDy-CHAR_H/2,vx:rnd(-3,3),vy:rnd(-3,3),life:1,col:'#a855f7',r:3});
+      }
+    }
+  }
+
+  // Chase wall
+  if(L.chase){
+    L.chase.x+=L.chase.vx;
+    if(player.x-CHAR_HALF < L.chase.x+24){die();return}
+  }
+
+  // Reach door (player's feet near door's feet position)
+  const [dx,dy]=L.door;
+  const ddx=dx - player.x, ddy=dy - player.y;
+  if(Math.abs(ddx)<18 && Math.abs(ddy)<10){
+    if(L.needsKey && !player.hasKey){
+      if(messageT<=0){message='✗ NEED THE KEY';messageT=60}
+    } else {
+      win();
+    }
+  }
+}
+
+function playerBox(){return {x:player.x-CHAR_HALF, y:player.y-CHAR_H, w:CHAR_HALF*2, h:CHAR_H}}
+function rectOverlap(a,b){return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y}
+
+function collideAxis(axis,L){
+  const pb=playerBox();
+  for(const o of L.obs){
+    let box=null;
+    if(o.t==='wall')box={x:o.x,y:o.y,w:o.w,h:o.h};
+    else if(o.t==='gate'&&!buttons[o.id])box={x:o.x,y:o.y,w:o.w,h:o.h};
+    else if(o.t==='crumb'&&!o.gone)box={x:o.x,y:o.y,w:o.w,h:o.h};
+    else if(o.t==='hwall'&&!o.revealed)box={x:o.x,y:o.y,w:o.w,h:o.h};
+    else continue;
+    if(rectOverlap(pb,box)){
+      if(axis==='x'){
+        if(player.vx>0)player.x=box.x-CHAR_HALF;
+        else if(player.vx<0)player.x=box.x+box.w+CHAR_HALF;
+        player.vx=0;
+      } else {
+        if(player.vy>0){player.y=box.y;player.onGround=true}
+        else if(player.vy<0){player.y=box.y+box.h+CHAR_H}
+        player.vy=0;
+      }
+      pb.x=player.x-CHAR_HALF; pb.y=player.y-CHAR_H;
+    }
+  }
+}
+
+// ── Background ────────────────────────────────────────────────
+function drawBg(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#1e1b2e');
+  g.addColorStop(1,'#0a0612');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // pixel checker
+  ctx.fillStyle='rgba(168,85,247,0.04)';
+  for(let x=0;x<W;x+=24){
+    for(let y=0;y<H;y+=24){
+      if(((x/24)+(y/24))%2===0)ctx.fillRect(x,y,12,12);
+    }
+  }
+  // Vignette
+  const vg=ctx.createRadialGradient(W/2,H/2,W*0.3,W/2,H/2,W*0.65);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(0,0,0,0.55)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+}
+
+// ── Obstacle drawing ──────────────────────────────────────────
+function drawObstacles(){
+  const L=LEVELS[level];
+  for(const o of L.obs){
+    if(o.t==='wall')drawWall(o);
+    else if(o.t==='spike')drawSpikes(o,false);
+    else if(o.t==='cspike')drawSpikes(o,true);
+    else if(o.t==='axe')drawAxe(o);
+    else if(o.t==='fall')drawFall(o);
+    else if(o.t==='btn')drawBtn(o);
+    else if(o.t==='gate')drawGate(o);
+    else if(o.t==='hwall')drawHWall(o);
+    else if(o.t==='fdoor')drawFakeDoor(o);
+    else if(o.t==='crumb')drawCrumble(o);
+    else if(o.t==='flash')drawFlashSpike(o);
+    else if(o.t==='key')drawKey(o);
+  }
+  if(L.chase)drawChase(L.chase);
+  if(dropSpike)drawDropSpike();
+}
+
+function drawWall(o){
+  ctx.fillStyle='#1e293b';
+  ctx.fillRect(o.x,o.y,o.w,o.h);
+  ctx.fillStyle='#475569';
+  ctx.fillRect(o.x,o.y,o.w,3);
+  // brick pattern
+  ctx.fillStyle='#0f172a';
+  for(let by=o.y+12;by<o.y+o.h;by+=12){
+    ctx.fillRect(o.x,by,o.w,1);
+  }
+  for(let bx=o.x;bx<o.x+o.w;bx+=24){
+    const stagger=((bx/24)%2===0)?0:12;
+    for(let by=o.y;by<o.y+o.h;by+=24){
+      ctx.fillRect(bx+stagger,by,1,12);
+    }
+  }
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  ctx.fillRect(o.x,o.y+o.h-2,o.w,2);
+  ctx.fillRect(o.x,o.y,1,o.h);
+  ctx.fillRect(o.x+o.w-1,o.y,1,o.h);
+}
+
+function drawSpikes(o,ceiling){
+  const tipW=18;
+  const n=Math.max(1,Math.floor(o.w/tipW));
+  const stepW=o.w/n;
+  for(let i=0;i<n;i++){
+    const x=o.x+i*stepW;
+    const tip=ceiling?o.y+o.h:o.y;
+    const base=ceiling?o.y:o.y+o.h;
+    const cx=x+stepW/2;
+    const totalH=Math.abs(base-tip);
+    const steps=Math.floor(totalH/3);
+    for(let s=0;s<steps;s++){
+      const t=s/steps;
+      const y=base+(tip-base)*t;
+      const w=stepW*(1-t);
+      ctx.fillStyle=t<0.4?'#fca5a5':(t<0.75?'#dc2626':'#7f1d1d');
+      ctx.fillRect(cx-w/2, y, w, 3);
+    }
+  }
+  ctx.fillStyle='#1e293b';
+  if(ceiling)ctx.fillRect(o.x,o.y-2,o.w,2);
+  else ctx.fillRect(o.x,o.y+o.h,o.w,2);
+}
+
+function drawAxe(o){
+  const ang=Math.sin((frame-o.t0)*o.speed+o.phase)*o.range;
+  const hx=o.cx+Math.sin(ang)*o.len;
+  const hy=o.cy+Math.cos(ang)*o.len;
+  o.hx=hx; o.hy=hy;
+  ctx.fillStyle='#1e293b';
+  ctx.fillRect(o.cx-5,o.cy-5,10,10);
+  ctx.fillStyle='#64748b';
+  ctx.fillRect(o.cx-3,o.cy-3,6,6);
+  const dx=hx-o.cx, dy=hy-o.cy, len=Math.hypot(dx,dy);
+  const ux=dx/len, uy=dy/len;
+  ctx.fillStyle='#475569';
+  for(let d=8;d<len-8;d+=6){
+    const cxL=o.cx+ux*d, cyL=o.cy+uy*d;
+    ctx.fillRect(Math.floor(cxL)-2,Math.floor(cyL)-2,4,4);
+  }
+  ctx.save();
+  ctx.translate(hx,hy);
+  ctx.rotate(Math.atan2(dy,dx)+Math.PI/2);
+  ctx.fillStyle='#78350f';
+  ctx.fillRect(-6,-8,12,22);
+  ctx.fillStyle='#451a03';
+  ctx.fillRect(-6,-8,12,2);
+  ctx.fillRect(-6,12,12,2);
+  ctx.fillStyle='#cbd5e1';
+  ctx.fillRect(-22,-4,16,12);
+  ctx.fillRect(6,-4,16,12);
+  ctx.fillStyle='#f1f5f9';
+  ctx.fillRect(-22,-4,16,2);
+  ctx.fillRect(6,-4,16,2);
+  ctx.fillStyle='#dc2626';
+  ctx.fillRect(-24,2,4,4);
+  ctx.fillRect(20,2,4,4);
+  ctx.restore();
+}
+
+function drawFall(o){
+  const ph=(frame+o.phase)%o.period;
+  const warn=ph>o.period*0.65;
+  ctx.fillStyle=warn?'#dc2626':'#7f1d1d';
+  ctx.fillRect(o.x-4,94,8,4);
+  if(!o.falling)return;
+  const sx=o.x;
+  for(let s=0;s<8;s++){
+    const t=s/8;
+    const w=24*(1-t);
+    ctx.fillStyle=t<0.4?'#fca5a5':(t<0.75?'#dc2626':'#7f1d1d');
+    ctx.fillRect(sx-w/2, o.y+s*4, w, 4);
+  }
+}
+
+function drawBtn(o){
+  const pressed=!!buttons[o.id];
+  ctx.fillStyle='#334155';
+  ctx.fillRect(o.x-2,o.y+8,52,4);
+  if(pressed){
+    ctx.fillStyle='#15803d';
+    ctx.fillRect(o.x,o.y+6,48,4);
+    ctx.fillStyle='#22c55e';
+    ctx.fillRect(o.x,o.y+4,48,2);
+  } else {
+    ctx.fillStyle='#b45309';
+    ctx.fillRect(o.x,o.y+2,48,8);
+    ctx.fillStyle='#fbbf24';
+    ctx.fillRect(o.x,o.y,48,2);
+    ctx.fillStyle='#7c2d12';
+    ctx.fillRect(o.x,o.y+9,48,1);
+  }
+}
+
+function drawGate(o){
+  const open=!!buttons[o.id];
+  if(open){
+    ctx.strokeStyle='rgba(34,197,94,0.4)';
+    ctx.setLineDash([4,4]);
+    ctx.strokeRect(o.x,o.y,o.w,o.h);
+    ctx.setLineDash([]);
+  } else {
+    ctx.fillStyle='#7c2d12';
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.fillStyle='#fbbf24';
+    for(let i=8;i<o.h;i+=18){
+      ctx.fillRect(o.x+2,o.y+i,4,4);
+      ctx.fillRect(o.x+o.w-6,o.y+i,4,4);
+    }
+  }
+}
+
+function drawHWall(o){
+  if(o.revealed){
+    // Becomes a glowing opening — door visible behind
+    ctx.fillStyle='rgba(34,197,94,0.10)';
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.strokeStyle='rgba(251,191,36,0.6)';
+    ctx.lineWidth=1;
+    ctx.setLineDash([4,4]);
+    ctx.strokeRect(o.x,o.y,o.w,o.h);
+    ctx.setLineDash([]);
+  } else {
+    // Looks identical to a normal wall
+    ctx.fillStyle='#1e293b';
+    ctx.fillRect(o.x,o.y,o.w,o.h);
+    ctx.fillStyle='#475569';
+    ctx.fillRect(o.x,o.y,o.w,3);
+    ctx.fillStyle='#0f172a';
+    for(let by=o.y+12;by<o.y+o.h;by+=12){
+      ctx.fillRect(o.x,by,o.w,1);
+    }
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(o.x,o.y+o.h-2,o.w,2);
+  }
+}
+
+function drawFakeDoor(o){
+  // Pixel sprite identical to real door but with subtle 'X' marks instead of handle.
+  // No floating arrow above (that is the tell).
+  drawPixelSprite(DOOR_FAKE, o.x, o.y, CHAR_SCALE, DOOR_COLORS);
+}
+
+function drawCrumble(o){
+  if(o.gone)return;
+  const cracked=o.cracked||0;
+  ctx.fillStyle = cracked===0?'#334155':(cracked===1?'#451a03':'#7f1d1d');
+  let dx=0;
+  if(cracked>=2)dx=(Math.random()-0.5)*3;
+  ctx.fillRect(o.x+dx,o.y,o.w,o.h);
+  ctx.fillStyle = cracked===0?'#64748b':'#92400e';
+  ctx.fillRect(o.x+dx,o.y,o.w,3);
+  ctx.fillStyle='#1e293b';
+  ctx.fillRect(o.x+dx,o.y+12,o.w,1);
+  ctx.fillRect(o.x+dx,o.y+24,o.w,1);
+  ctx.fillRect(o.x+dx+o.w/2,o.y,1,o.h);
+  if(cracked>=1){
+    ctx.strokeStyle='#000';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(o.x+dx+10,o.y); ctx.lineTo(o.x+dx+18,o.y+12); ctx.lineTo(o.x+dx+8,o.y+20);
+    ctx.stroke();
+  }
+  if(cracked>=2){
+    ctx.beginPath();
+    ctx.moveTo(o.x+dx+o.w-10,o.y); ctx.lineTo(o.x+dx+o.w-22,o.y+15);
+    ctx.stroke();
+  }
+}
+
+function drawFlashSpike(o){
+  const ph=((frame+(o.phase||0))%o.period);
+  const active=ph>=o.onFrom && ph<=o.onTo;
+  if(active){
+    drawSpikes(o,false);
+  } else {
+    // Telegraph countdown
+    const framesUntilActive = (o.onFrom-ph+o.period)%o.period;
+    const a = framesUntilActive<15 ? 0.5 : 0.18;
+    ctx.globalAlpha=a;
+    drawSpikes(o,false);
+    ctx.globalAlpha=1;
+    if(framesUntilActive<20){
+      ctx.fillStyle='#dc2626';
+      const segs = Math.ceil(framesUntilActive/4);
+      for(let i=0;i<segs && i<5;i++){
+        ctx.fillRect(o.x+o.w/2-10+i*5, o.y-8, 3, 4);
+      }
+    }
+  }
+}
+
+function drawKey(o){
+  if(o.taken)return;
+  const oy=o.y+Math.sin(frame*0.08)*4;
+  drawPixelSprite(KEY_SPR, o.x, oy, CHAR_SCALE, {H:'#fbbf24'});
+  if(frame%18<3){
+    ctx.fillStyle='rgba(251,191,36,0.7)';
+    ctx.fillRect(o.x+rnd(-12,12), oy+rnd(-30,0), 3, 3);
+  }
+}
+
+function drawChase(c){
+  const x=c.x;
+  // dark backing
+  ctx.fillStyle='#0f172a';
+  ctx.fillRect(x-200,80,200,400);
+  // gradient
+  const g=ctx.createLinearGradient(x-200,0,x+30,0);
+  g.addColorStop(0,'rgba(127,29,29,0)');
+  g.addColorStop(1,'rgba(127,29,29,0.6)');
+  ctx.fillStyle=g; ctx.fillRect(x-200,80,230,400);
+  // pixelated spike edge
+  for(let y=86;y<476;y+=20){
+    for(let s=0;s<6;s++){
+      const t=s/6;
+      const h=20-Math.abs(10-(s*4))*1.5;
+      ctx.fillStyle=t<0.3?'#fff':(t<0.6?'#fca5a5':'#dc2626');
+      ctx.fillRect(x+s*4, y+(20-h)/2, 4, h);
+    }
+  }
+  ctx.fillStyle='#dc2626';
+  ctx.font='bold 18px monospace';
+  ctx.textAlign='center';
+  ctx.fillText('▶▶ RUN ▶▶', x+80, 60);
+}
+
+function drawDropSpike(){
+  dropSpike.t++;
+  dropSpike.vy+=1.2;
+  dropSpike.y+=dropSpike.vy;
+  for(let s=0;s<10;s++){
+    const t=s/10;
+    const w=44*(1-t);
+    ctx.fillStyle=t<0.4?'#fca5a5':(t<0.75?'#dc2626':'#7f1d1d');
+    ctx.fillRect(dropSpike.x-w/2, dropSpike.y+s*4, w, 4);
+  }
+  if(dropSpike.t>60)dropSpike=null;
+}
+
+// ── Door ──────────────────────────────────────────────────────
+function drawDoor(){
+  const L=LEVELS[level];
+  const [dx,dy]=L.door;
+
+  // Hide door entirely if a non-revealed hwall covers its X column
+  for(const o of L.obs){
+    if(o.t==='hwall' && !o.revealed && o.revealsDoor){
+      if(dx >= o.x && dx <= o.x+o.w && Math.abs(dy-CHAR_H/2 - (o.y+o.h/2))<80){
+        return;
+      }
+    }
+  }
+
+  if(teleportFlash>0){
+    ctx.globalAlpha=teleportFlash/22;
+    ctx.fillStyle='#a855f7';
+    ctx.fillRect(dx-22,dy-CHAR_H-8,44,CHAR_H+16);
+    ctx.globalAlpha=1;
+    teleportFlash--;
+  }
+  // glow when nearby (only if player can see door)
+  const dist=Math.hypot(dx-player.x, dy-player.y);
+  if(dist<140){
+    const a=(1-dist/140)*0.4;
+    ctx.fillStyle=`rgba(251,191,36,${a})`;
+    ctx.beginPath();
+    ctx.arc(dx, dy-CHAR_H/2, 70, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // door sprite (bottom at dy)
+  drawPixelSprite(DOOR_REAL, dx, dy, CHAR_SCALE, DOOR_COLORS);
+  // floating gold arrow above
+  const arY=dy-CHAR_H-12+Math.sin(frame*0.08)*3;
+  ctx.fillStyle='#fbbf24';
+  ctx.shadowBlur=12; ctx.shadowColor='#fbbf24';
+  ctx.fillRect(dx-2,arY,4,4);
+  ctx.fillRect(dx-6,arY+4,12,4);
+  ctx.fillRect(dx-10,arY+8,20,4);
+  ctx.shadowBlur=0;
+}
+
+function drawPlayer(){
+  if(!player.alive){
+    if(player.deathT>70)startLevel(level);
+    return;
+  }
+  let sprite=CHAR_IDLE;
+  if(!player.onGround)sprite=CHAR_JUMP;
+  else if(Math.abs(player.vx)>0.5){
+    sprite=Math.floor(frame/7)%2===0?CHAR_WALK_A:CHAR_WALK_B;
+  }
+  // shadow
+  if(player.onGround){
+    ctx.fillStyle='rgba(0,0,0,0.5)';
+    ctx.fillRect(player.x-CHAR_HALF-1,player.y-2,CHAR_HALF*2+2,3);
+  }
+  ctx.shadowBlur=10; ctx.shadowColor='rgba(168,85,247,0.5)';
+  drawPixelSprite(sprite, player.x, player.y, CHAR_SCALE, CHAR_COLORS, player.facing);
+  ctx.shadowBlur=0;
+
+  if(player.hasKey){
+    drawPixelSprite(KEY_SPR, player.x+22, player.y-CHAR_H-4, 1.5, {H:'#fbbf24'});
+  }
+}
+
+function drawParticles(){
+  for(const p of particles){
+    p.x+=p.vx; p.y+=p.vy; p.vy+=0.3;
+    p.life-=0.022;
+  }
+  particles=particles.filter(p=>p.life>0);
+  for(const p of particles){
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.fillStyle=p.col;
+    ctx.fillRect(Math.floor(p.x-p.r/2),Math.floor(p.y-p.r/2),Math.floor(p.r),Math.floor(p.r));
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawHUD(){
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.fillRect(0,0,W,40);
+  ctx.strokeStyle='rgba(168,85,247,0.3)';
+  ctx.beginPath(); ctx.moveTo(0,40); ctx.lineTo(W,40); ctx.stroke();
+  ctx.fillStyle='#a855f7';
+  ctx.font='bold 16px monospace';
+  ctx.textAlign='left';
+  ctx.fillText(`LEVEL ${level+1} / ${LEVELS.length}`, 16, 26);
+  const L=LEVELS[level];
+  ctx.fillStyle='#cbd5e1';
+  ctx.font='13px monospace';
+  ctx.textAlign='center';
+  ctx.fillText(L.hint||'', W/2, 25);
+  ctx.textAlign='right';
+  ctx.fillStyle='#dc2626';
+  ctx.font='bold 13px monospace';
+  ctx.fillText(`☠ ${deaths}`, W-100, 26);
+  ctx.fillStyle='#64748b';
+  ctx.font='12px monospace';
+  ctx.fillText('[R] restart', W-16, 26);
+
+  if(messageT>0){
+    messageT--;
+    const a=Math.min(1, messageT/30);
+    ctx.globalAlpha=a;
+    ctx.fillStyle='rgba(0,0,0,0.8)';
+    ctx.fillRect(W/2-180, 70, 360, 36);
+    ctx.fillStyle='#fbbf24';
+    ctx.font='bold 16px monospace';
+    ctx.textAlign='center';
+    ctx.fillText(message, W/2, 93);
+    ctx.globalAlpha=1;
+  }
+}
+
+// ── Menu / UI ─────────────────────────────────────────────────
+function buildLevelGrid(){
+  const grid=document.getElementById('lvl-grid');
+  grid.innerHTML='';
+  for(let i=0;i<LEVELS.length;i++){
+    const b=document.createElement('button');
+    b.className='lvl-btn';
+    b.textContent=i+1;
+    const locked=i>bestUnlocked;
+    if(locked)b.classList.add('locked');
+    if(levelDoneFlags[i])b.classList.add('done');
+    if(!locked)b.onclick=()=>startLevel(i);
+    grid.appendChild(b);
+  }
+}
+function showMenu(){buildLevelGrid();document.getElementById('ov-s').style.display='flex';phase='menu'}
+function hideMenu(){document.getElementById('ov-s').style.display='none'}
+function showWinScreen(){
+  document.getElementById('win-deaths').textContent=deaths;
+  document.getElementById('ov-win').style.display='flex';
+  phase='final';
+}
+function hideWin(){document.getElementById('ov-win').style.display='none'}
+function reset(){
+  deaths=0; levelDoneFlags=new Array(LEVELS.length).fill(false);
+  bestUnlocked=0; saveProgress();
+}
+
+// ── Main loop ─────────────────────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  frame++;
+  if(PRESSED.KeyR && phase==='play')startLevel(level);
+  if(phase==='play'||phase==='cleared')updatePlayer();
+  cameraShake*=0.86;
+  ctx.save();
+  if(cameraShake>0.5)ctx.translate((Math.random()-0.5)*cameraShake,(Math.random()-0.5)*cameraShake);
+  drawBg();
+  if(phase==='play'||phase==='cleared'){
+    drawObstacles();
+    drawDoor();
+    drawPlayer();
+    drawParticles();
+    drawHUD();
+  }
+  ctx.restore();
+  for(const k in PRESSED)PRESSED[k]=false;
+}
+
+buildLevelGrid();
+ctx.fillStyle='#0a0612'; ctx.fillRect(0,0,W,H);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

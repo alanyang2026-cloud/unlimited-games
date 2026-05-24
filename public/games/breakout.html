@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Breakout</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;user-select:none;overflow:hidden}
+canvas{border-radius:12px;border:2px solid #1e1e3a;display:block;cursor:none}
+.hint{color:#374151;font-size:12px;margin-top:10px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<canvas id="c"></canvas>
+<p class="hint">Mouse / Touch to move paddle · Space to launch</p>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+C.width=400;C.height=500;
+const W=C.width,H=C.height;
+
+const ROWS=6,COLS=8,BRICK_W=42,BRICK_H=18,BRICK_PAD=4,BRICK_TOP=50;
+const PAD_W=80,PAD_H=12,PAD_Y=H-40,BALL_R=8;
+
+const COLORS=['#f43f5e','#f97316','#f59e0b','#22c55e','#06b6d4','#a855f7'];
+
+let bricks,ball,pad,score,lives,state,particles;
+
+function init(){
+  bricks=[];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const x=c*(BRICK_W+BRICK_PAD)+((W-(COLS*(BRICK_W+BRICK_PAD)-BRICK_PAD))/2);
+    bricks.push({x,y:BRICK_TOP+r*(BRICK_H+BRICK_PAD),w:BRICK_W,h:BRICK_H,color:COLORS[r%COLORS.length],alive:true});
+  }
+  pad={x:W/2-PAD_W/2,w:PAD_W};
+  ball={x:W/2,y:PAD_Y-BALL_R-2,vx:0,vy:0,launched:false};
+  score=0;lives=3;particles=[];state='ready';
+}
+
+function launch(){
+  if(!ball.launched){ball.vx=3*(Math.random()>.5?1:-1);ball.vy=-5;ball.launched=true;state='play'}
+}
+
+function spawnParticles(x,y,color){
+  for(let i=0;i<8;i++)particles.push({x,y,vx:(Math.random()-0.5)*5,vy:(Math.random()-0.5)*5,life:1,color,r:Math.random()*4+2});
+}
+
+function update(){
+  if(state!=='play')return;
+  // particles
+  particles.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=0.1;p.life-=0.04});
+  particles=particles.filter(p=>p.life>0);
+  if(!ball.launched){ball.x=pad.x+pad.w/2;return}
+  ball.x+=ball.vx;ball.y+=ball.vy;
+  // walls
+  if(ball.x-BALL_R<0){ball.x=BALL_R;ball.vx*=-1}
+  if(ball.x+BALL_R>W){ball.x=W-BALL_R;ball.vx*=-1}
+  if(ball.y-BALL_R<0){ball.y=BALL_R;ball.vy*=-1}
+  // paddle
+  if(ball.vy>0&&ball.y+BALL_R>=PAD_Y&&ball.y+BALL_R<=PAD_Y+PAD_H&&ball.x>pad.x&&ball.x<pad.x+pad.w){
+    ball.vy=-(Math.abs(ball.vy)+0.05);
+    ball.vx+=((ball.x-(pad.x+pad.w/2))/(pad.w/2))*2;
+    ball.vx=Math.max(-6,Math.min(6,ball.vx));
+    spawnParticles(ball.x,PAD_Y,'#a855f7');
+  }
+  // bricks
+  bricks.forEach(b=>{
+    if(!b.alive)return;
+    if(ball.x+BALL_R>b.x&&ball.x-BALL_R<b.x+b.w&&ball.y+BALL_R>b.y&&ball.y-BALL_R<b.y+b.h){
+      b.alive=false;score+=10;spawnParticles(b.x+b.w/2,b.y+b.h/2,b.color);
+      const fromTop=ball.y-BALL_R<b.y||ball.y+BALL_R>b.y+b.h;
+      if(fromTop)ball.vy*=-1;else ball.vx*=-1;
+    }
+  });
+  // win
+  if(bricks.every(b=>!b.alive)){state='win'}
+  // lose
+  if(ball.y-BALL_R>H){
+    lives--;
+    if(lives<=0){state='dead'}
+    else{ball.launched=false;ball.x=pad.x+pad.w/2;ball.y=PAD_Y-BALL_R-2;ball.vx=0;ball.vy=0}
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#07070d';ctx.fillRect(0,0,W,H);
+  // stars bg
+  ctx.fillStyle='rgba(255,255,255,0.15)';
+  [[30,20],[100,15],[200,25],[310,10],[380,30],[60,80],[280,60]].forEach(([x,y])=>{ctx.beginPath();ctx.arc(x,y,1,0,Math.PI*2);ctx.fill()});
+  // bricks
+  bricks.forEach(b=>{
+    if(!b.alive)return;
+    ctx.fillStyle=b.color;ctx.shadowBlur=6;ctx.shadowColor=b.color;
+    ctx.beginPath();ctx.roundRect(b.x,b.y,b.w,b.h,4);ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(b.x+2,b.y+2,b.w-4,4);
+  });
+  // particles
+  particles.forEach(p=>{
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=1;
+  });
+  // paddle
+  const pg=ctx.createLinearGradient(pad.x,PAD_Y,pad.x+pad.w,PAD_Y);
+  pg.addColorStop(0,'#7c3aed');pg.addColorStop(1,'#a855f7');
+  ctx.fillStyle=pg;ctx.shadowBlur=10;ctx.shadowColor='#a855f7';
+  ctx.beginPath();ctx.roundRect(pad.x,PAD_Y,pad.w,PAD_H,6);ctx.fill();
+  ctx.shadowBlur=0;
+  // ball
+  ctx.fillStyle='white';ctx.shadowBlur=12;ctx.shadowColor='#e2e8f0';
+  ctx.beginPath();ctx.arc(ball.x,ball.y,BALL_R,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // HUD
+  ctx.fillStyle='#e2e8f0';ctx.font='bold 14px system-ui';ctx.textAlign='left';
+  ctx.fillText(`Score: ${score}`,10,20);
+  ctx.textAlign='right';ctx.fillText('❤️'.repeat(lives),W-10,20);
+  // overlays
+  if(state==='ready'){overlay('🧱 Breakout','Click or Space to launch')}
+  if(state==='win'){overlay('🎉 You Win!',`Score: ${score} · Click to play again`)}
+  if(state==='dead'){overlay('💀 Game Over',`Score: ${score} · Click to play again`)}
+}
+
+function overlay(title,sub){
+  ctx.fillStyle='rgba(7,7,13,.8)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#a855f7';ctx.font='bold 36px system-ui';ctx.textAlign='center';
+  ctx.shadowBlur=20;ctx.shadowColor='#a855f7';ctx.fillText(title,W/2,H/2-20);ctx.shadowBlur=0;
+  ctx.fillStyle='#94a3b8';ctx.font='16px system-ui';ctx.fillText(sub,W/2,H/2+20);
+}
+
+function loop(){requestAnimationFrame(loop);update();draw()}
+
+// controls
+document.addEventListener('mousemove',e=>{
+  const r=C.getBoundingClientRect();
+  pad.x=Math.max(0,Math.min(W-pad.w,e.clientX-r.left-pad.w/2));
+});
+document.addEventListener('touchmove',e=>{
+  const r=C.getBoundingClientRect();
+  pad.x=Math.max(0,Math.min(W-pad.w,e.touches[0].clientX-r.left-pad.w/2));
+},{passive:true});
+document.addEventListener('click',()=>{
+  if(state==='ready'||!ball.launched)launch();
+  else if(state==='win'||state==='dead')init();
+});
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();
+    if(state==='ready'||!ball.launched)launch();
+    else if(state==='win'||state==='dead')init();
+  }
+  if(e.key==='ArrowLeft')pad.x=Math.max(0,pad.x-20);
+  if(e.key==='ArrowRight')pad.x=Math.min(W-pad.w,pad.x+20);
+});
+
+init();loop();
+</script>
+</body>
+</html>
