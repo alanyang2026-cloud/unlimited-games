@@ -55,9 +55,9 @@ canvas{display:block;image-rendering:pixelated}
     <span><b>A / D</b> · ← / →</span><span>Walk</span>
     <span><b>W</b> · ↑</span><span>Jump</span>
     <span><b>S</b></span><span>Block (reduces damage)</span>
-    <span><b>J</b></span><span>Punch — no damage, builds RAGE</span>
-    <span><b>K</b></span><span>Kick — no damage, builds RAGE</span>
-    <span><b>L</b></span><span>Dash Strike — 35 ENERGY · 30 dmg · phases through</span>
+    <span><b>J</b></span><span>Punch — 3 dmg (0 if blocked), +RAGE</span>
+    <span><b>K</b></span><span>Kick — 5 dmg (0 if blocked), +RAGE</span>
+    <span><b>L</b></span><span>Dash Strike — 35 ENERGY · 30 dmg · pierces block</span>
   </div>
   <div>
     <button class="btn" onclick="openHeroSelect()">CHOOSE FIGHTER</button>
@@ -221,9 +221,9 @@ function mkFighter(x,facing,isP,name,colors){
 // ── Move data ──────────────────────────────────────────────────
 // active = [startFrame, endFrame]; damage; knockback; meterGain; reach; height
 const MOVES={
-  // Punch and kick do NO damage — only build RAGE for the attacker
-  punch:  {dur:18, active:[6,10],  dmg:0, kb:3,  meter:0,  reach:78,  height:42, hStart:-18, name:'punch'},
-  kick:   {dur:30, active:[12,18], dmg:0, kb:7,  meter:0,  reach:96,  height:50, hStart:-12, name:'kick'},
+  // Melee: 3 / 5 damage when unblocked; ZERO damage if defender is blocking
+  punch:  {dur:18, active:[6,10],  dmg:3, kb:3,  meter:0,  reach:78,  height:42, hStart:-18, name:'punch'},
+  kick:   {dur:30, active:[12,18], dmg:5, kb:7,  meter:0,  reach:96,  height:50, hStart:-12, name:'kick'},
   // Legacy 'special' kept for safety (not invoked anymore — dash replaces it)
   special:{dur:55, active:[20,32], dmg:0, kb:0,  meter:0,  reach:0,   height:0,  hStart:0,   name:'special'},
   // Push gesture for Rasengan — short, no melee damage (Rasengan projectile does it)
@@ -853,21 +853,20 @@ function triggerDash(att, def){
 
 function applyDashHit(att, def){
   att.dashHit = true;
-  const blocked = def.blocking && def.facing !== att.facing;
-  const dmg = blocked ? 6 : 30;
+  // Dash Strike PIERCES block — block is useless against ENERGY skills.
+  const dmg = 30;
   def.hp = Math.max(0, def.hp - dmg);
-  if(!blocked){
-    def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
-    att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
-    def.hitstun = 28;
-    def.hitFlash = 14;
-  }
-  def.vx = att.facing * (blocked ? 4 : 9);
-  def.vy = blocked ? -1 : -5;
+  def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
+  att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
+  def.hitstun = 28;
+  def.hitFlash = 14;
+  def.blocking = false;   // dash breaks the block
+  def.vx = att.facing * 9;
+  def.vy = -5;
   shake = Math.min(22, shake + 14);
   hitstop = 8;
-  spawnHitSpark(def.x - att.facing*22, def.y - 70, blocked, 'special');
-  spawnDamageNum(def.x, def.y - 95, dmg, blocked);
+  spawnHitSpark(def.x - att.facing*22, def.y - 70, false, 'special');
+  spawnDamageNum(def.x, def.y - 95, dmg, false);
   if(def.hp <= 0){
     def.ko = true; def.vy = -8; def.vx = att.facing * 6;
     triggerKO(att, def);
