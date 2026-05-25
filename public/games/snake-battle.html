@@ -287,6 +287,77 @@ function computeHardMods(){
 
 let hardMods = computeHardMods();
 
+// ═════════════════════════════════════════════════════════════════
+//  KILLER MEMORY — Hard AI analyzes who killed it (player + AI)
+//  so it can evade them more effectively next time.
+//  Persists across sessions via localStorage.
+// ═════════════════════════════════════════════════════════════════
+const KILLER_KEY = 'snake-battle-killer-memory';
+const killerMemory = {
+  killers: {},   // by name → { name, isPlayer, kills, avgKillerSize, boostKills, wallKills, lastSeen }
+};
+function loadKillerMemory(){
+  try{
+    const raw = localStorage.getItem(KILLER_KEY);
+    if(raw) Object.assign(killerMemory, JSON.parse(raw));
+  }catch(e){}
+}
+function saveKillerMemory(){
+  try{ localStorage.setItem(KILLER_KEY, JSON.stringify(killerMemory)); }catch(e){}
+}
+loadKillerMemory();
+
+// Decay old killer stats so very old grudges fade — keep top 12 most-recent
+function trimKillerMemory(){
+  const entries = Object.values(killerMemory.killers);
+  if(entries.length <= 12) return;
+  entries.sort((a,b)=>(b.lastSeen||0) - (a.lastSeen||0));
+  const keep = {};
+  for(const e of entries.slice(0,12)) keep[e.name] = e;
+  killerMemory.killers = keep;
+}
+
+// Called whenever a Hard AI dies — captures kill context
+function recordHardAIDeath(s, killer){
+  if(!killer || s.difficulty !== 'hard') return;
+  const h = s.segs[0];
+  const onWall = (h.x<500||h.x>W-500||h.y<500||h.y>H-500);
+  const k = killerMemory.killers[killer.name] || {
+    name: killer.name,
+    isPlayer: !!killer.isPlayer,
+    kills: 0,
+    avgKillerSize: 0,
+    avgMySize: 0,
+    boostKills: 0,
+    wallKills: 0,
+    whileAttacking: 0,
+    lastSeen: 0,
+  };
+  const n = k.kills + 1;
+  k.kills = n;
+  k.avgKillerSize = (k.avgKillerSize*(n-1) + killer.segs.length)/n;
+  k.avgMySize    = (k.avgMySize*(n-1)    + s.segs.length)/n;
+  if(killer.boosting) k.boostKills++;
+  if(onWall) k.wallKills++;
+  if(s.encircleTgt === killer) k.whileAttacking++;
+  k.lastSeen = Date.now();
+  killerMemory.killers[killer.name] = k;
+  trimKillerMemory();
+  saveKillerMemory();
+}
+
+// 0..3: how dangerous a particular opponent is based on past kills
+function threatLevel(o){
+  const k = killerMemory.killers[o.name];
+  if(!k) return 0;
+  return Math.min(3, k.kills);
+}
+function knownAttacksWhileBoosting(o){
+  const k = killerMemory.killers[o.name];
+  if(!k || k.kills===0) return 0;
+  return k.boostKills / k.kills;
+}
+
 function updateMenuLearnedBadge(){
   const badge = document.getElementById('learn-badge');
   const sub = document.getElementById('hard-sub');
@@ -544,19 +615,25 @@ function aiHard(s){
   }
 
   // ── DEFENSIVE PRIORITY: detect imminent head-on danger every frame ──
-  // Bigger or equal snake, close enough, AND facing us. Either coil or veer.
+  // Known killers get a wider safety bubble — Hard AI evades them sooner.
   let danger = null, dangerD2 = Infinity;
   for(const o of snakes){
     if(o===s || !o.alive) continue;
     const oh = o.segs[0];
     const dd = d2(h.x, h.y, oh.x, oh.y);
-    if(dd > 260*260) continue;
-    // Only consider if they could actually kill us (≥95% our size)
-    if(o.segs.length < myLen * 0.95) continue;
+    const tl = threatLevel(o);
+    // Wider awareness for known killers (260 → up to ~440px)
+    const dangerRange = 260 + tl * 60;
+    if(dd > dangerRange*dangerRange) continue;
+    // Lower size threshold for known killers (they've proved they can kill us)
+    const sizeFloor = 0.95 - tl * 0.18; // 0.95, 0.77, 0.59, 0.41
+    if(o.segs.length < myLen * sizeFloor) continue;
     // Are they pointing at us?
     const angToMe = Math.atan2(h.y - oh.y, h.x - oh.x);
     const angDiff = Math.abs(norm(o.angle - angToMe));
-    if(angDiff < 0.7 && dd < dangerD2){
+    // Looser angle for known killers — assume they will turn into us
+    const angTol = 0.7 + tl * 0.15;
+    if(angDiff < angTol && dd < dangerD2){
       dangerD2 = dd; danger = o;
     }
   }
@@ -564,7 +641,11 @@ function aiHard(s){
     if(s.state !== 'coil') s.coilDir = 0;
     s.state = 'coil';
     setCoilTarget(s);
-    s.boosting = Math.sqrt(dangerD2) < 160 && s.stamina > 25;
+    const tl = threatLevel(danger);
+    // Known killers => boost away sooner with looser stamina requirement
+    const boostRange = 160 + tl * 50;
+    const staminaFloor = Math.max(10, 25 - tl * 5);
+    s.boosting = Math.sqrt(dangerD2) < boostRange && s.stamina > staminaFloor;
     return;
   }
 
@@ -641,7 +722,7 @@ function aiHard(s){
 
   // ── HUNT / DOMINATE: opportunistic scoring ──
   // Must be at least 10% bigger to even consider an attack.
-  // Bonuses for vulnerable targets (near wall, low stamina, in coil).
+  // Bonuses for vulnerable targets, BIG PENALTY for known killers.
   const minRatioForAttack = phase === 'dominate' ? 0.95 : 1.10;
   const maxAttackRange = phase === 'dominate' ? 1000 : 650;
   let bestT = null, bestS = -Infinity;
@@ -651,15 +732,20 @@ function aiHard(s){
     const dist = Math.sqrt(d2(h.x, h.y, oh.x, oh.y));
     if(dist > maxAttackRange) continue;
     const ratio = myLen / Math.max(1, o.segs.length);
-    if(ratio < minRatioForAttack) continue;
+    // Need to be SAFELY bigger if this opponent killed Hard AIs before
+    const tl = threatLevel(o);
+    const minRatioHere = minRatioForAttack + tl * 0.18; // 1.10, 1.28, 1.46, 1.64
+    if(ratio < minRatioHere) continue;
     // Vulnerability bonuses
     const nearWall = (oh.x<500 || oh.x>W-500 || oh.y<500 || oh.y>H-500) ? 80 : 0;
     const tired    = o.stamina < 35 ? 40 : 0;
     const coiling  = o.state === 'coil' ? 60 : 0;
     const playerBonus = o.isPlayer ? 25 : 0;
-    const sizeAdv  = (ratio - 1) * 120;     // bigger gap = better target
+    const sizeAdv  = (ratio - 1) * 120;
     const distPen  = -dist * 0.35;
-    const score = sizeAdv*M.aggressionMul + distPen + nearWall + tired + coiling + playerBonus;
+    // ⚠ Heavy penalty for known killers — Hard AI prefers safer prey
+    const killerPenalty = tl * 70;
+    const score = sizeAdv*M.aggressionMul + distPen + nearWall + tired + coiling + playerBonus - killerPenalty;
     if(score > bestS){ bestS = score; bestT = o; }
   }
 
@@ -756,6 +842,8 @@ function kill(s,killer){
   s.alive=false;
   spawnCorpse(s);
   if(killer)addKF(killer.name,killer.color,s.name,s.color);
+  // Adaptive learning: record kill context if a Hard AI died
+  recordHardAIDeath(s, killer);
   if(s.isPlayer){
     running=false;
     // Adaptive Hard AI: fold this match's observations into the persistent profile
@@ -798,7 +886,7 @@ function checkFood(){
     for(let i=foods.length-1;i>=0;i--){
       const f=foods[i];
       const eat=SR+f.r+4;
-      if(d2(h.x,h.y,f.x,f.y)<eat*eat){s.growing+=Math.ceil(f.r*.75);foods.splice(i,1)}
+      if(d2(h.x,h.y,f.x,f.y)<eat*eat){s.growing+=Math.max(1,Math.floor(f.r*0.4));foods.splice(i,1)}
     }
   }
   while(foods.length<FOOD_MAX)
