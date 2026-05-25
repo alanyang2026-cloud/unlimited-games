@@ -58,6 +58,7 @@ canvas{display:block;image-rendering:pixelated}
     <span><b>J</b></span><span>Punch — 3 dmg (0 if blocked), +RAGE</span>
     <span><b>K</b></span><span>Kick — 5 dmg (0 if blocked), +RAGE</span>
     <span><b>L</b></span><span>Dash Strike — 35 ENERGY · 30 dmg · pierces block</span>
+    <span><b>U</b></span><span>Sword Rain — 35 ENERGY · ~40 dmg over 3s · swords from sky</span>
   </div>
   <div>
     <button class="btn" onclick="openHeroSelect()">CHOOSE FIGHTER</button>
@@ -137,7 +138,7 @@ let phase='menu'; // menu | countdown | play | ko | end
 let cdTimer=0, koTimer=0, roundTimer=60, frameTimer=0;
 let p1Wins=0, p2Wins=0, round=1, totalRounds=5;
 let particles=[], hitSparks=[], damageNums=[];
-let projectiles=[], shadowClones=[];
+let projectiles=[], shadowClones=[], swords=[];
 let shake=0, hitstop=0, frame=0;
 let lastDiff='normal', aiDiff='normal';
 let bgTime=0;
@@ -211,12 +212,11 @@ function mkFighter(x,facing,isP,name,colors){
     walkPhase:0,
     aiTimer:0, aiPlan:'wait', aiBlock:0,
     hitThisAttack:false,
-    // Dash Strike — sole damage skill (35 ENERGY)
-    dashCool:0,           // post-dash cooldown
-    dashHit:false,        // already landed mid-dash hit
-    dashStartX:0,         // recorded at trigger time
-    dashEndX:0,
-    // (legacy fields kept so old animation code doesn't crash if referenced)
+    // Dash Strike (L)
+    dashCool:0, dashHit:false, dashStartX:0, dashEndX:0,
+    // Sword Rain (U) — 3-second over-time barrage
+    swordRainT:0, swordRainSpawned:0,
+    // legacy fields (kept so old animation code doesn't crash)
     holdingShuriken:0, shurikenCool:0, rasenganCool:0, cloneCool:0,
   };
 }
@@ -597,7 +597,7 @@ function initRound(m1,m2){
   f2=mkFighter(W-260,-1,false,'CPU',PAL.p2);
   f1.meter=m1; f2.meter=m2;
   particles=[]; hitSparks=[]; damageNums=[];
-  projectiles=[]; shadowClones=[];
+  projectiles=[]; shadowClones=[]; swords=[];
   shake=0; hitstop=0; roundTimer=60; frameTimer=0;
   phase='countdown'; cdTimer=3*60;
   showOv('ov-cd'); document.getElementById('cd-num').textContent='3';
@@ -619,6 +619,7 @@ function actionFor(f, opp){
       kick:  PRESSED.KeyK,
       special: PRESSED.KeyL,
       dash: PRESSED.KeyL,
+      swordRain: PRESSED.KeyU,
     };
   }
   return aiAction(f, opp);
@@ -656,11 +657,15 @@ function aiAction(f, opp){
   }
   f.aiTimer=isHard?rndI(8,18):rndI(16,32);
 
-  // Kenshin AI: launch Dash Strike when ENERGY is ready
+  // Kenshin AI: ENERGY skill — Dash up close, Sword Rain at range
   const specialThresh = 35;
-  const specialRange = 300;
-  if(f.meter>=specialThresh && adx<specialRange && facingOpp && Math.random()<(isHard?0.4:0.2)){
-    a.special=true; f.aiPlan='wait'; return a;
+  if(f.meter >= specialThresh && facingOpp && Math.random()<(isHard?0.4:0.22)){
+    if(adx > 240 && f.swordRainT <= 0){
+      a.swordRainAI = true; f.aiPlan='wait'; return a;
+    }
+    if(adx < 300){
+      a.special = true; f.aiPlan='wait'; return a;
+    }
   }
 
   // Attack if in range
@@ -718,6 +723,19 @@ function updateFighter(f, opp){
   // ENERGY auto-regen: +2 per second
   if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 2/60);
 
+  // Sword Rain — spawn 8 swords evenly over the 180-frame duration
+  if(f.swordRainT > 0){
+    f.swordRainT--;
+    const elapsed = 180 - f.swordRainT;
+    const totalSwords = 8;
+    const shouldHave = Math.min(totalSwords, Math.floor(elapsed / 22) + 1);
+    while(f.swordRainSpawned < shouldHave){
+      spawnSword(f, opp);
+      f.swordRainSpawned++;
+    }
+    if(f.swordRainT === 0) f.swordRainSpawned = 0;
+  }
+
   if(f.ko){
     if(f.state!=='ko'){f.state='ko';f.sTime=0}
     return;
@@ -764,12 +782,17 @@ function updateFighter(f, opp){
   }
   f.blocking=false;
 
-  // ─── Dash Strike (only damage-dealing skill) ───
-  // Both player (L key) and AI ('special' decision) trigger via the same path.
+  // ─── Dash Strike ───
   if(f.onGround && (act.dash || (!f.isPlayer && act.special)) &&
      f.meter >= 35 && f.dashCool <= 0 && f.state !== 'dashing'){
     triggerDash(f, opp);
     return;
+  }
+  // ─── Sword Rain ─── (non-blocking; player can keep moving during it)
+  if(f.onGround && (act.swordRain || (!f.isPlayer && act.swordRainAI)) &&
+     f.meter >= 35 && f.swordRainT <= 0){
+    triggerSwordRain(f, opp);
+    // no return — Sword Rain runs in the background
   }
   // Kick
   if(act.kick && f.onGround){
@@ -854,6 +877,129 @@ function triggerDash(att, def){
   pulseRing(att);
 }
 
+// ── Sword Rain — 8 swords from the sky over 3 seconds, ~5 dmg each ──
+function triggerSwordRain(att, def){
+  att.meter -= 35;
+  att.swordRainT = 180;       // 3 seconds at 60 fps
+  att.swordRainSpawned = 0;
+  pulseRing(att);
+}
+
+function spawnSword(owner, target){
+  // Spawn above the caster, aim at the target's *current* X
+  const sx = owner.x + (Math.random()-0.5)*120;
+  const sy = -40 + Math.random()*30; // above the screen
+  const tx = target.x + (Math.random()-0.5)*30;
+  const ty = target.y - 60;          // chest level
+  const dx = tx - sx, dy = ty - sy;
+  const dist = Math.hypot(dx, dy);
+  const speed = 11 + Math.random()*2;
+  swords.push({
+    x: sx, y: sy,
+    vx: dx / dist * speed,
+    vy: dy / dist * speed,
+    owner, target,
+    damage: 5,
+    alive: true,
+    trailPhase: 0,
+  });
+}
+
+function updateSwords(){
+  for(const s of swords){
+    s.x += s.vx;
+    s.y += s.vy;
+    s.vy += 0.18;  // gentle gravity for arc feel
+    s.trailPhase++;
+    // Spawn blue/white particle trail
+    if(s.trailPhase % 2 === 0){
+      const angBack = Math.atan2(s.vy, s.vx) + Math.PI;
+      const off = Math.random()*8;
+      particles.push({
+        x: s.x + Math.cos(angBack)*off,
+        y: s.y + Math.sin(angBack)*off,
+        vx: Math.cos(angBack)*0.4 + (Math.random()-0.5)*0.6,
+        vy: Math.sin(angBack)*0.4 + (Math.random()-0.5)*0.6,
+        life: 1,
+        col: Math.random()<0.6 ? '#bfdbfe' : '#ffffff',
+        r: 2 + Math.random()*2,
+      });
+    }
+    // Hit check — once near target's y
+    const t = s.target;
+    if(t && !t.ko && Math.abs(s.x - t.x) < 26 && s.y >= t.y - 88 && s.y <= t.y - 10){
+      // Hit! Swords pierce block (ENERGY-skill rule)
+      t.hp = Math.max(0, t.hp - s.damage);
+      t.rage = Math.min(t.maxRage, t.rage + 4);
+      s.owner.rage = Math.min(s.owner.maxRage, s.owner.rage + 2);
+      t.hitFlash = 6;
+      // Light hitstun so swords don't lock the target
+      t.hitstun = Math.max(t.hitstun, 4);
+      t.vx = (s.x > t.x ? -1 : 1) * 1.5;
+      shake = Math.min(16, shake + 2);
+      spawnHitSpark(s.x, s.y, false, 'punch');
+      spawnDamageNum(s.x, s.y - 18, s.damage, false);
+      s.alive = false;
+      if(t.hp <= 0){
+        t.ko = true; t.vy = -7; t.vx = (s.x > t.x ? -1 : 1) * 5;
+        triggerKO(s.owner, t);
+      }
+    }
+    // Hit the ground (miss)
+    if(s.y > GROUND + 10){
+      // ground impact spark
+      for(let i=0;i<4;i++){
+        particles.push({
+          x: s.x, y: GROUND,
+          vx:(Math.random()-0.5)*3, vy:-Math.random()*2,
+          life:1, col:'#bfdbfe', r:2,
+        });
+      }
+      s.alive = false;
+    }
+  }
+  swords = swords.filter(s => s.alive);
+}
+
+function drawSwords(){
+  for(const s of swords){
+    const ang = Math.atan2(s.vy, s.vx);
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(ang);
+    // Outer blue glow halo
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = '#3b82f6';
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(-6, -3, 40, 6);
+    // Blade metal
+    ctx.shadowBlur = 0;
+    ctx.globalAlpha = 1;
+    const grd = ctx.createLinearGradient(-6, 0, 32, 0);
+    grd.addColorStop(0, '#dbeafe');
+    grd.addColorStop(0.6, '#f5f9ff');
+    grd.addColorStop(1, '#a5b4fc');
+    ctx.fillStyle = grd;
+    ctx.fillRect(-6, -1.6, 38, 3.2);
+    // Tip
+    ctx.beginPath();
+    ctx.moveTo(32, -1.6); ctx.lineTo(38, 0); ctx.lineTo(32, 1.6);
+    ctx.fillStyle = '#dbeafe';
+    ctx.fill();
+    // Center glowing line
+    ctx.fillStyle = '#3b82f6';
+    ctx.fillRect(-6, -0.3, 38, 0.6);
+    // Hilt
+    ctx.fillStyle = '#0a0a0f';
+    ctx.fillRect(-12, -2, 6, 4);
+    // Gold guard
+    ctx.fillStyle = '#daa520';
+    ctx.fillRect(-6, -3, 2, 6);
+    ctx.restore();
+  }
+}
+
 function applyDashHit(att, def){
   att.dashHit = true;
   // Dash Strike PIERCES block — block is useless against ENERGY skills.
@@ -890,9 +1036,12 @@ function registerHit(att, def, mv){
   }
   def.hp = Math.max(0, def.hp - dmg);
   // RAGE rules: defender +8 on being hit (unblocked), attacker +3 on landing a hit
+  // ENERGY: landing a clean melee hit also charges the attacker (combo → skill)
   if(!blocked){
     def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
     att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
+    if(mv.name === 'punch') att.meter = Math.min(att.maxMeter, att.meter + 3);
+    else if(mv.name === 'kick') att.meter = Math.min(att.maxMeter, att.meter + 5);
   }
   def.vx = att.facing * kb;
   if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
@@ -2208,6 +2357,7 @@ function loop(){
     checkHits();
     updateProjectiles();
     updateShadowClones();
+    updateSwords();
     frameTimer++;
     if(frameTimer>=60){frameTimer=0; roundTimer--;}
     if(roundTimer<=0 && phase==='play'){
@@ -2250,6 +2400,7 @@ function drawAll(){
     else{ drawFighter(f2,f1); drawFighter(f1,f2); }
     drawShadowClones();
     drawProjectiles();
+    drawSwords();
     drawFx();
     drawHUD();
   }
