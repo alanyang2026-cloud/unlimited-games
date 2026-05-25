@@ -211,10 +211,13 @@ function mkFighter(x,facing,isP,name,colors){
     walkPhase:0,
     aiTimer:0, aiPlan:'wait', aiBlock:0,
     hitThisAttack:false,
-    holdingShuriken:0,    // frames remaining while wielding Rasen Shuriken (0 = none)
-    shurikenCool:0,       // post-throw cooldown
-    rasenganCool:0,       // post-launch cooldown
-    cloneCool:0,          // shadow-clone cooldown
+    // Dash Strike — sole damage skill (35 ENERGY)
+    dashCool:0,           // post-dash cooldown
+    dashHit:false,        // already landed mid-dash hit
+    dashStartX:0,         // recorded at trigger time
+    dashEndX:0,
+    // (legacy fields kept so old animation code doesn't crash if referenced)
+    holdingShuriken:0, shurikenCool:0, rasenganCool:0, cloneCool:0,
   };
 }
 
