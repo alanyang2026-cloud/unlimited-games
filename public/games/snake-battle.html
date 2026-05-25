@@ -59,9 +59,16 @@ canvas{display:block;cursor:none}
   <div class="br">
     <button class="btn be" onclick="go(5,'easy')">😌 Easy<br><small style="font-weight:400;font-size:11px">5 slow snakes</small></button>
     <button class="btn bn" onclick="go(8,'normal')">😎 Normal<br><small style="font-weight:400;font-size:11px">8 opponents</small></button>
-    <button class="btn bh" onclick="go(12,'hard')">💀 Hard<br><small style="font-weight:400;font-size:11px">12 pros</small></button>
+    <button class="btn bh" onclick="go(12,'hard')">💀 Hard<br><small style="font-weight:400;font-size:11px" id="hard-sub">12 pros</small></button>
   </div>
   <p class="hints">Mobile: drag one finger · two-finger to boost</p>
+  <p id="learn-badge" style="margin-top:8px;font-size:11px;color:#fbbf24;letter-spacing:.08em;display:none">🧠 Hard AI has analyzed <span id="learn-rounds">0</span> of your fights</p>
+</div>
+
+<div id="learn-banner" style="position:fixed;top:30%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);color:#fbbf24;padding:14px 26px;border-radius:10px;border:1px solid rgba(251,191,36,.5);font-family:system-ui;font-size:15px;text-align:center;display:none;z-index:200;letter-spacing:.06em;backdrop-filter:blur(8px);box-shadow:0 0 30px rgba(251,191,36,.3)">
+  <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">⚠ ADAPTIVE OPPONENT</div>
+  <div>🧠 AI has analyzed <b id="banner-rounds" style="color:#fff">0</b> of your past fights</div>
+  <div style="font-size:11px;color:#94a3b8;margin-top:6px">It learned your style. Stay sharp.</div>
 </div>
 <div class="ov" id="ov-d" style="display:none">
   <h1 style="color:#f43f5e">💀 You Died</h1>
@@ -162,6 +169,148 @@ function spawnCorpse(s){
   }
 }
 
+// ═════════════════════════════════════════════════════════════════
+//  ADAPTIVE HARD AI — analyzes the player across sessions
+//  Persists a behavioral profile to localStorage and adjusts the
+//  Hard AI's parameters (aggression, reactions, boost frequency,
+//  coil/encircle preference) to mimic or counter the player.
+// ═════════════════════════════════════════════════════════════════
+const PROFILE_KEY = 'snake-battle-ai-profile';
+const playerProfile = {
+  rounds: 0,
+  aggression: 0.4,       // 0=passive, 1=very aggressive
+  boostRate: 0.10,       // fraction of time spent boosting
+  sharpTurnRate: 0.05,   // fraction of frames making tight turns (coil)
+  attackFreq: 0.30,      // fraction of frames heading at an enemy
+  avgFinalLength: 30,
+  totalKills: 0,
+  totalDeaths: 0,
+  topRank: 4,
+};
+function loadProfile(){
+  try{
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if(raw) Object.assign(playerProfile, JSON.parse(raw));
+  }catch(e){}
+}
+function saveProfile(){
+  try{ localStorage.setItem(PROFILE_KEY, JSON.stringify(playerProfile)); }catch(e){}
+}
+loadProfile();
+
+// Per-game observation buffer (reset each match)
+let playerObs = null;
+function resetObs(){
+  playerObs = {
+    framesTotal: 0,
+    framesBoost: 0,
+    sharpTurns: 0,
+    attackApproaches: 0,
+    prevAngle: 0,
+  };
+}
+
+function observePlayer(){
+  if(!player || !player.alive || !playerObs) return;
+  playerObs.framesTotal++;
+  if(player.boosting) playerObs.framesBoost++;
+  const dAng = Math.abs(norm(player.angle - playerObs.prevAngle));
+  if(dAng > 0.045) playerObs.sharpTurns++;
+  // Attack approach = player's heading angle points within 0.5 rad of an enemy
+  const ph = player.segs[0];
+  for(const o of snakes){
+    if(o === player || !o.alive) continue;
+    const oh = o.segs[0];
+    const dx = oh.x - ph.x, dy = oh.y - ph.y;
+    const dist = Math.hypot(dx, dy);
+    if(dist < 350){
+      const angTo = Math.atan2(dy, dx);
+      const ad = Math.abs(norm(angTo - player.angle));
+      if(ad < 0.55){ playerObs.attackApproaches++; break; }
+    }
+  }
+  playerObs.prevAngle = player.angle;
+}
+
+// Called when the player dies — fold this match's observations into the profile.
+function commitObsToProfile(){
+  if(!playerObs || playerObs.framesTotal < 60) return;
+  const boostRate    = playerObs.framesBoost      / playerObs.framesTotal;
+  const sharpRate    = playerObs.sharpTurns        / playerObs.framesTotal;
+  const attackRate   = playerObs.attackApproaches  / playerObs.framesTotal;
+  const aggression   = Math.min(1, boostRate*0.4 + attackRate*0.6 + 0.1);
+  const a = 0.35;
+  playerProfile.boostRate     = playerProfile.boostRate     * (1-a) + boostRate * a;
+  playerProfile.sharpTurnRate = playerProfile.sharpTurnRate * (1-a) + sharpRate * a;
+  playerProfile.attackFreq    = playerProfile.attackFreq    * (1-a) + attackRate * a;
+  playerProfile.aggression    = playerProfile.aggression    * (1-a) + aggression * a;
+  if(player){
+    playerProfile.avgFinalLength = playerProfile.avgFinalLength * (1-a) + player.segs.length * a;
+    playerProfile.totalKills += (player.kills || 0);
+    // Final rank
+    const sorted = [...snakes].sort((a,b)=>b.segs.length - a.segs.length);
+    const rank = sorted.indexOf(player) + 1;
+    if(rank > 0) playerProfile.topRank = Math.min(playerProfile.topRank, rank);
+  }
+  playerProfile.totalDeaths += 1;
+  playerProfile.rounds += 1;
+  saveProfile();
+  updateMenuLearnedBadge();
+}
+
+// Compute per-Hard-AI modifiers based on the learned profile.
+// More aggressive players => Hard AI gets MORE defensive AND counter-attacks more.
+// More boosting players  => Hard AI boosts more often.
+// More sharp-turners     => Hard AI mimics coiling.
+function computeHardMods(){
+  const p = playerProfile;
+  const expRounds = Math.min(1, p.rounds / 10);  // experience curve to 10 fights
+  return {
+    // Reactions get sharper the more fights the AI has analyzed
+    reactionShave: Math.floor(expRounds * 3),    // shaves 0..3 frames off rlo/rhi
+    // Aggression matches player + slight escalation
+    aggressionMul: 1 + p.aggression * 0.5,
+    // Boost more if the player boosts more
+    boostBias:    0.5 + p.boostRate * 4,
+    // Tighter encircles if player tends to coil (try to trap them)
+    encircleTighter: p.sharpTurnRate > 0.06,
+    // Mimic coiling if player likes it (defensive Hard AI in danger)
+    mimicCoil: p.sharpTurnRate > 0.05,
+    // Threshold ratio to consider an attack — drops as AI experience grows
+    attackRatioFloor: Math.max(0.50, 0.65 - expRounds * 0.10),
+    // Lower size requirement to start aggressing
+    minLenAttack: Math.max(16, 22 - expRounds * 6),
+    // Show how many fights informed this Hard AI
+    rounds: p.rounds,
+  };
+}
+
+let hardMods = computeHardMods();
+
+function updateMenuLearnedBadge(){
+  const badge = document.getElementById('learn-badge');
+  const sub = document.getElementById('hard-sub');
+  if(!badge) return;
+  if(playerProfile.rounds > 0){
+    badge.style.display = 'block';
+    document.getElementById('learn-rounds').textContent = playerProfile.rounds;
+    if(sub) sub.textContent = `12 pros · learned ${playerProfile.rounds}`;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function showAnalyzedBanner(rounds){
+  const bn = document.getElementById('learn-banner');
+  if(!bn) return;
+  document.getElementById('banner-rounds').textContent = rounds;
+  bn.style.display = 'block';
+  setTimeout(()=>{ bn.style.display = 'none'; }, 2800);
+}
+
+// Initial badge render once the DOM has loaded
+setTimeout(updateMenuLearnedBadge, 0);
+
 // ── Game init ────────────────────────────────────────────────────
 function go(bots,diff){
   lastDiff=diff;lastBots=bots;
@@ -170,6 +319,14 @@ function go(bots,diff){
   snakes=[];foods=[];powerups=[];frame=0;pStam=100;kfItems=[];
   document.getElementById('kf').innerHTML='';
   zoom=1;
+  // Refresh adaptive Hard mods at game start (use latest profile data)
+  hardMods = computeHardMods();
+  resetObs();
+  // Show "AI HAS ANALYZED YOU" banner when entering Hard mode after the AI
+  // has seen at least one fight
+  if(diff === 'hard' && playerProfile.rounds > 0){
+    showAnalyzedBanner(playerProfile.rounds);
+  }
 
   player=mkSnake(W/2,H/2,0,'#a855f7',name,true,'player',25);
   snakes.push(player);
@@ -358,22 +515,26 @@ function aiNormal(s){
 function aiHard(s){
   s.aiTimer--;
   const h=s.segs[0],myLen=s.segs.length;
-  // Reaction improves with size
-  const rlo=Math.max(4,DC.hard.rlo-Math.floor(myLen/60));
-  const rhi=Math.max(8,DC.hard.rhi-Math.floor(myLen/50));
+  const M=hardMods||computeHardMods();
+  // Reaction improves with size AND with rounds analyzed
+  const rlo=Math.max(2, DC.hard.rlo - Math.floor(myLen/60) - M.reactionShave);
+  const rhi=Math.max(6, DC.hard.rhi - Math.floor(myLen/50) - M.reactionShave);
 
-  const M=460;
-  if(h.x<M||h.x>W-M||h.y<M||h.y>H-M){
+  const WM=460;
+  if(h.x<WM||h.x>W-WM||h.y<WM||h.y>H-WM){
     s.aiTarget={x:W/2+rnd(-500,500),y:H/2+rnd(-500,500)};
     s.state='wall';s.aiTimer=5;s.boosting=false;return;
   }
 
   // REACTIVE: coil defensively if a much bigger snake is in close range
+  // If learned that player likes to coil, Hard AI ALSO coils more (lower threshold)
+  const coilSizeThresh = M.mimicCoil ? 1.20 : 1.35;
+  const coilDistThresh = M.mimicCoil ? 260 : 220;
   let threat=null,threatD2=Infinity;
   for(const o of snakes){
     if(o===s||!o.alive)continue;
     const dd=d2(h.x,h.y,o.segs[0].x,o.segs[0].y);
-    if(dd<220*220&&o.segs.length>myLen*1.35&&myLen>22&&dd<threatD2){
+    if(dd<coilDistThresh*coilDistThresh && o.segs.length>myLen*coilSizeThresh && myLen>22 && dd<threatD2){
       threatD2=dd;threat=o;
     }
   }
@@ -390,15 +551,17 @@ function aiHard(s){
     const best=s.encircleTgt,oh=best.segs[0];
     const dist2=d2(h.x,h.y,oh.x,oh.y);
     const ratio=myLen/Math.max(1,best.segs.length);
-    if(dist2<1100*1100&&ratio>0.65){
+    if(dist2<1100*1100 && ratio>M.attackRatioFloor){
       const oSpd=best.isPlayer?P_SPD:DC[best.difficulty].spd;
-      const steps=Math.floor(22+myLen/40);
+      // Predict further ahead if the player is a sharp turner (counters dodges)
+      const steps=Math.floor(22 + myLen/40 + (M.encircleTighter ? 6 : 0));
       const predicted={
         x:clamp(oh.x+Math.cos(best.angle)*oSpd*steps,100,W-100),
         y:clamp(oh.y+Math.sin(best.angle)*oSpd*steps,100,H-100)
       };
       setEncircleTarget(s,best,predicted);
-      s.boosting=dist2<420*420&&s.stamina>16;
+      // Boost more often if the analyzed player boosts a lot
+      s.boosting = dist2 < (420*M.boostBias)*(420*M.boostBias) && s.stamina > 16;
       return;
     }
     s.encircleTgt=null;
@@ -414,6 +577,7 @@ function aiHard(s){
 
   // 2. Cut-off kill: score ALL snakes on map, pick best target
   // Hard AI attacks everyone including other hard bots
+  // Aggression scales with player profile — more aggressive players → higher target scores
   let best=null,bestScore=-Infinity;
   for(const o of snakes){
     if(o===s||!o.alive)continue;
@@ -421,26 +585,26 @@ function aiHard(s){
     const dist=Math.sqrt(d2(h.x,h.y,oh.x,oh.y));
     if(dist>1100)continue;
     const ratio=myLen/Math.max(1,o.segs.length);
-    // Attack even similarly sized snakes (hard AI is aggressive)
     const nearWall=(oh.x<400||oh.x>W-400||oh.y<400||oh.y>H-400)?60:0;
-    const score=ratio*140-dist*0.4+nearWall;
-    if(score>bestScore&&ratio>0.65){bestScore=score;best=o}
+    // Prioritize hunting the player a bit more (revenge model)
+    const playerBonus = o.isPlayer ? 30 : 0;
+    const score = ratio*140*M.aggressionMul - dist*0.4 + nearWall + playerBonus;
+    if(score>bestScore && ratio>M.attackRatioFloor){bestScore=score;best=o}
   }
 
-  if(best){
+  if(best && myLen >= M.minLenAttack){
     s.state='attack';
     const oh=best.segs[0];
     const oSpd=best.isPlayer?P_SPD:DC[best.difficulty].spd;
-    // Predict ahead — more steps if target is moving fast
-    const steps=Math.floor(22+myLen/40);
+    const steps=Math.floor(22 + myLen/40 + (M.encircleTighter ? 6 : 0));
     const predicted={
       x:clamp(oh.x+Math.cos(best.angle)*oSpd*steps,100,W-100),
       y:clamp(oh.y+Math.sin(best.angle)*oSpd*steps,100,H-100)
     };
-    // Encircle to shrink victim's space
     setEncircleTarget(s,best,predicted);
     const dToHead=Math.sqrt(d2(h.x,h.y,oh.x,oh.y));
-    s.boosting=dToHead<420&&s.stamina>16;return;
+    s.boosting = dToHead < (420*M.boostBias) && s.stamina > 16;
+    return;
   }
   s.encircleTgt=null;
 
@@ -520,6 +684,8 @@ function kill(s,killer){
   if(killer)addKF(killer.name,killer.color,s.name,s.color);
   if(s.isPlayer){
     running=false;
+    // Adaptive Hard AI: fold this match's observations into the persistent profile
+    commitObsToProfile();
     const score=Math.max(0,(s.segs.length-25)*10);
     document.getElementById('dm').innerHTML=
       `Length <b style="color:#a855f7">${s.segs.length}</b> · Score <b style="color:#a855f7">${score}</b>`
@@ -895,6 +1061,7 @@ function loop(){
     for(const s of snakes)moveSnake(s);
     updatePowerups();
     checkCol();checkFood();checkPowerups();
+    observePlayer();          // adaptive learning: watch the player
     updateCam();updateHUD();
   }
 
