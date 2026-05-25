@@ -55,11 +55,9 @@ canvas{display:block;image-rendering:pixelated}
     <span><b>A / D</b> · ← / →</span><span>Walk</span>
     <span><b>W</b> · ↑</span><span>Jump</span>
     <span><b>S</b></span><span>Block (reduces damage)</span>
-    <span><b>J</b></span><span>Light Punch — fast, low dmg</span>
-    <span><b>K</b></span><span>Heavy Kick — slow, big dmg</span>
-    <span><b>L</b></span><span>螺旋丸 Rasengan — 15 chakra · 22 dmg</span>
-    <span><b>U</b></span><span>螺旋手里剑 Rasen Shuriken — 30 chakra · 5s hold · 27 dmg</span>
-    <span><b>I</b></span><span>影分身 Shadow Clone — 50 rage · clone strikes once</span>
+    <span><b>J</b></span><span>Punch — no damage, builds RAGE</span>
+    <span><b>K</b></span><span>Kick — no damage, builds RAGE</span>
+    <span><b>L</b></span><span>Dash Strike — 35 ENERGY · 30 dmg · phases through</span>
   </div>
   <div>
     <button class="btn" onclick="openHeroSelect()">CHOOSE FIGHTER</button>
@@ -223,9 +221,11 @@ function mkFighter(x,facing,isP,name,colors){
 // ── Move data ──────────────────────────────────────────────────
 // active = [startFrame, endFrame]; damage; knockback; meterGain; reach; height
 const MOVES={
-  punch:  {dur:18, active:[6,10],  dmg:6,  kb:3,  meter:8,  reach:78,  height:42, hStart:-18, name:'punch'},
-  kick:   {dur:30, active:[12,18], dmg:13, kb:7,  meter:14, reach:96,  height:50, hStart:-12, name:'kick'},
-  special:{dur:55, active:[20,32], dmg:32, kb:14, meter:0,  reach:130, height:90, hStart:-50, name:'special'},
+  // Punch and kick do NO damage — only build RAGE for the attacker
+  punch:  {dur:18, active:[6,10],  dmg:0, kb:3,  meter:0,  reach:78,  height:42, hStart:-18, name:'punch'},
+  kick:   {dur:30, active:[12,18], dmg:0, kb:7,  meter:0,  reach:96,  height:50, hStart:-12, name:'kick'},
+  // Legacy 'special' kept for safety (not invoked anymore — dash replaces it)
+  special:{dur:55, active:[20,32], dmg:0, kb:0,  meter:0,  reach:0,   height:0,  hStart:0,   name:'special'},
   // Push gesture for Rasengan — short, no melee damage (Rasengan projectile does it)
   rasenganCast:{dur:24, active:[0,0], dmg:0, kb:0, meter:0, reach:0, height:0, hStart:0, name:'rasenganCast'},
   // Casting pose during Shadow Clone — locks the caster in place
@@ -615,9 +615,7 @@ function actionFor(f, opp){
       punch: PRESSED.KeyJ,
       kick:  PRESSED.KeyK,
       special: PRESSED.KeyL,
-      rasengan: PRESSED.KeyL,
-      rasenShuriken: PRESSED.KeyU,
-      shadowClone: PRESSED.KeyI,
+      dash: PRESSED.KeyL,
     };
   }
   return aiAction(f, opp);
@@ -655,11 +653,10 @@ function aiAction(f, opp){
   }
   f.aiTimer=isHard?rndI(8,18):rndI(16,32);
 
-  // Naruto AI: throw Rasengan when chakra ready (it's a projectile, useful at range)
-  const hasJutsu = f.c.heroId === 'kenshin';
-  const specialThresh = hasJutsu ? 15 : 100;
-  const specialRange = hasJutsu ? 360 : 170;
-  if(f.meter>=specialThresh && adx<specialRange && facingOpp && Math.random()<(isHard?0.45:0.22)){
+  // Kenshin AI: launch Dash Strike when ENERGY is ready
+  const specialThresh = 35;
+  const specialRange = 300;
+  if(f.meter>=specialThresh && adx<specialRange && facingOpp && Math.random()<(isHard?0.4:0.2)){
     a.special=true; f.aiPlan='wait'; return a;
   }
 
@@ -714,23 +711,9 @@ function updateFighter(f, opp){
   if(f.hitFlash>0)f.hitFlash--;
   if(f.hitstun>0)f.hitstun--;
   if(f.comboTimer>0)f.comboTimer--; else f.combo=0;
-  if(f.rasenganCool>0)f.rasenganCool--;
-  if(f.shurikenCool>0)f.shurikenCool--;
-  if(f.cloneCool>0)f.cloneCool--;
-  if(f.holdingShuriken>0){
-    f.holdingShuriken--;
-    // Auto-throw at the end of the 5-second window if still in hand
-    if(f.holdingShuriken<=0){ throwShuriken(f, opp); }
-  }
-  // Pending Rasengan release (during the push animation)
-  if(f.pendingRasengan > 0){
-    f.pendingRasengan--;
-    if(f.pendingRasengan === 0){
-      spawnRasengan(f, opp);
-    }
-  }
-  // Slow chakra regeneration over time
-  if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 0.15);
+  if(f.dashCool>0)f.dashCool--;
+  // ENERGY auto-regen: +2 per second
+  if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 2/60);
 
   if(f.ko){
     if(f.state!=='ko'){f.state='ko';f.sTime=0}
@@ -741,11 +724,30 @@ function updateFighter(f, opp){
     return;
   }
 
+  // Dash Strike state — interpolate position, check hit at midpoint
+  if(f.state === 'dashing'){
+    const total = 26;
+    const t = Math.min(1, f.sTime / total);
+    // Smooth ease (slow in, very fast through middle, slow out)
+    const ease = t<0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
+    f.x = f.dashStartX + (f.dashEndX - f.dashStartX) * ease;
+    // Mid-dash hit window
+    if(!f.dashHit && f.sTime >= 8 && f.sTime <= 18){
+      if(Math.abs(opp.x - f.x) < 60 && !opp.ko){
+        applyDashHit(f, opp);
+      }
+    }
+    if(f.sTime >= total){
+      f.state = 'idle'; f.sTime = 0; f.dashHit = false;
+    }
+    return;
+  }
+
   // Decide / handle action
   const act = actionFor(f, opp);
 
   // While attacking, lock out new actions
-  const atking = ['punch','kick','special','rasenganCast','cloneCast'].includes(f.state);
+  const atking = ['punch','kick','special'].includes(f.state);
   if(atking){
     const dur = MOVES[f.state] ? MOVES[f.state].dur : 22;
     if(f.sTime>=dur){f.state='idle';f.sTime=0;f.hitThisAttack=false}
@@ -759,45 +761,11 @@ function updateFighter(f, opp){
   }
   f.blocking=false;
 
-  // ─── Naruto jutsu (works for both player and AI) ───
-  const isNaruto = f.c.heroId === 'kenshin'; // hero has jutsu (sword energy attacks)
-  if(isNaruto && f.onGround){
-    // Shadow Clone — requires FULL rage (100); AI uses it randomly when ready
-    const wantsClone = f.isPlayer
-      ? (act.shadowClone)
-      : (f.rage>=100 && Math.abs(opp.x-f.x)<320 && Math.random()<0.03);
-    if(wantsClone && f.rage>=100 && f.cloneCool<=0){
-      triggerShadowClone(f, opp);
-      return;
-    }
-    // Rasen Shuriken (player only — AI doesn't manage the 5s hold)
-    if(f.isPlayer && act.rasenShuriken && f.meter>=30 && f.holdingShuriken<=0 && f.shurikenCool<=0){
-      f.meter -= 30;
-      f.holdingShuriken = 300; // 5s @ 60fps
-      f.shurikenCool = 30;
-      pulseRing(f);
-      return;
-    }
-    if(f.holdingShuriken>0 && (act.punch || act.kick || act.rasengan)){
-      throwShuriken(f, opp);
-      return;
-    }
-    // Rasengan — player via L, AI via 'special' decision
-    const wantsRasengan = f.isPlayer ? act.rasengan : act.special;
-    if(wantsRasengan && f.meter>=15 && f.rasenganCool<=0 && f.holdingShuriken<=0){
-      f.meter -= 15;
-      f.rasenganCool = 28;
-      f.state='rasenganCast'; f.sTime=0; f.hitThisAttack=false;
-      // Project spawns a few frames in (after the push gesture starts)
-      f.pendingRasengan = 6;
-      return;
-    }
-  }
-
-  // Special (legacy super; used by non-Naruto AI)
-  if(act.special && !isNaruto && f.meter>=100 && f.onGround){
-    f.state='special'; f.sTime=0; f.meter=0; f.hitThisAttack=false;
-    pulseRing(f);
+  // ─── Dash Strike (only damage-dealing skill) ───
+  // Both player (L key) and AI ('special' decision) trigger via the same path.
+  if(f.onGround && (act.dash || (!f.isPlayer && act.special)) &&
+     f.meter >= 35 && f.dashCool <= 0 && f.state !== 'dashing'){
+    triggerDash(f, opp);
     return;
   }
   // Kick
@@ -865,36 +833,76 @@ function rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh){
   return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
 }
 
+// ── Dash Strike — phase through opponent for 30 dmg, costs 35 ENERGY ───
+function triggerDash(att, def){
+  att.meter -= 35;
+  att.dashCool = 40;
+  att.state = 'dashing';
+  att.sTime = 0;
+  att.dashStartX = att.x;
+  // Travel ~120 px past the opponent (or a fixed 240 if opponent is behind)
+  const dirToOpp = def.x > att.x ? 1 : -1;
+  att.facing = dirToOpp;
+  att.dashEndX = def.x + dirToOpp * 120;
+  // Cap inside the stage
+  att.dashEndX = Math.max(40, Math.min(W-40, att.dashEndX));
+  att.dashHit = false;
+  // Brief flash at start
+  pulseRing(att);
+}
+
+function applyDashHit(att, def){
+  att.dashHit = true;
+  const blocked = def.blocking && def.facing !== att.facing;
+  const dmg = blocked ? 6 : 30;
+  def.hp = Math.max(0, def.hp - dmg);
+  if(!blocked){
+    def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
+    att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
+    def.hitstun = 28;
+    def.hitFlash = 14;
+  }
+  def.vx = att.facing * (blocked ? 4 : 9);
+  def.vy = blocked ? -1 : -5;
+  shake = Math.min(22, shake + 14);
+  hitstop = 8;
+  spawnHitSpark(def.x - att.facing*22, def.y - 70, blocked, 'special');
+  spawnDamageNum(def.x, def.y - 95, dmg, blocked);
+  if(def.hp <= 0){
+    def.ko = true; def.vy = -8; def.vx = att.facing * 6;
+    triggerKO(att, def);
+  }
+}
+
 function registerHit(att, def, mv){
-  let dmg = mv.dmg;
+  let dmg = mv.dmg;          // punch/kick now dmg=0, so HP never drops from melee
   let kb = mv.kb;
   const blocked = def.blocking && def.facing !== att.facing;
   if(blocked){
-    dmg = Math.max(1, Math.floor(dmg*0.18));
+    dmg = 0;
     kb = Math.max(2, Math.floor(kb*0.35));
-    def.meter = Math.min(def.maxMeter, def.meter + 3);
   } else {
-    def.hitstun = mv.name==='special'?32:(mv.name==='kick'?18:13);
+    def.hitstun = (mv.name==='kick'?18:13);
     def.hitFlash = 8;
     att.combo++; att.comboTimer = 80;
   }
   def.hp = Math.max(0, def.hp - dmg);
-  // RAGE: defender gains rage equal to damage taken from opponent's attacks
-  def.rage = Math.min(def.maxRage, (def.rage||0) + dmg);
+  // RAGE rules: defender +8 on being hit (unblocked), attacker +3 on landing a hit
+  if(!blocked){
+    def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
+    att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
+  }
   def.vx = att.facing * kb;
-  if(mv.name==='special'){def.vy = -7; def.y -= 1}
   if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
-
-  att.meter = Math.min(att.maxMeter, att.meter + mv.meter);
 
   // VFX
   const hx = def.x - def.facing*22;
-  const hy = def.y - 70 - (mv.name==='special'?15:0);
+  const hy = def.y - 70;
   spawnHitSpark(hx, hy, blocked, mv.name);
-  spawnDamageNum(hx, hy-20, dmg, blocked);
+  if(dmg > 0) spawnDamageNum(hx, hy-20, dmg, blocked);
   if(!blocked){
-    shake = Math.min(22, shake + (mv.name==='special'?14:(mv.name==='kick'?7:3)));
-    hitstop = mv.name==='special'?12:(mv.name==='kick'?5:2);
+    shake = Math.min(18, shake + (mv.name==='kick'?7:3));
+    hitstop = mv.name==='kick'?5:2;
   }
 
   if(def.hp<=0){
@@ -1198,6 +1206,72 @@ function drawBg(){
   ctx.fillRect(0,GROUND+6,W,4);
 }
 
+// ── Dash beam — replaces the body during the Dash Strike ───────
+// Renders a long horizontal beam of blue-white light from dashStartX to the
+// current x, suggesting the fighter has become pure energy.
+function drawDashBeam(f){
+  const c = f.c;
+  const x1 = f.dashStartX;
+  const x2 = f.x;
+  const y  = f.y - 60;        // beam centered around the torso line
+  const dir = f.facing;
+  const left  = Math.min(x1, x2);
+  const right = Math.max(x1, x2);
+  const len = right - left;
+  if(len < 4) return;
+
+  ctx.save();
+  // Outer glow — wide, soft
+  ctx.shadowBlur = 28;
+  ctx.shadowColor = '#60a5fa';
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(left - 8, y - 18, len + 16, 36);
+
+  // Core bright beam
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = '#ffffff';
+  ctx.globalAlpha = 0.95;
+  const grd = ctx.createLinearGradient(left, y, right, y);
+  if(dir > 0){
+    grd.addColorStop(0,   'rgba(96,165,250,0)');
+    grd.addColorStop(0.6, 'rgba(219,234,254,1)');
+    grd.addColorStop(0.9, 'rgba(255,255,255,1)');
+    grd.addColorStop(1,   'rgba(255,255,255,0.9)');
+  } else {
+    grd.addColorStop(0,   'rgba(255,255,255,0.9)');
+    grd.addColorStop(0.1, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.4, 'rgba(219,234,254,1)');
+    grd.addColorStop(1,   'rgba(96,165,250,0)');
+  }
+  ctx.fillStyle = grd;
+  ctx.fillRect(left, y - 6, len, 12);
+
+  // Thin razor line inside
+  ctx.shadowBlur = 0;
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(left, y - 1, len, 2);
+
+  // Leading edge spark
+  const tipX = (dir > 0 ? right : left);
+  ctx.shadowBlur = 24;
+  ctx.shadowColor = '#bfdbfe';
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.ellipse(tipX, y, 10, 16, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Speed-line streaks behind the tip
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = '#dbeafe';
+  for(let i = 1; i <= 4; i++){
+    const sx = tipX - dir * i * 18;
+    ctx.fillRect(sx - dir*12, y - 1.5 + (i%2?2:-2), 18, 1);
+  }
+  ctx.restore();
+}
+
 // ── Fighter drawing ────────────────────────────────────────────
 function drawFighter(f, opp){
   const c=f.c;
@@ -1212,6 +1286,13 @@ function drawFighter(f, opp){
 
   // Compute pose
   const pose = computePose(f);
+
+  // ── DASHING: render only a long blue beam of light, NOT the body ──
+  if(f.state === 'dashing'){
+    ctx.restore();
+    drawDashBeam(f);
+    return;
+  }
 
   // Translate + flip
   ctx.translate(f.x, f.y);
@@ -2058,7 +2139,7 @@ function drawMeter(x,y,w,f,leftAlign){
   ctx.fillStyle = '#93c5fd';
   ctx.shadowBlur = 6; ctx.shadowColor = '#3b82f6';
   ctx.font='bold 10px system-ui'; ctx.textAlign=leftAlign?'left':'right';
-  ctx.fillText(`CHAKRA  ${Math.floor(f.meter)}/${f.maxMeter}`, leftAlign?x:x+w, y-3);
+  ctx.fillText(`ENERGY  ${Math.floor(f.meter)}/${f.maxMeter}`, leftAlign?x:x+w, y-3);
   ctx.shadowBlur = 0;
 }
 
