@@ -70,12 +70,12 @@ canvas{display:block;image-rendering:pixelated}
   <h1 style="background:linear-gradient(135deg,#f97316,#fbbf24,#fb923c);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:2.6rem">SELECT YOUR FIGHTER</h1>
   <h2 style="color:#94a3b8;font-size:1rem;letter-spacing:.2em">Roster · 1 of 3 unlocked</h2>
   <div class="hero-grid">
-    <div class="hero-card selected" data-hero="naruto" onclick="selectHero('naruto')">
+    <div class="hero-card selected" data-hero="kenshin" onclick="selectHero('kenshin')">
       <span class="hero-tag">NEW</span>
-      <canvas class="hero-canvas" id="hero-canvas-naruto" width="170" height="200"></canvas>
-      <div class="hero-name">NARUTO UZUMAKI</div>
-      <div class="hero-title">Hidden Leaf · Ninja</div>
-      <div class="hero-quote">"I'm gonna be the Hokage one day!"</div>
+      <canvas class="hero-canvas" id="hero-canvas-kenshin" width="170" height="200"></canvas>
+      <div class="hero-name">KENSHIN</div>
+      <div class="hero-title">Wandering Swordsman</div>
+      <div class="hero-quote">"The path of the blade knows no end."</div>
     </div>
     <div class="hero-card locked">
       <div class="hero-locked-art">?</div>
@@ -152,37 +152,42 @@ const PAL={
 
 // ── Heroes (selectable fighters) ───────────────────────────────
 const HEROES = {
-  naruto: {
-    id: 'naruto',
-    name: 'NARUTO UZUMAKI',
+  kenshin: {
+    id: 'kenshin',
+    name: 'KENSHIN',
     colors: {
-      skin: '#e8b890',        // wheat / tan skin
-      hair: '#fbbf24',        // golden blonde
-      top: '#f97316',         // orange jacket
-      topDark: '#0a0a0a',     // black shoulders + collar
-      topAccent: '#fb923c',   // brighter orange zipper line
-      pants: '#f97316',       // orange pants
-      belt: '#000000',        // black belt
-      accent: '#1d4ed8',      // blue accent (eyes / headband)
-      glow: '#fb923c',        // orange chakra glow
-      headband: '#1e40af',    // blue forehead protector
-      plate: '#c0c5d0',       // metal headband plate
+      skin: '#f0d5b5',
+      hair: '#ecedf2',
+      hairTip: '#b5b8c6',
+      top: '#0a0a14',
+      topDark: '#000000',
+      topAccent: '#daa520',
+      pants: '#0a0a14',
+      belt: '#1a1a28',
+      beltTrim: '#daa520',
+      accent: '#3b82f6',
+      glow: '#60a5fa',
       eyeWhite: '#ffffff',
       eyeIris: '#1d4ed8',
+      eyeGlow: '#60a5fa',
+      bladeMetal: '#e0e7ff',
+      bladeGlow: '#3b82f6',
       whisker: '#3d2817',
+      headband: '#0a0a14',
+      plate: '#c0c5d0',
     },
     features: {
-      hairStyle: 'spiky',
-      hasHeadband: true,
-      whiskers: 'profile',  // only on the visible cheek (side view)
-      mouth: 'grin',
-      profileEye: true,     // single blue eye in profile
-      shoulderPatches: true,
+      hairStyle: 'longFlow',
+      kimono: true,
+      katana: true,
+      glowingEye: true,
+      profileEye: true,
+      mouth: 'stoic',
     },
   },
 };
 
-let selectedHeroId = 'naruto';
+let selectedHeroId = 'kenshin';
 
 function applyHero(palette, heroId){
   const hero = HEROES[heroId];
@@ -191,8 +196,8 @@ function applyHero(palette, heroId){
   palette.heroId = hero.id;
   palette.features = hero.features;
 }
-applyHero(PAL.p1, 'naruto');
-applyHero(PAL.p2, 'naruto'); // AI also Naruto
+applyHero(PAL.p1, 'kenshin');
+applyHero(PAL.p2, 'kenshin'); // AI also Kenshin
 
 // ── Fighter factory ───────────────────────────────────────────
 function mkFighter(x,facing,isP,name,colors){
@@ -233,7 +238,7 @@ function start(diff){
   aiDiff=lastDiff=diff;
   p1Wins=0; p2Wins=0; round=1;
   applyHero(PAL.p1, selectedHeroId);
-  applyHero(PAL.p2, 'naruto');  // AI is always Naruto for now
+  applyHero(PAL.p2, 'kenshin');  // AI is always Kenshin for now
   initRound(0,0);
 }
 
@@ -245,9 +250,9 @@ function drawHeroPortrait(canvasId, heroId){
   const W = cv.width, H = cv.height;
   g.clearRect(0,0,W,H);
 
-  // Background glow
+  // Background — moody blue glow
   const bgg = g.createRadialGradient(W/2, H*0.3, 4, W/2, H*0.5, W*0.8);
-  bgg.addColorStop(0,'rgba(249,115,22,0.25)');
+  bgg.addColorStop(0,'rgba(59,130,246,0.2)');
   bgg.addColorStop(1,'rgba(5,5,10,0)');
   g.fillStyle = bgg;
   g.fillRect(0,0,W,H);
@@ -255,222 +260,304 @@ function drawHeroPortrait(canvasId, heroId){
   g.fillStyle = 'rgba(0,0,0,0.45)';
   g.beginPath(); g.ellipse(W/2, H-22, 38, 7, 0, 0, Math.PI*2); g.fill();
 
-  if(heroId !== 'naruto') return;
-  const c = HEROES.naruto.colors;
-  // ═══ Side profile (facing right) ═══
-  const cx = W/2 - 8;
+  if(heroId !== 'kenshin') return;
+  const c = HEROES.kenshin.colors;
+  // ═══ Side profile (facing right) — wandering swordsman ═══
+  const cx = W/2 - 6;
   const baseY = H - 28;
-
-  // Front shoe (visible foot)
-  g.fillStyle = '#0a0a0a';
-  rRect(g, cx-2, baseY-4, 22, 6, 2); g.fill();
-  // Back shoe (slightly behind)
-  g.fillStyle = '#070707';
-  rRect(g, cx-14, baseY-3, 18, 5, 2); g.fill();
-
-  // Pants (narrower in profile)
-  g.fillStyle = c.pants;
-  rRect(g, cx-12, baseY-46, 26, 44, 4); g.fill();
-  // Leg separation line
-  g.fillStyle = 'rgba(0,0,0,0.18)';
-  g.fillRect(cx+0, baseY-30, 1.5, 28);
-
-  // Belt
-  g.fillStyle = c.belt;
-  rRect(g, cx-13, baseY-52, 28, 7, 1); g.fill();
-  g.fillStyle = '#fbbf24';
-  rRect(g, cx-2, baseY-51, 5, 5, 1); g.fill();
-
-  // Jacket body (orange, profile)
-  g.fillStyle = c.top;
-  rRect(g, cx-14, baseY-104, 30, 56, 5); g.fill();
-  // Black shoulder cap (top of jacket on visible side)
-  g.fillStyle = c.topDark;
-  rRect(g, cx-14, baseY-104, 30, 18, 5); g.fill();
-  // Re-paint lower jacket bottom with orange (just border the black to top)
-  // already orange below
-  // Collar (small black notch at neck)
-  g.fillStyle = c.topDark;
-  rRect(g, cx-3, baseY-104, 14, 8, 2); g.fill();
-  // Orange zipper line down the front (right side of body in profile)
-  g.fillStyle = c.topAccent;
-  g.fillRect(cx+13, baseY-92, 2, 42);
-  // Zipper teeth
-  g.fillStyle = '#000';
-  for(let zy = baseY-86; zy < baseY-50; zy += 5){
-    g.fillRect(cx+12, zy, 4, 1.4);
-  }
-
-  // Arm (front arm, hanging slightly forward — orange sleeve, black shoulder cap)
-  g.fillStyle = c.top;
-  rRect(g, cx+8, baseY-94, 11, 38, 4); g.fill();
-  g.fillStyle = c.topDark;
-  rRect(g, cx+8, baseY-94, 11, 10, 4); g.fill();
-  // Hand (skin)
-  g.fillStyle = c.skin;
-  g.beginPath(); g.arc(cx+13, baseY-52, 5, 0, Math.PI*2); g.fill();
-
-  // Neck (profile)
-  g.fillStyle = c.skin;
-  g.beginPath();
-  g.moveTo(cx-3, baseY-104);
-  g.lineTo(cx+8, baseY-104);
-  g.lineTo(cx+7, baseY-114);
-  g.lineTo(cx-2, baseY-114);
-  g.closePath(); g.fill();
-
-  // ── Head in profile ──
   const hy = baseY - 130;
 
-  // Head silhouette (egg shape, nose pointing right)
+  // ── Long silver hair flowing back (behind everything) ──
+  g.fillStyle = c.hair;
+  g.beginPath();
+  g.moveTo(cx-14, hy-10);
+  // Going back and down with wind sweep
+  g.bezierCurveTo(cx-22, hy-4, cx-30, hy+6, cx-34, hy+22);
+  g.bezierCurveTo(cx-36, hy+40, cx-32, hy+58, cx-26, hy+70);
+  // Hair tip
+  g.lineTo(cx-20, hy+74);
+  // Inner curve back up along the back of the head/neck
+  g.bezierCurveTo(cx-22, hy+50, cx-22, hy+25, cx-16, hy+8);
+  g.bezierCurveTo(cx-14, hy+2, cx-14, hy-4, cx-14, hy-10);
+  g.closePath();
+  g.fill();
+  // Hair darker tips for depth
+  g.fillStyle = c.hairTip;
+  g.beginPath();
+  g.moveTo(cx-34, hy+38);
+  g.bezierCurveTo(cx-32, hy+58, cx-26, hy+70, cx-20, hy+74);
+  g.lineTo(cx-22, hy+72);
+  g.bezierCurveTo(cx-28, hy+58, cx-32, hy+48, cx-32, hy+38);
+  g.closePath();
+  g.fill();
+  // Floating strands (wind effect)
+  g.strokeStyle = c.hair;
+  g.lineWidth = 1.8;
+  g.beginPath();
+  g.moveTo(cx-26, hy+20);
+  g.bezierCurveTo(cx-38, hy+30, cx-40, hy+50, cx-34, hy+62);
+  g.stroke();
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.moveTo(cx-22, hy+8);
+  g.bezierCurveTo(cx-32, hy+14, cx-36, hy+28, cx-32, hy+38);
+  g.stroke();
+
+  // ── Foot (one visible in profile) ──
+  g.fillStyle = '#0a0a0a';
+  rRect(g, cx-6, baseY-4, 24, 5, 2); g.fill();
+
+  // ── Hakama (wide flared pants, black) ──
+  g.fillStyle = c.pants;
+  g.beginPath();
+  g.moveTo(cx-14, baseY-58);
+  g.lineTo(cx-22, baseY-4);
+  g.lineTo(cx+22, baseY-4);
+  g.lineTo(cx+14, baseY-58);
+  g.closePath(); g.fill();
+  // Hakama pleats (subtle vertical lines)
+  g.strokeStyle = 'rgba(255,255,255,0.05)';
+  g.lineWidth = 1;
+  for(let i = 0; i < 4; i++){
+    g.beginPath();
+    g.moveTo(cx-14 + i*9, baseY-58);
+    g.lineTo(cx-16 + i*10.5, baseY-6);
+    g.stroke();
+  }
+
+  // ── Obi (black belt with gold trim) ──
+  g.fillStyle = c.belt;
+  rRect(g, cx-16, baseY-66, 32, 10, 1); g.fill();
+  g.fillStyle = c.beltTrim;
+  g.fillRect(cx-16, baseY-66, 32, 1.5);
+  g.fillRect(cx-16, baseY-57.5, 32, 1.5);
+  // Knot on side (back)
+  g.fillStyle = c.belt;
+  rRect(g, cx-20, baseY-64, 6, 12, 2); g.fill();
+  g.fillStyle = c.beltTrim;
+  g.fillRect(cx-20, baseY-64, 1, 12);
+
+  // ── Kimono top (black with gold trim) ──
+  // Outer robe back panel
+  g.fillStyle = c.top;
+  g.beginPath();
+  g.moveTo(cx-20, baseY-110);
+  g.bezierCurveTo(cx-22, baseY-90, cx-22, baseY-70, cx-18, baseY-66);
+  g.lineTo(cx+18, baseY-66);
+  g.bezierCurveTo(cx+22, baseY-70, cx+22, baseY-90, cx+20, baseY-110);
+  g.closePath(); g.fill();
+  // V-neck lapels (right over left)
+  g.fillStyle = c.top;
+  g.beginPath();
+  g.moveTo(cx+20, baseY-110);
+  g.lineTo(cx+8, baseY-92);
+  g.lineTo(cx+2, baseY-66);
+  g.lineTo(cx+18, baseY-66);
+  g.closePath(); g.fill();
+  // Gold trim along V-neck
+  g.strokeStyle = c.topAccent;
+  g.lineWidth = 2.2;
+  g.beginPath();
+  g.moveTo(cx+20, baseY-110);
+  g.lineTo(cx+8, baseY-92);
+  g.lineTo(cx+2, baseY-66);
+  g.stroke();
+  // Gold trim along bottom edge of jacket
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(cx-18, baseY-66);
+  g.lineTo(cx+18, baseY-66);
+  g.stroke();
+  // Gold trim along back edge
+  g.beginPath();
+  g.moveTo(cx-20, baseY-110);
+  g.lineTo(cx-22, baseY-68);
+  g.stroke();
+  // Decorative gold swirl pattern on the side
+  g.strokeStyle = c.topAccent;
+  g.lineWidth = 1.1;
+  g.beginPath();
+  g.arc(cx-6, baseY-88, 3, 0, Math.PI*1.5);
+  g.stroke();
+  g.beginPath();
+  g.moveTo(cx-3, baseY-86);
+  g.bezierCurveTo(cx+2, baseY-84, cx+4, baseY-90, cx-1, baseY-92);
+  g.stroke();
+  g.fillStyle = c.topAccent;
+  g.beginPath(); g.arc(cx-6, baseY-88, 1, 0, Math.PI*2); g.fill();
+
+  // ── Sleeve (foreground arm — wide kimono sleeve) ──
+  g.fillStyle = c.top;
+  g.beginPath();
+  g.moveTo(cx+10, baseY-106);
+  g.lineTo(cx+24, baseY-88);
+  g.lineTo(cx+22, baseY-66);
+  g.lineTo(cx+9, baseY-78);
+  g.closePath(); g.fill();
+  // Gold trim on sleeve edge
+  g.strokeStyle = c.topAccent;
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(cx+24, baseY-88);
+  g.lineTo(cx+22, baseY-66);
+  g.stroke();
+
+  // ── Hand (foreground, holding katana) ──
+  const handX = cx+20, handY = baseY-72;
+  g.fillStyle = c.skin;
+  g.beginPath(); g.arc(handX, handY, 4.5, 0, Math.PI*2); g.fill();
+
+  // ── KATANA (held in right hand, blade extends forward-down with blue glow) ──
+  g.save();
+  g.translate(handX, handY);
+  g.rotate(0.5);  // angled forward-down
+  // Hilt (wrapped black handle)
+  g.fillStyle = '#0a0a0a';
+  rRect(g, -16, -3, 18, 6, 1); g.fill();
+  // Diamond wrapping pattern
+  g.strokeStyle = c.beltTrim;
+  g.lineWidth = 0.6;
+  for(let i = 0; i < 5; i++){
+    g.beginPath();
+    g.moveTo(-15 + i*3.5, -3);
+    g.lineTo(-12 + i*3.5, 3);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-12 + i*3.5, -3);
+    g.lineTo(-15 + i*3.5, 3);
+    g.stroke();
+  }
+  // Pommel (gold cap at end of hilt)
+  g.fillStyle = c.beltTrim;
+  rRect(g, -18, -3.5, 2.5, 7, 0.5); g.fill();
+  // Tsuba (gold guard)
+  g.fillStyle = c.beltTrim;
+  rRect(g, 2, -6.5, 3.5, 13, 1); g.fill();
+  g.fillStyle = '#fbbf24';
+  g.fillRect(2, -6.5, 3.5, 1.2);
+  g.fillRect(2, 5.3, 3.5, 1.2);
+  // Blade glow halo
+  g.save();
+  g.shadowBlur = 18;
+  g.shadowColor = c.bladeGlow;
+  g.globalAlpha = 0.55;
+  g.fillStyle = c.bladeGlow;
+  g.fillRect(5.5, -3.5, 68, 7);
+  g.restore();
+  // Blade metal core
+  const bgrd = g.createLinearGradient(5.5, -2, 73, -2);
+  bgrd.addColorStop(0, '#dbeafe');
+  bgrd.addColorStop(0.4, '#f5f9ff');
+  bgrd.addColorStop(1, '#a5b4fc');
+  g.fillStyle = bgrd;
+  g.fillRect(5.5, -2, 65, 4);
+  // Tip
+  g.beginPath();
+  g.moveTo(70.5, -2);
+  g.lineTo(76, 0);
+  g.lineTo(70.5, 2);
+  g.fillStyle = '#dbeafe';
+  g.fill();
+  // Edge highlight
+  g.fillStyle = '#bfdbfe';
+  g.fillRect(5.5, -2, 65, 0.6);
+  // Hi groove (center line glowing blue)
+  g.fillStyle = c.bladeGlow;
+  g.fillRect(5.5, -0.3, 65, 0.7);
+  g.restore();
+
+  // ── Neck (profile) ──
   g.fillStyle = c.skin;
   g.beginPath();
-  g.moveTo(cx-14, hy+2);          // top back of skull
-  g.bezierCurveTo(cx-15, hy-15, cx+5, hy-20, cx+15, hy-10);
+  g.moveTo(cx-2, baseY-110);
+  g.lineTo(cx+9, baseY-110);
+  g.lineTo(cx+8, baseY-118);
+  g.lineTo(cx-1, baseY-118);
+  g.closePath(); g.fill();
+
+  // ── Head silhouette (profile, nose pointing right) ──
+  g.fillStyle = c.skin;
+  g.beginPath();
+  g.moveTo(cx-14, hy+2);
+  g.bezierCurveTo(cx-15, hy-16, cx+4, hy-20, cx+15, hy-10);
   g.bezierCurveTo(cx+20, hy-4, cx+21, hy+2, cx+19, hy+6);
   // Nose bridge & tip
   g.lineTo(cx+22, hy+4);
-  g.lineTo(cx+24, hy+8);
-  g.lineTo(cx+22, hy+10);
-  g.lineTo(cx+19, hy+10);
-  // Upper lip / philtrum
-  g.lineTo(cx+18, hy+12);
+  g.lineTo(cx+24, hy+9);
+  g.lineTo(cx+22, hy+11);
+  g.lineTo(cx+19, hy+11);
   // Mouth area
-  g.lineTo(cx+19, hy+14);
+  g.lineTo(cx+18, hy+13);
+  g.lineTo(cx+19, hy+15);
   // Chin
   g.bezierCurveTo(cx+16, hy+22, cx+4, hy+24, cx-6, hy+20);
-  // Jaw to back of head
   g.bezierCurveTo(cx-13, hy+14, cx-15, hy+8, cx-14, hy+2);
   g.closePath();
   g.fill();
 
-  // Ear (visible on back side)
-  g.fillStyle = c.skin;
-  g.beginPath(); g.ellipse(cx-9, hy+6, 3, 5, 0, 0, Math.PI*2); g.fill();
-  g.strokeStyle = 'rgba(70,40,20,0.5)';
-  g.lineWidth = 1;
-  g.beginPath(); g.arc(cx-9, hy+6, 1.8, -0.5, Math.PI*1.2); g.stroke();
-
-  // ── Spiky blonde hair (side view) ──
+  // ── Front bangs (fringe falling over forehead) ──
   g.fillStyle = c.hair;
   g.beginPath();
-  g.moveTo(cx-14, hy+2);
-  // Back spikes
-  g.lineTo(cx-16, hy-6);
-  g.lineTo(cx-12, hy-12);
-  g.lineTo(cx-15, hy-18);
-  // Going up over the head
-  const spikes = [
-    [-8, -16], [-10, -23], [-3, -20], [-2, -28], [3, -22],
-    [6, -28], [10, -22], [13, -25], [16, -18], [18, -10],
-  ];
-  for(const [dx, dy] of spikes) g.lineTo(cx+dx, hy+dy);
-  g.bezierCurveTo(cx+18, hy-5, cx+18, hy-2, cx+15, hy-2);
-  g.closePath();
-  g.fill();
-
-  // Hair darker tips
-  g.fillStyle = 'rgba(120,80,10,0.35)';
-  for(const [dx,dy] of [[-12,-12],[-2,-28],[6,-28],[13,-25]]){
-    g.beginPath();
-    g.moveTo(cx+dx, hy+dy);
-    g.lineTo(cx+dx-3, hy+dy+5);
-    g.lineTo(cx+dx+3, hy+dy+5);
-    g.closePath(); g.fill();
-  }
-
-  // Hair strand falling over the front of the headband
+  g.moveTo(cx-14, hy-2);
+  g.bezierCurveTo(cx-14, hy-18, cx+10, hy-22, cx+18, hy-10);
+  g.lineTo(cx+18, hy-5);
+  // Front strands
+  g.bezierCurveTo(cx+14, hy-2, cx+8, hy+1, cx+10, hy+5);
+  g.lineTo(cx+6, hy+3);
+  g.bezierCurveTo(cx-2, hy+1, cx-10, hy-1, cx-14, hy-2);
+  g.closePath(); g.fill();
+  // A strand falling in front of the eye
   g.fillStyle = c.hair;
   g.beginPath();
-  g.moveTo(cx+10, hy-6);
-  g.lineTo(cx+13, hy-2);
-  g.lineTo(cx+8, hy-3);
+  g.moveTo(cx+12, hy-6);
+  g.bezierCurveTo(cx+16, hy-2, cx+15, hy+4, cx+11, hy+6);
+  g.lineTo(cx+9, hy+4);
+  g.bezierCurveTo(cx+13, hy, cx+12, hy-2, cx+10, hy-4);
   g.closePath(); g.fill();
 
-  // ── Headband (blue band wrapping around, metal plate on front) ──
-  // Wraps from back to front
-  g.fillStyle = c.headband;
-  g.beginPath();
-  g.moveTo(cx-13, hy-3);
-  g.lineTo(cx+18, hy-6);
-  g.lineTo(cx+19, hy-1);
-  g.lineTo(cx-13, hy+2);
-  g.closePath(); g.fill();
-  // Metal plate (on the front portion of the band)
-  g.fillStyle = c.plate;
-  g.beginPath();
-  g.moveTo(cx-2, hy-4);
-  g.lineTo(cx+18, hy-6);
-  g.lineTo(cx+19, hy-1);
-  g.lineTo(cx-2, hy+1);
-  g.closePath(); g.fill();
-  // Plate shading
-  g.fillStyle = 'rgba(0,0,0,0.22)';
-  g.fillRect(cx-2, hy-1, 21, 1.5);
-  // Konoha leaf symbol (simplified swirl)
-  g.strokeStyle = '#1c1310';
-  g.lineWidth = 1.2;
-  g.beginPath();
-  g.arc(cx+9, hy-3, 2.4, -0.4, Math.PI*1.5);
-  g.stroke();
-  g.beginPath();
-  g.moveTo(cx+6, hy-1.5); g.lineTo(cx+12, hy-1);
-  g.stroke();
-  // Headband ties trailing down behind
-  g.fillStyle = c.headband;
-  g.beginPath();
-  g.moveTo(cx-13, hy+1);
-  g.lineTo(cx-22, hy+18);
-  g.lineTo(cx-17, hy+20);
-  g.lineTo(cx-11, hy+1);
-  g.closePath(); g.fill();
-  g.beginPath();
-  g.moveTo(cx-13, hy+3);
-  g.lineTo(cx-19, hy+22);
-  g.lineTo(cx-15, hy+24);
-  g.lineTo(cx-10, hy+3);
-  g.closePath(); g.fill();
-
-  // ── Single eye in profile ──
+  // ── Glowing deep-blue eye ──
+  // Outer glow
+  g.save();
+  g.shadowBlur = 16;
+  g.shadowColor = c.eyeGlow;
+  g.fillStyle = 'rgba(96,165,250,0.5)';
+  g.beginPath(); g.arc(cx+12, hy+7, 5, 0, Math.PI*2); g.fill();
+  g.restore();
+  // White (sclera)
   g.fillStyle = c.eyeWhite;
-  g.beginPath(); g.ellipse(cx+11, hy+6, 3.6, 3.3, 0, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(cx+12, hy+7, 3.6, 3.4, 0, 0, Math.PI*2); g.fill();
+  // Iris (deep blue)
   g.fillStyle = c.eyeIris;
-  g.beginPath(); g.arc(cx+12, hy+6, 2.2, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.arc(cx+13, hy+7, 2.5, 0, Math.PI*2); g.fill();
+  // Glow ring inside iris
+  g.save();
+  g.shadowBlur = 6;
+  g.shadowColor = c.eyeGlow;
+  g.fillStyle = c.eyeGlow;
+  g.beginPath(); g.arc(cx+13, hy+7, 1.8, 0, Math.PI*2); g.fill();
+  g.restore();
+  // Pupil
   g.fillStyle = '#000';
-  g.beginPath(); g.arc(cx+13, hy+6, 1, 0, Math.PI*2); g.fill();
+  g.beginPath(); g.arc(cx+13, hy+7, 0.9, 0, Math.PI*2); g.fill();
+  // Shine
   g.fillStyle = '#fff';
-  g.beginPath(); g.arc(cx+13, hy+5, 0.7, 0, Math.PI*2); g.fill();
-  // Eyebrow
-  g.fillStyle = c.hair;
-  g.fillRect(cx+8, hy+2, 9, 1.8);
+  g.beginPath(); g.arc(cx+13.5, hy+6.2, 0.6, 0, Math.PI*2); g.fill();
+  // Eyebrow (silver)
+  g.fillStyle = c.hairTip;
+  g.fillRect(cx+8, hy+3, 9, 1.6);
 
-  // Whisker marks (3 on visible cheek)
-  g.strokeStyle = c.whisker;
-  g.lineWidth = 1.3;
-  for(let i = -1; i <= 1; i++){
-    const wy = hy + 11 + i*3;
-    g.beginPath();
-    g.moveTo(cx+7, wy); g.lineTo(cx+18, wy);
-    g.stroke();
-  }
-
-  // Big grin (profile)
-  g.strokeStyle = '#3d1c0a';
-  g.lineWidth = 1.8;
+  // ── Stoic mouth (small horizontal line, no smile) ──
+  g.strokeStyle = '#3d2817';
+  g.lineWidth = 1.4;
   g.beginPath();
-  g.arc(cx+14, hy+15, 5, -0.2, Math.PI*0.75);
+  g.moveTo(cx+11, hy+15);
+  g.lineTo(cx+19, hy+15);
   g.stroke();
-  // Visible tooth
-  g.fillStyle = '#fff';
-  rRect(g, cx+11, hy+13.5, 7, 2.4, 1); g.fill();
-  // Mouth corner shadow
-  g.fillStyle = 'rgba(0,0,0,0.2)';
-  g.fillRect(cx+10, hy+15.5, 9, 0.8);
 
-  // Subtle chakra glow
-  const glow = g.createRadialGradient(cx+4, hy+30, 5, cx+4, hy+30, 100);
-  glow.addColorStop(0,'rgba(251,191,36,0.08)');
-  glow.addColorStop(1,'rgba(251,191,36,0)');
+  // ── Aura ──
+  const glow = g.createRadialGradient(cx+4, baseY-80, 5, cx+4, baseY-80, 110);
+  glow.addColorStop(0,'rgba(59,130,246,0.10)');
+  glow.addColorStop(1,'rgba(59,130,246,0)');
   g.fillStyle = glow;
   g.fillRect(0,0,W,H);
 }
@@ -490,7 +577,7 @@ function openHeroSelect(){
   const card = document.querySelector(`.hero-card[data-hero="${selectedHeroId}"]`);
   if(card) card.classList.add('selected');
   // Render preview
-  drawHeroPortrait('hero-canvas-naruto', 'naruto');
+  drawHeroPortrait('hero-canvas-kenshin', 'kenshin');
 }
 function selectHero(id){
   if(!HEROES[id]) return;
@@ -569,9 +656,9 @@ function aiAction(f, opp){
   f.aiTimer=isHard?rndI(8,18):rndI(16,32);
 
   // Naruto AI: throw Rasengan when chakra ready (it's a projectile, useful at range)
-  const naruto = f.c.heroId === 'naruto';
-  const specialThresh = naruto ? 15 : 100;
-  const specialRange = naruto ? 360 : 170;
+  const hasJutsu = f.c.heroId === 'kenshin';
+  const specialThresh = hasJutsu ? 15 : 100;
+  const specialRange = hasJutsu ? 360 : 170;
   if(f.meter>=specialThresh && adx<specialRange && facingOpp && Math.random()<(isHard?0.45:0.22)){
     a.special=true; f.aiPlan='wait'; return a;
   }
@@ -673,7 +760,7 @@ function updateFighter(f, opp){
   f.blocking=false;
 
   // ─── Naruto jutsu (works for both player and AI) ───
-  const isNaruto = f.c.heroId === 'naruto';
+  const isNaruto = f.c.heroId === 'kenshin'; // hero has jutsu (sword energy attacks)
   if(isNaruto && f.onGround){
     // Shadow Clone — requires FULL rage (100); AI uses it randomly when ready
     const wantsClone = f.isPlayer
@@ -1154,6 +1241,11 @@ function drawFighter(f, opp){
   // Near arm
   drawArm(pose.armNear, c.top, c.skin, false);
 
+  // Katana — drawn in the near hand if the hero wields one
+  if((c.features||{}).katana){
+    drawKatana(pose, c, f);
+  }
+
   // Head
   drawHead(pose, c);
 
@@ -1252,8 +1344,167 @@ function drawFighter(f, opp){
   ctx.fillText(f.name, f.x, f.y-149);
 }
 
+// ── Katana (Kenshin's weapon) ───────────────────────────────────
+// Drawn in the near hand. Blade is silver-blue with a soft glow.
+// Angle changes per fighter state to match the swing.
+function drawKatana(pose, c, f){
+  const hx = pose.fistX || pose.armNear.fx;
+  const hy = pose.fistY || pose.armNear.fy;
+  let angle = 0.5;       // base: pointing forward-down
+  let bladeLen = 38;
+  const s = f.state;
+  const st = f.sTime;
+  if(s === 'idle')        angle = 0.55;
+  else if(s === 'walk')   angle = 0.5 + Math.sin(f.walkPhase||0)*0.05;
+  else if(s === 'jump')   angle = 0.1;
+  else if(s === 'crouch') angle = 0.7;
+  else if(s === 'block')  angle = -1.2;  // vertical guard
+  else if(s === 'punch'){
+    const mv = MOVES.punch;
+    const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
+    angle = 0.8 - t * 1.8; // quick slash up
+  } else if(s === 'kick') angle = 0.55;
+  else if(s === 'special'){
+    const mv = MOVES.special;
+    const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
+    angle = 1.4 - t * 3.0;
+    bladeLen = 44;
+  } else if(s === 'rasenganCast') angle = -0.4;
+  else if(s === 'cloneCast')      angle = -1.4;
+  else if(s === 'hit')            angle = 1.3;
+  else if(s === 'ko')             angle = 1.5;
+
+  ctx.save();
+  ctx.translate(hx, hy);
+  ctx.rotate(angle);
+
+  // Hilt (black wrapped handle)
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(-14, -2.5, 14, 5);
+  // Diamond cord wrapping
+  ctx.strokeStyle = c.beltTrim || '#daa520';
+  ctx.lineWidth = 0.5;
+  for(let i = 0; i < 4; i++){
+    ctx.beginPath();
+    ctx.moveTo(-13 + i*3.5, -2.5);
+    ctx.lineTo(-11 + i*3.5, 2.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-11 + i*3.5, -2.5);
+    ctx.lineTo(-13 + i*3.5, 2.5);
+    ctx.stroke();
+  }
+  // Pommel cap (gold)
+  ctx.fillStyle = c.beltTrim || '#daa520';
+  ctx.fillRect(-16, -3, 2, 6);
+  // Tsuba (gold cross-guard)
+  ctx.fillStyle = c.beltTrim || '#daa520';
+  ctx.fillRect(0, -5.5, 3, 11);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(0, -5.5, 3, 1);
+  ctx.fillRect(0, 4.5, 3, 1);
+
+  // Blade — soft blue glow halo
+  ctx.save();
+  ctx.shadowBlur = 14;
+  ctx.shadowColor = c.bladeGlow || '#3b82f6';
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = c.bladeGlow || '#3b82f6';
+  ctx.fillRect(3.5, -3, bladeLen, 6);
+  ctx.restore();
+
+  // Blade metal core
+  const grd = ctx.createLinearGradient(3.5, -2, 3.5 + bladeLen, -2);
+  grd.addColorStop(0, '#dbeafe');
+  grd.addColorStop(0.4, '#f5f9ff');
+  grd.addColorStop(1, '#a5b4fc');
+  ctx.fillStyle = grd;
+  ctx.fillRect(3.5, -1.8, bladeLen-2, 3.6);
+  // Tip (kissaki)
+  ctx.beginPath();
+  ctx.moveTo(3.5 + bladeLen - 2, -1.8);
+  ctx.lineTo(3.5 + bladeLen + 4, 0);
+  ctx.lineTo(3.5 + bladeLen - 2, 1.8);
+  ctx.fillStyle = '#dbeafe';
+  ctx.fill();
+  // Edge highlight (top)
+  ctx.fillStyle = '#bfdbfe';
+  ctx.fillRect(3.5, -1.8, bladeLen-2, 0.5);
+  // Hi (center glowing line)
+  ctx.fillStyle = c.bladeGlow || '#3b82f6';
+  ctx.fillRect(3.5, -0.3, bladeLen-2, 0.6);
+
+  ctx.restore();
+}
+
 function drawTorso(pose, c){
   const feat = c.features || {};
+
+  if(feat.kimono){
+    // Kenshin's black kimono with gold trim
+    // Hakama (wide flared trousers)
+    ctx.fillStyle = c.pants;
+    ctx.beginPath();
+    ctx.moveTo(-15, -52);
+    ctx.lineTo(-19, -22);
+    ctx.lineTo(19, -22);
+    ctx.lineTo(15, -52);
+    ctx.closePath(); ctx.fill();
+    // Pleats
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 0.6;
+    for(let i = 0; i < 3; i++){
+      ctx.beginPath();
+      ctx.moveTo(-10 + i*10, -52);
+      ctx.lineTo(-12 + i*12, -22);
+      ctx.stroke();
+    }
+    // Obi (black belt)
+    ctx.fillStyle = c.belt || '#1a1a28';
+    roundRect(-18, -58, 36, 8, 1); ctx.fill();
+    // Gold trim on obi
+    ctx.fillStyle = c.topAccent || '#daa520';
+    ctx.fillRect(-18, -58, 36, 1.4);
+    ctx.fillRect(-18, -51.5, 36, 1.4);
+    // Kimono top (outer robe)
+    ctx.fillStyle = c.top;
+    ctx.beginPath();
+    ctx.moveTo(-19, -98);
+    ctx.bezierCurveTo(-21, -84, -21, -68, -19, -58);
+    ctx.lineTo(19, -58);
+    ctx.bezierCurveTo(21, -68, 21, -84, 19, -98);
+    ctx.closePath(); ctx.fill();
+    // V-neck lapel (right over left)
+    ctx.beginPath();
+    ctx.moveTo(19, -98);
+    ctx.lineTo(6, -84);
+    ctx.lineTo(2, -58);
+    ctx.lineTo(17, -58);
+    ctx.closePath(); ctx.fill();
+    // Gold trim along V-neck
+    ctx.strokeStyle = c.topAccent || '#daa520';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(19, -98);
+    ctx.lineTo(6, -84);
+    ctx.lineTo(2, -58);
+    ctx.stroke();
+    // Gold trim along robe back edge
+    ctx.beginPath();
+    ctx.moveTo(-19, -98);
+    ctx.lineTo(-21, -58);
+    ctx.stroke();
+    // Decorative gold swirl on side
+    ctx.strokeStyle = c.topAccent || '#daa520';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(-6, -78, 2.5, 0, Math.PI*1.5);
+    ctx.stroke();
+    ctx.fillStyle = c.topAccent || '#daa520';
+    ctx.beginPath(); ctx.arc(-6, -78, 0.8, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+
   // Pants/shorts
   ctx.fillStyle=c.pants;
   roundRect(-15, -52, 30, 28, 5); ctx.fill();
@@ -1304,7 +1555,47 @@ function drawHead(pose, c){
 
   // Hair
   ctx.fillStyle=c.hair;
-  if(feat.hairStyle === 'spiky'){
+  if(feat.hairStyle === 'longFlow'){
+    // Long silver hair flowing back (animated wind effect)
+    const wave = Math.sin(frame*0.07)*1.5;
+    ctx.fillStyle = c.hair;
+    // Main back hair (extends behind/below the head, draped down)
+    ctx.beginPath();
+    ctx.moveTo(-14, -2);
+    ctx.bezierCurveTo(-20, -6, -24, 4, -24+wave*0.4, 16);
+    ctx.bezierCurveTo(-26+wave, 28, -22+wave, 42, -16, 46+wave*0.6);
+    ctx.lineTo(-12, 44);
+    ctx.bezierCurveTo(-16, 30, -16, 18, -12, 6);
+    ctx.bezierCurveTo(-11, 0, -12, -4, -14, -2);
+    ctx.closePath();
+    ctx.fill();
+    // Top crown / bangs over forehead
+    ctx.beginPath();
+    ctx.moveTo(-14, -2);
+    ctx.bezierCurveTo(-14, -16, 10, -18, 14, -8);
+    ctx.lineTo(14, -2);
+    ctx.bezierCurveTo(10, -6, 4, -6, -2, -4);
+    ctx.bezierCurveTo(-8, -3, -12, -3, -14, -2);
+    ctx.closePath();
+    ctx.fill();
+    // Strand falling in front of eye
+    ctx.beginPath();
+    ctx.moveTo(8, -5);
+    ctx.bezierCurveTo(14, -2, 13, 4, 9, 6);
+    ctx.lineTo(7, 4);
+    ctx.bezierCurveTo(11, 0, 10, -2, 8, -4);
+    ctx.closePath();
+    ctx.fill();
+    // Darker tips
+    ctx.fillStyle = c.hairTip || 'rgba(100,100,120,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(-24+wave*0.4, 16);
+    ctx.bezierCurveTo(-26+wave, 28, -22+wave, 42, -16, 46+wave*0.6);
+    ctx.lineTo(-12, 44);
+    ctx.bezierCurveTo(-18, 36, -22, 24, -22+wave*0.4, 18);
+    ctx.closePath();
+    ctx.fill();
+  } else if(feat.hairStyle === 'spiky'){
     // Spiky Naruto hair — multiple zigzag points
     ctx.beginPath();
     ctx.moveTo(-14, 0);
@@ -1365,16 +1656,34 @@ function drawHead(pose, c){
 
   // Eye (single, in profile)
   if(feat.profileEye){
+    if(feat.glowingEye){
+      // Outer glow
+      ctx.save();
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = c.eyeGlow || '#60a5fa';
+      ctx.fillStyle = 'rgba(96,165,250,0.5)';
+      ctx.beginPath(); ctx.arc(4, 1, 3.5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
     ctx.fillStyle = c.eyeWhite || '#fff';
     ctx.beginPath(); ctx.ellipse(4, 1, 2.6, 2.8, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = c.eyeIris || '#1d4ed8';
-    ctx.beginPath(); ctx.arc(4.4, 1.2, 1.6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(4.4, 1.2, 1.7, 0, Math.PI*2); ctx.fill();
+    if(feat.glowingEye){
+      // Inner glow ring
+      ctx.save();
+      ctx.shadowBlur = 6;
+      ctx.shadowColor = c.eyeGlow || '#60a5fa';
+      ctx.fillStyle = c.eyeGlow || '#60a5fa';
+      ctx.beginPath(); ctx.arc(4.4, 1.2, 1.2, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
     ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(5, 1.2, 0.7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5, 1.2, 0.6, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(5.3, 0.5, 0.45, 0, Math.PI*2); ctx.fill();
-    // Eyebrow above
-    ctx.fillStyle = c.hair;
+    // Eyebrow above (use hairTip for silver hair, hair color otherwise)
+    ctx.fillStyle = c.hairTip || c.hair;
     ctx.fillRect(1, -3, 7, 1.4);
   } else {
     ctx.fillStyle='#0f172a';
@@ -1404,14 +1713,19 @@ function drawHead(pose, c){
     ctx.beginPath();
     ctx.arc(0, 6, 5, 0.15, Math.PI - 0.15);
     ctx.stroke();
-    // Open mouth fill (white teeth)
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.ellipse(0, 7, 4, 1.6, 0, 0, Math.PI*2);
     ctx.fill();
-    // Mouth shadow inside
     ctx.fillStyle = 'rgba(0,0,0,0.15)';
     ctx.fillRect(-3, 8.2, 6, 0.6);
+  } else if(feat.mouth === 'stoic'){
+    // Stoic samurai — thin horizontal line, side view
+    ctx.strokeStyle = '#3d2817';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(2, 6.5); ctx.lineTo(7, 6.5);
+    ctx.stroke();
   } else {
     ctx.fillStyle='#7c2d12';
     ctx.fillRect(1, 6, 6, 1.5);
