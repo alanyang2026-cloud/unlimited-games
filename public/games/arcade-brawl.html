@@ -723,12 +723,13 @@ function updateFighter(f, opp){
   // ENERGY auto-regen: +2 per second
   if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 2/60);
 
-  // Sword Rain — spawn 8 swords evenly over the 180-frame duration
+  // Sword Rain — spawn 24 swords evenly over the 180-frame duration
   if(f.swordRainT > 0){
     f.swordRainT--;
     const elapsed = 180 - f.swordRainT;
-    const totalSwords = 8;
-    const shouldHave = Math.min(totalSwords, Math.floor(elapsed / 22) + 1);
+    const totalSwords = 24;
+    // Spawn rate: ~3 swords per 22 frames → 24 over 180
+    const shouldHave = Math.min(totalSwords, Math.ceil(elapsed * totalSwords / 180));
     while(f.swordRainSpawned < shouldHave){
       spawnSword(f, opp);
       f.swordRainSpawned++;
@@ -886,77 +887,83 @@ function triggerSwordRain(att, def){
 }
 
 function spawnSword(owner, target){
-  // Spawn above the caster, aim at the target's *current* X
-  const sx = owner.x + (Math.random()-0.5)*120;
-  const sy = -40 + Math.random()*30; // above the screen
-  const tx = target.x + (Math.random()-0.5)*30;
-  const ty = target.y - 60;          // chest level
-  const dx = tx - sx, dy = ty - sy;
-  const dist = Math.hypot(dx, dy);
-  const speed = 11 + Math.random()*2;
+  // Spawn high above, spread laterally — falls toward the target while homing in
+  const sx = target.x + (Math.random()-0.5)*220;
+  const sy = -60 + Math.random()*30; // above screen
   swords.push({
     x: sx, y: sy,
-    vx: dx / dist * speed,
-    vy: dy / dist * speed,
+    vx: (Math.random()-0.5)*2,        // small initial lateral drift
+    vy: 6 + Math.random()*2,          // moderate falling start
     owner, target,
-    damage: 5,
+    damage: 2,                        // 24 swords × 2 = ~48 max (≈ 40+ guaranteed)
     alive: true,
-    trailPhase: 0,
+    trailPhase: Math.floor(Math.random()*3),
   });
 }
 
 function updateSwords(){
   for(const s of swords){
+    const t = s.target;
+    // ── STRONG homing — always steer toward target so the sword cannot miss ──
+    if(t && !t.ko){
+      const dx = t.x - s.x;
+      const dy = (t.y - 50) - s.y;
+      const dist = Math.hypot(dx, dy);
+      if(dist > 0.1){
+        const desired = 9;
+        const tvx = (dx / dist) * desired;
+        const tvy = (dy / dist) * desired;
+        // Stronger horizontal correction so they curve into the target
+        s.vx += (tvx - s.vx) * 0.18;
+        s.vy += (tvy - s.vy) * 0.10;
+      }
+    }
     s.x += s.vx;
     s.y += s.vy;
-    s.vy += 0.18;  // gentle gravity for arc feel
     s.trailPhase++;
-    // Spawn blue/white particle trail
+    // Particle trail (blue + white)
     if(s.trailPhase % 2 === 0){
       const angBack = Math.atan2(s.vy, s.vx) + Math.PI;
-      const off = Math.random()*8;
-      particles.push({
-        x: s.x + Math.cos(angBack)*off,
-        y: s.y + Math.sin(angBack)*off,
-        vx: Math.cos(angBack)*0.4 + (Math.random()-0.5)*0.6,
-        vy: Math.sin(angBack)*0.4 + (Math.random()-0.5)*0.6,
-        life: 1,
-        col: Math.random()<0.6 ? '#bfdbfe' : '#ffffff',
-        r: 2 + Math.random()*2,
-      });
-    }
-    // Hit check — once near target's y
-    const t = s.target;
-    if(t && !t.ko && Math.abs(s.x - t.x) < 26 && s.y >= t.y - 88 && s.y <= t.y - 10){
-      // Hit! Swords pierce block (ENERGY-skill rule)
-      t.hp = Math.max(0, t.hp - s.damage);
-      t.rage = Math.min(t.maxRage, t.rage + 4);
-      s.owner.rage = Math.min(s.owner.maxRage, s.owner.rage + 2);
-      t.hitFlash = 6;
-      // Light hitstun so swords don't lock the target
-      t.hitstun = Math.max(t.hitstun, 4);
-      t.vx = (s.x > t.x ? -1 : 1) * 1.5;
-      shake = Math.min(16, shake + 2);
-      spawnHitSpark(s.x, s.y, false, 'punch');
-      spawnDamageNum(s.x, s.y - 18, s.damage, false);
-      s.alive = false;
-      if(t.hp <= 0){
-        t.ko = true; t.vy = -7; t.vx = (s.x > t.x ? -1 : 1) * 5;
-        triggerKO(s.owner, t);
-      }
-    }
-    // Hit the ground (miss)
-    if(s.y > GROUND + 10){
-      // ground impact spark
-      for(let i=0;i<4;i++){
+      for(let k = 0; k < 2; k++){
+        const off = Math.random()*6;
         particles.push({
-          x: s.x, y: GROUND,
-          vx:(Math.random()-0.5)*3, vy:-Math.random()*2,
-          life:1, col:'#bfdbfe', r:2,
+          x: s.x + Math.cos(angBack)*off,
+          y: s.y + Math.sin(angBack)*off,
+          vx: Math.cos(angBack)*0.3 + (Math.random()-0.5)*0.8,
+          vy: Math.sin(angBack)*0.3 + (Math.random()-0.5)*0.8,
+          life: 1,
+          col: Math.random()<0.55 ? '#bfdbfe' : '#ffffff',
+          r: 2 + Math.random()*2,
         });
       }
-      s.alive = false;
     }
+    // ── Guaranteed hit window: when close enough OR crossing the target's y level ──
+    if(t && !t.ko){
+      const dx = s.x - t.x;
+      const dy = s.y - (t.y - 50);
+      const close = Math.abs(dx) < 50 && Math.abs(dy) < 70;
+      const crossing = s.y >= t.y - 70 && s.y <= t.y - 5;
+      if(close || crossing){
+        // Snap onto target visually before applying the hit
+        s.x = t.x + (Math.random()-0.5)*8;
+        t.hp = Math.max(0, t.hp - s.damage);
+        t.rage = Math.min(t.maxRage, t.rage + 3);
+        s.owner.rage = Math.min(s.owner.maxRage, s.owner.rage + 1);
+        t.hitFlash = 6;
+        t.hitstun = Math.max(t.hitstun, 3);
+        t.vx = (Math.random()-0.5) * 2;
+        shake = Math.min(14, shake + 1.5);
+        spawnHitSpark(s.x, s.y, false, 'punch');
+        spawnDamageNum(s.x, s.y - 18, s.damage, false);
+        s.alive = false;
+        if(t.hp <= 0){
+          t.ko = true; t.vy = -7; t.vx = s.owner.facing * 5;
+          triggerKO(s.owner, t);
+        }
+      }
+    }
+    // Safety: vanish if it somehow goes off-screen
+    if(s.y > GROUND + 40 || s.x < -100 || s.x > W+100) s.alive = false;
   }
   swords = swords.filter(s => s.alive);
 }
@@ -1580,31 +1587,49 @@ function drawFighter(f, opp){
 // Drawn in the near hand. Blade is silver-blue with a soft glow.
 // Angle changes per fighter state to match the swing.
 function drawKatana(pose, c, f){
-  const hx = pose.fistX || pose.armNear.fx;
-  const hy = pose.fistY || pose.armNear.fy;
-  let angle = 0.5;       // base: pointing forward-down
+  let hx, hy, angle;
   let bladeLen = 38;
   const s = f.state;
   const st = f.sTime;
-  if(s === 'idle')        angle = 0.55;
-  else if(s === 'walk')   angle = 0.5 + Math.sin(f.walkPhase||0)*0.05;
-  else if(s === 'jump')   angle = 0.1;
-  else if(s === 'crouch') angle = 0.7;
-  else if(s === 'block')  angle = -1.2;  // vertical guard
-  else if(s === 'punch'){
-    const mv = MOVES.punch;
-    const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
-    angle = 0.8 - t * 1.8; // quick slash up
-  } else if(s === 'kick') angle = 0.55;
-  else if(s === 'special'){
-    const mv = MOVES.special;
-    const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
-    angle = 1.4 - t * 3.0;
-    bladeLen = 44;
-  } else if(s === 'rasenganCast') angle = -0.4;
-  else if(s === 'cloneCast')      angle = -1.4;
-  else if(s === 'hit')            angle = 1.3;
-  else if(s === 'ko')             angle = 1.5;
+
+  if(s === 'kick'){
+    // ── Sword on the BACK during a kick — sheath behind torso ──
+    hx = -12; hy = -78; angle = 1.0; // pointing down-back diagonally
+  } else if(s === 'punch'){
+    // ── Two-handed overhead slash — grip rises then sweeps down ──
+    hx = pose.fistX || 8;
+    hy = pose.fistY || -75;
+    const t = Math.min(1, st / MOVES.punch.dur);
+    if(t < 0.35){
+      // Raising overhead — blade points up-back
+      const p = t / 0.35;
+      angle = 0.5 + (-2.0 - 0.5) * p;
+    } else if(t < 0.7){
+      // Slash arc downward through the front
+      const p = (t - 0.35) / 0.35;
+      angle = -2.0 + p * 3.6;
+    } else {
+      angle = 1.6;
+    }
+  } else {
+    // Default: held forward-low in the front hand
+    hx = pose.fistX || pose.armNear.fx;
+    hy = pose.fistY || pose.armNear.fy;
+    if(s === 'idle')        angle = 0.55;
+    else if(s === 'walk')   angle = 0.5 + Math.sin(f.walkPhase||0)*0.05;
+    else if(s === 'jump')   angle = 0.1;
+    else if(s === 'crouch') angle = 0.7;
+    else if(s === 'block')  angle = -1.2;
+    else if(s === 'special'){
+      const mv = MOVES.special;
+      const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
+      angle = 1.4 - t * 3.0;
+      bladeLen = 44;
+    }
+    else if(s === 'hit')   angle = 1.3;
+    else if(s === 'ko')    angle = 1.5;
+    else                   angle = 0.55;
+  }
 
   ctx.save();
   ctx.translate(hx, hy);
@@ -2034,23 +2059,48 @@ function computePose(f){
     }
   }
   if(s==='punch'){
+    // Two-handed sword strike: raise overhead, then slash down
     const mv=MOVES.punch;
-    const t = phaseT(st, mv);
-    const extend = ease(t);
-    armNear={sx:6,sy:-92, ex:18+extend*22, ey:-82, fx:30+extend*40, fy:-78};
-    armFar ={sx:-6,sy:-92, ex:-14,ey:-72, fx:-12,fy:-58};
-    fistX=armNear.fx; fistY=armNear.fy;
+    const t = Math.min(1, st / mv.dur);
+    let gripX, gripY, headT;
+    if(t < 0.35){
+      // Wind-up — both hands rise to overhead position
+      const p = t / 0.35;
+      gripX = 4 + p*4;
+      gripY = -78 - p*42;       // up to ~-120
+      headT = -0.12 * p;
+    } else if(t < 0.7){
+      // Slash arc — hands sweep down and forward
+      const p = (t - 0.35) / 0.35;
+      const ease2 = p<0.5 ? 2*p*p : 1 - Math.pow(-2*p+2,2)/2;
+      gripX = 8 + ease2*18;
+      gripY = -120 + ease2*70;
+      headT = -0.12 + ease2*0.18;
+    } else {
+      // Recover
+      const p = (t - 0.7) / 0.3;
+      gripX = 26 - p*12;
+      gripY = -50 - p*10;
+      headT = 0.06 - p*0.08;
+    }
+    // Both arms reach the grip together (two-handed)
+    armNear = {sx:6, sy:-92, ex:6+ (gripX-6)*0.5, ey:-86 + (gripY-(-86))*0.4, fx:gripX, fy:gripY};
+    armFar  = {sx:-6, sy:-92, ex:-2+ (gripX-(-2))*0.5, ey:-86 + (gripY-(-86))*0.4, fx:gripX-3, fy:gripY+3};
+    fistX = gripX; fistY = gripY;
+    headTilt = headT;
   }
   if(s==='kick'){
+    // High snap kick — leg extends forward; arms balanced on body
     const mv=MOVES.kick;
     const t = phaseT(st, mv);
     const extend = ease(t);
     legNear={hx:6,hy:-50, kx:18+extend*20,ky:-50-extend*15, fx:30+extend*50,fy:-50-extend*10};
     legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
-    armNear={sx:6,sy:-92, ex:0,ey:-72, fx:-12,fy:-60};
-    armFar ={sx:-6,sy:-92, ex:-14,ey:-78, fx:-22,fy:-70};
+    // Arms tucked behind/to the side — sword is on the back, NOT in the hand
+    armNear={sx:6, sy:-92, ex:-2, ey:-78, fx:-14, fy:-66};
+    armFar ={sx:-6,sy:-92, ex:-14,ey:-82, fx:-22,fy:-72};
     fistX=legNear.fx; fistY=legNear.fy;
-    headTilt = -0.05;
+    headTilt = -0.06;
   }
   if(s==='special'){
     const mv=MOVES.special;
