@@ -13,6 +13,7 @@ const GAME_PATHS: Record<string, string> = {
   "door-escape":   "/games/door-escape.html",
   "downhill-brawl":"/games/downhill-brawl.html",
   "chess":         "/games/chess.html",
+  "sushi-dock":    "/games/sushi-dock.html",
 };
 
 export default function HomePage() {

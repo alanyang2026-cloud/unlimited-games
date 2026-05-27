@@ -104,6 +104,14 @@ export const GAMES: Game[] = [
     color: "from-amber-600 to-stone-800",
     controls: "Click piece to see moves · Click target to play",
   },
+  {
+    id: "sushi-dock",
+    title: "Sushi Dock",
+    emoji: "🍣",
+    description: "Stick-figure dog fishes, makes sushi, serves animal customers.",
+    color: "from-sky-500 to-orange-500",
+    controls: "Tap to cast · Tap on bite · Cook & serve · Upgrade everything",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -119,6 +127,7 @@ const URL_MAP: Record<string, string> = {
   "door-escape": "/games/door-escape.html",
   "downhill-brawl": "/games/downhill-brawl.html",
   "chess": "/games/chess.html",
+  "sushi-dock": "/games/sushi-dock.html",
 };
 
 export function getGameUrl(id: string): string {
