@@ -320,66 +320,235 @@ function drawDock(){
 }
 
 function drawDog(now){
-  // Stick-figure dog (line art)
+  // ── Kawaii Chibi Dog (big head, round body, blush) ─────────
   const x = DOG.x, y = DOG.y;
-  ctx.strokeStyle = '#fde68a';
-  ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  // Body (oval-ish horizontal)
-  ctx.beginPath();
-  ctx.ellipse(x, y + 38, 26, 14, 0, 0, Math.PI*2);
-  ctx.stroke();
-  // Back legs
-  ctx.beginPath();
-  ctx.moveTo(x - 20, y + 50); ctx.lineTo(x - 22, y + 70);
-  ctx.moveTo(x - 8, y + 50);  ctx.lineTo(x - 10, y + 70);
-  ctx.stroke();
-  // Front legs (one slightly forward)
-  ctx.beginPath();
-  ctx.moveTo(x + 18, y + 50); ctx.lineTo(x + 18, y + 70);
-  ctx.moveTo(x + 6, y + 50);  ctx.lineTo(x + 6, y + 70);
-  ctx.stroke();
-  // Tail (wagging)
-  const wag = Math.sin(now*0.008) * 0.3;
-  ctx.beginPath();
-  ctx.moveTo(x - 26, y + 36);
-  ctx.quadraticCurveTo(x - 42, y + 24 + wag*10, x - 38, y + 14 + wag*16);
-  ctx.stroke();
-  // Head
-  ctx.beginPath();
-  ctx.ellipse(x + 28, y + 24, 14, 12, 0, 0, Math.PI*2);
-  ctx.stroke();
-  // Snout
-  ctx.beginPath();
-  ctx.moveTo(x + 38, y + 26);
-  ctx.lineTo(x + 48, y + 30);
-  ctx.lineTo(x + 38, y + 32);
-  ctx.stroke();
-  // Nose
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath(); ctx.arc(x + 48, y + 30, 2.5, 0, Math.PI*2); ctx.fill();
-  // Ear
-  ctx.beginPath();
-  ctx.moveTo(x + 22, y + 14);
-  ctx.lineTo(x + 18, y);
-  ctx.lineTo(x + 30, y + 12);
-  ctx.closePath();
-  ctx.stroke();
-  // Eye
-  ctx.fillStyle = '#0f172a';
-  ctx.beginPath(); ctx.arc(x + 34, y + 22, 1.8, 0, Math.PI*2); ctx.fill();
+  // breathing wobble
+  const breathe = Math.sin(now*0.003) * 1.2;
+  const wag = Math.sin(now*0.012);
 
-  // Fishing rod
+  // Cream coat & dark outline (Shiba-ish palette)
+  const COAT = '#fef3c7';
+  const COAT_SHADE = '#fde68a';
+  const OUTLINE = '#3b2410';
+  const BELLY = '#fffaf0';
+
+  // Shadow under dog
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y + 78, 36, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── BODY (round chibi blob) ───────────────────────────────
+  ctx.fillStyle = COAT;
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(x + 4, y + 50 + breathe, 24, 22, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+  // belly highlight
+  ctx.fillStyle = BELLY;
+  ctx.beginPath();
+  ctx.ellipse(x + 6, y + 58 + breathe, 14, 11, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── CHEF APRON (red bandana around neck) ──────────────────
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(x + 14, y + 32 + breathe);
+  ctx.lineTo(x + 38, y + 38 + breathe);
+  ctx.lineTo(x + 36, y + 46 + breathe);
+  ctx.lineTo(x + 14, y + 42 + breathe);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // white polka dots on bandana
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(x + 22, y + 38 + breathe, 1.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 30, y + 40 + breathe, 1.5, 0, Math.PI*2); ctx.fill();
+
+  // ── LEGS (tiny chibi nubs) ────────────────────────────────
+  ctx.fillStyle = COAT;
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  // back legs
+  for(const lx of [-14, -2]){
+    ctx.beginPath();
+    ctx.ellipse(x + lx, y + 72, 6, 8, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  }
+  // front legs
+  for(const lx of [12, 22]){
+    ctx.beginPath();
+    ctx.ellipse(x + lx, y + 72, 6, 8, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  }
+  // paw pads (dark dots)
+  ctx.fillStyle = OUTLINE;
+  for(const lx of [-14, -2, 12, 22]){
+    ctx.beginPath(); ctx.arc(x + lx, y + 78, 1.2, 0, Math.PI*2); ctx.fill();
+  }
+
+  // ── TAIL (curly wagging) ──────────────────────────────────
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2.5;
+  ctx.fillStyle = COAT;
+  ctx.save();
+  ctx.translate(x - 22, y + 42);
+  ctx.rotate(wag * 0.35);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-12, -8, -8, -22);
+  ctx.quadraticCurveTo(-2, -28, 4, -22);
+  ctx.quadraticCurveTo(0, -14, -4, 0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  // ── HEAD (BIG — kawaii proportion) ────────────────────────
+  const hx = x + 12, hy = y + 14;
+  ctx.fillStyle = COAT;
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(hx, hy, 26, 24, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+
+  // ── EARS (floppy, one perky) ──────────────────────────────
+  // left ear (back, slightly down)
+  ctx.fillStyle = '#d97706';
+  ctx.beginPath();
+  ctx.moveTo(hx - 18, hy - 14);
+  ctx.quadraticCurveTo(hx - 28, hy - 8, hx - 22, hy + 6);
+  ctx.quadraticCurveTo(hx - 14, hy - 2, hx - 12, hy - 16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // right ear (perky)
+  const earWiggle = Math.sin(now*0.005) * 0.08;
+  ctx.save();
+  ctx.translate(hx + 14, hy - 14);
+  ctx.rotate(earWiggle);
+  ctx.fillStyle = '#d97706';
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(10, -10, 6, -18);
+  ctx.quadraticCurveTo(-2, -14, -6, 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // inner ear pink
+  ctx.fillStyle = '#fda4af';
+  ctx.beginPath();
+  ctx.ellipse(1, -8, 2.5, 5, 0.3, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  // ── SNOUT (small bump) ────────────────────────────────────
+  ctx.fillStyle = BELLY;
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(hx + 6, hy + 8, 11, 8, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.stroke();
+
+  // ── NOSE (big shiny black) ────────────────────────────────
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  ctx.ellipse(hx + 12, hy + 5, 3.5, 3, 0, 0, Math.PI*2);
+  ctx.fill();
+  // nose shine
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(hx + 11, hy + 4, 1, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── SMILE (tiny upward curve) ─────────────────────────────
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(hx + 8, hy + 10);
+  ctx.quadraticCurveTo(hx + 10, hy + 13, hx + 14, hy + 10);
+  ctx.stroke();
+  // tongue
+  ctx.fillStyle = '#fb7185';
+  ctx.beginPath();
+  ctx.ellipse(hx + 11, hy + 12, 2, 1.2, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── EYES (big, shiny, kawaii) ─────────────────────────────
+  // eye whites
+  const blink = (Math.sin(now*0.0011) > 0.985) ? 0.15 : 1;
+  for(const [ex, ey] of [[hx - 6, hy - 2], [hx + 8, hy - 2]]){
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.ellipse(ex, ey, 4, 5 * blink, 0, 0, Math.PI*2);
+    ctx.fill();
+    // shine 1
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(ex + 1.2, ey - 1.5, 1.4 * blink, 0, Math.PI*2);
+    ctx.fill();
+    // shine 2 (tiny)
+    ctx.beginPath();
+    ctx.arc(ex - 1, ey + 1.5, 0.7 * blink, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // ── BLUSH (pink cheeks) ───────────────────────────────────
+  ctx.fillStyle = 'rgba(251,113,133,.55)';
+  ctx.beginPath();
+  ctx.ellipse(hx - 12, hy + 6, 4, 2.5, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(hx + 18, hy + 6, 4, 2.5, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── CHEF HAT (after kitchen upgrade) ──────────────────────
+  if(state.kitchen >= 2){
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 2;
+    // hat band
+    ctx.fillRect(hx - 16, hy - 22, 32, 6);
+    ctx.strokeRect(hx - 16, hy - 22, 32, 6);
+    // puffy top
+    ctx.beginPath();
+    ctx.arc(hx - 8, hy - 28, 9, 0, Math.PI*2);
+    ctx.arc(hx + 2, hy - 32, 11, 0, Math.PI*2);
+    ctx.arc(hx + 12, hy - 28, 9, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Fishing rod (held by front paw)
   const rodColor = ['#94a3b8','#cbd5e1','#fcd34d','#22d3ee','#f0abfc'][Math.min(4, state.rod-1)];
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 4;
+  const rodTip = { x: x + 105, y: y - 28 };
+  ctx.beginPath();
+  ctx.moveTo(x + 30, y + 55);
+  ctx.quadraticCurveTo(x + 75, y + 5, rodTip.x, rodTip.y);
+  ctx.stroke();
   ctx.strokeStyle = rodColor;
   ctx.lineWidth = 2.5;
-  const rodTip = { x: x + 95, y: y - 30 };
   ctx.beginPath();
-  ctx.moveTo(x + 40, y + 20);
-  ctx.quadraticCurveTo(x + 70, y - 10, rodTip.x, rodTip.y);
+  ctx.moveTo(x + 30, y + 55);
+  ctx.quadraticCurveTo(x + 75, y + 5, rodTip.x, rodTip.y);
   ctx.stroke();
+  // reel handle
+  ctx.fillStyle = '#475569';
+  ctx.beginPath();
+  ctx.arc(x + 32, y + 56, 3, 0, Math.PI*2);
+  ctx.fill();
 
   // Fishing line + bobber
   if(mode === 'casting' || mode === 'waiting' || mode === 'bite' || mode === 'reeling'){
@@ -516,12 +685,37 @@ function drawCustomers(){
     // shadow
     ctx.fillStyle = 'rgba(0,0,0,.3)';
     ctx.beginPath();
-    ctx.ellipse(c.x, c.y + 28, 18, 4, 0, 0, Math.PI*2);
+    ctx.ellipse(c.x, c.y + 28, 22, 5, 0, 0, Math.PI*2);
     ctx.fill();
-    // body
-    ctx.font = '38px serif';
+
+    // cute pastel circle behind customer (kawaii halo)
+    const pastels = ['#fbcfe8','#bae6fd','#bbf7d0','#fef3c7','#ddd6fe'];
+    const pastel = pastels[Math.abs((c.animal.name.charCodeAt(0))) % pastels.length];
+    ctx.fillStyle = pastel;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.arc(c.x, c.y + 8, 24, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // bobbing animation
+    const bob = Math.sin(now*0.004 + i) * 2;
+    // body (emoji)
+    ctx.font = '44px serif';
     ctx.textAlign = 'center';
-    ctx.fillText(c.animal.emoji, c.x, c.y + 20);
+    ctx.fillText(c.animal.emoji, c.x, c.y + 20 + bob);
+
+    // sparkle stars around customer (cute touch)
+    const sparkleT = (now*0.002 + i*1.3) % (Math.PI*2);
+    ctx.fillStyle = '#fde68a';
+    for(let s=0;s<3;s++){
+      const sa = sparkleT + s * (Math.PI*2/3);
+      const sx = c.x + Math.cos(sa) * 26;
+      const sy = c.y + 10 + Math.sin(sa) * 18;
+      const sz = 1 + Math.sin(sparkleT*3 + s) * 0.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.5 * sz, 0, Math.PI*2);
+      ctx.fill();
+    }
 
     // patience bar
     const patFrac = c.patienceLeft / c.patienceTotal;
