@@ -20,22 +20,57 @@ body{background:#0a0a14;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 .stat .val.diff{font-size:14px}
 
 .board-wrap{position:relative;margin-bottom:14px}
-.board{display:grid;grid-template-columns:repeat(8,64px);grid-template-rows:repeat(8,64px);border:3px solid #1e293b;border-radius:6px;box-shadow:0 8px 40px rgba(0,0,0,.6)}
-.square{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:46px;line-height:1;transition:background .12s}
-.square.light{background:#e8c79a}
-.square.dark{background:#9a6b3f}
-.square.legal::after{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:rgba(34,197,94,.6);pointer-events:none;box-shadow:0 0 8px rgba(34,197,94,.6)}
-.square.legal-cap::after{content:"";position:absolute;inset:4px;border-radius:50%;border:4px solid rgba(220,38,38,.75);background:transparent;box-shadow:0 0 10px rgba(220,38,38,.6);pointer-events:none}
-.square.selected{box-shadow:inset 0 0 0 4px #fbbf24;background:#fbbf24aa !important}
-.square.last-from,.square.last-to{background-color:rgba(251,191,36,.35) !important}
-.square.check{background-color:rgba(220,38,38,.75) !important;animation:pulse 0.7s ease-in-out infinite}
+.board{display:grid;grid-template-columns:repeat(8,68px);grid-template-rows:repeat(8,68px);border-radius:4px;box-shadow:0 12px 50px rgba(0,0,0,.7),0 0 0 8px #5a3a20,0 0 0 9px #2a1a10}
+.square{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:56px;line-height:1;transition:background .12s;font-family:'Arial Unicode MS','Segoe UI Symbol','Apple Color Emoji',serif}
+/* Classic chess.com / lichess Staunton palette */
+.square.light{background:#f0d9b5}
+.square.dark{background:#b58863}
+/* Olive highlight like lichess last-move marker */
+.square.last-from,.square.last-to{background-color:#a3a259 !important}
+.square.selected{background-color:#cad143 !important;box-shadow:inset 0 0 0 3px rgba(255,255,255,.5)}
+.square.legal::after{content:"";position:absolute;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.18);pointer-events:none}
+.square.legal-cap::after{content:"";position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,transparent 56%,rgba(0,0,0,.22) 57%);pointer-events:none}
+.square.check{background-color:rgba(220,38,38,.8) !important;animation:pulse 0.7s ease-in-out infinite}
 @keyframes pulse{0%,100%{box-shadow:inset 0 0 0 0 rgba(220,38,38,.6)}50%{box-shadow:inset 0 0 0 8px rgba(220,38,38,.6)}}
-.piece{pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.45)}
-.piece.w{color:#fff;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,0 2px 3px rgba(0,0,0,.4)}
-.piece.b{color:#0a0a0a;text-shadow:0 1px 2px rgba(0,0,0,.3)}
-.file-labels,.rank-labels{position:absolute;display:flex;font-size:10px;color:#64748b;letter-spacing:.1em;pointer-events:none}
-.file-labels{bottom:-16px;left:3px;width:calc(8 * 64px);justify-content:space-around}
-.rank-labels{left:-16px;top:3px;height:calc(8 * 64px);flex-direction:column-reverse;justify-content:space-around}
+.piece{pointer-events:none}
+/* Outline trick for white pieces — multiple text-shadows form a thick black outline */
+.piece.w{color:#ffffff;text-shadow:
+  -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000,
+  -1.5px  1.5px 0 #000, 1.5px  1.5px 0 #000,
+   0 -1.5px 0 #000,  0 1.5px 0 #000,
+  -1.5px 0 0 #000,    1.5px 0 0 #000,
+   0 3px 4px rgba(0,0,0,.35)}
+.piece.b{color:#1a1a1a;text-shadow:0 3px 4px rgba(0,0,0,.4),-0.5px 0 0 #555,0.5px 0 0 #555}
+.file-labels,.rank-labels{position:absolute;display:flex;font-size:11px;color:#94865a;letter-spacing:.1em;pointer-events:none;font-weight:700}
+.file-labels{bottom:-22px;left:3px;width:calc(8 * 68px);justify-content:space-around}
+.rank-labels{left:-22px;top:3px;height:calc(8 * 68px);flex-direction:column-reverse;justify-content:space-around}
+
+/* Chess clocks — one per side, stacked beside the board */
+.clocks{display:flex;flex-direction:column;gap:8px;position:absolute;left:calc(100% + 22px);top:8px;min-width:140px}
+.clock{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;font-family:'JetBrains Mono',monospace}
+.clock .who{font-size:10px;letter-spacing:.18em;color:#94a3b8;margin-bottom:3px;font-family:system-ui}
+.clock .t{font-size:24px;font-weight:900;color:#cbd5e1;letter-spacing:.04em}
+.clock.active{border-color:#fbbf24;box-shadow:0 0 18px rgba(251,191,36,.35)}
+.clock.active .t{color:#fbbf24}
+.clock.active::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;margin-left:6px;animation:think 0.8s ease-in-out infinite}
+.clock .last-move{font-size:10px;color:#64748b;font-family:system-ui;margin-top:2px;letter-spacing:.05em}
+
+/* Mascot — sits above the board (behind black) and reacts */
+.mascot{position:absolute;top:-110px;right:30px;width:120px;height:100px;z-index:2;pointer-events:none;transition:transform .3s}
+.mascot svg{width:100%;height:100%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4))}
+.mascot.bobble{animation:bobble 2s ease-in-out infinite}
+.mascot.nudge{animation:nudge .4s ease-in-out 3}
+.mascot.happy{transform:rotate(-4deg)}
+.mascot.angry{transform:rotate(4deg) scale(1.05)}
+@keyframes bobble{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes nudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px) rotate(-3deg)}75%{transform:translateX(3px) rotate(3deg)}}
+.bubble{position:absolute;top:-32px;right:160px;background:#fff;color:#1a1a2e;padding:10px 14px;border-radius:14px;font-size:13px;font-weight:600;max-width:240px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transform:translateY(8px) scale(.9);transition:opacity .25s,transform .25s;pointer-events:none;font-family:system-ui;z-index:3}
+.bubble::after{content:"";position:absolute;right:-12px;top:18px;border:8px solid transparent;border-left-color:#fff}
+.bubble.show{opacity:1;transform:translateY(0) scale(1)}
+.bubble.angry{background:#fef2f2;color:#7f1d1d}
+.bubble.angry::after{border-left-color:#fef2f2}
+.bubble.happy{background:#f0fdf4;color:#166534}
+.bubble.happy::after{border-left-color:#f0fdf4}
 
 .status{margin-bottom:10px;font-size:14px;color:#cbd5e1;font-weight:600;letter-spacing:.05em;text-align:center;min-height:20px}
 .status .turn{color:#fbbf24}
@@ -87,9 +122,56 @@ body{background:#0a0a14;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 </div>
 
 <div class="board-wrap">
+  <!-- Mascot character (sits behind the black side, top of board) -->
+  <div class="mascot bobble" id="mascot">
+    <svg viewBox="0 0 120 100" xmlns="http://www.w3.org/2000/svg">
+      <!-- Owl body -->
+      <ellipse cx="60" cy="58" rx="38" ry="36" fill="#60a5fa"/>
+      <ellipse cx="60" cy="62" rx="28" ry="24" fill="#dbeafe"/>
+      <!-- Wings -->
+      <ellipse cx="22" cy="58" rx="10" ry="20" fill="#3b82f6"/>
+      <ellipse cx="98" cy="58" rx="10" ry="20" fill="#3b82f6"/>
+      <!-- Ear tufts -->
+      <path d="M30 26 L34 12 L42 24 Z" fill="#3b82f6"/>
+      <path d="M78 24 L86 12 L90 26 Z" fill="#3b82f6"/>
+      <!-- Eyes (whites) -->
+      <circle cx="45" cy="44" r="13" fill="#fff"/>
+      <circle cx="75" cy="44" r="13" fill="#fff"/>
+      <!-- Eye outlines -->
+      <circle cx="45" cy="44" r="13" fill="none" stroke="#1e3a8a" stroke-width="1.5"/>
+      <circle cx="75" cy="44" r="13" fill="none" stroke="#1e3a8a" stroke-width="1.5"/>
+      <!-- Pupils — animated via id -->
+      <circle id="pupL" cx="46" cy="46" r="6" fill="#0a0a14"/>
+      <circle id="pupR" cx="76" cy="46" r="6" fill="#0a0a14"/>
+      <!-- Eye shine -->
+      <circle cx="48" cy="43" r="2" fill="#fff"/>
+      <circle cx="78" cy="43" r="2" fill="#fff"/>
+      <!-- Beak (orange triangle) -->
+      <path d="M55 56 L65 56 L60 66 Z" fill="#f59e0b" stroke="#b45309" stroke-width="0.8"/>
+      <!-- Feet -->
+      <path d="M48 92 L46 96 L52 96 L50 92" fill="#f59e0b" stroke="#b45309" stroke-width="0.8"/>
+      <path d="M72 92 L70 96 L76 96 L74 92" fill="#f59e0b" stroke="#b45309" stroke-width="0.8"/>
+    </svg>
+  </div>
+  <div class="bubble" id="bubble"></div>
+
   <div class="rank-labels" id="rl"></div>
   <div class="file-labels" id="fl"></div>
   <div class="board" id="board"></div>
+
+  <!-- Chess clocks beside the board -->
+  <div class="clocks">
+    <div class="clock" id="clock-b">
+      <div class="who">OWL (BLACK)</div>
+      <div class="t" id="t-b">00:00</div>
+      <div class="last-move" id="lm-b">—</div>
+    </div>
+    <div class="clock active" id="clock-w">
+      <div class="who">YOU (WHITE)</div>
+      <div class="t" id="t-w">00:00</div>
+      <div class="last-move" id="lm-w">your move</div>
+    </div>
+  </div>
 </div>
 
 <div class="status" id="status">Your move — click a white piece to begin.</div>
@@ -195,6 +277,132 @@ let gameOver=false;
 let aiThinking=false;
 let halfMoves=0;               // for 50-move rule
 
+// ── Chess clocks ──────────────────────────────────────────────
+let clock = { w:0, b:0, lastTick:0, activeSide:null };
+let lastMoveTime = { w:0, b:0 };  // per-move thinking time
+let clockInterval = null;
+
+function startClock(side){
+  clock.activeSide = side;
+  clock.lastTick = Date.now();
+  document.getElementById('clock-w').classList.toggle('active', side==='w');
+  document.getElementById('clock-b').classList.toggle('active', side==='b');
+  if(!clockInterval) clockInterval = setInterval(tickClock, 200);
+}
+function stopClock(){
+  clock.activeSide = null;
+  document.getElementById('clock-w').classList.remove('active');
+  document.getElementById('clock-b').classList.remove('active');
+  if(clockInterval){ clearInterval(clockInterval); clockInterval = null; }
+}
+function tickClock(){
+  if(!clock.activeSide) return;
+  const now = Date.now();
+  const dt = (now - clock.lastTick) / 1000;
+  clock[clock.activeSide] += dt;
+  clock.lastTick = now;
+  renderClock();
+  // Mascot — check player thinking duration
+  if(clock.activeSide === 'w' && !gameOver) checkMascotTimeout();
+}
+function fmtTime(s){
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+function renderClock(){
+  document.getElementById('t-w').textContent = fmtTime(clock.w);
+  document.getElementById('t-b').textContent = fmtTime(clock.b);
+  if(history.length > 0){
+    const lastEntry = history[history.length-1];
+    const movedSide = sqColor(board[lastEntry.move.to.r][lastEntry.move.to.c]) || (history.length%2 ? 'b' : 'w');
+    // Show "last move" time per side (whatever you used to play it)
+    const dotW = lastMoveTime.w > 0 ? `${lastMoveTime.w.toFixed(1)}s · last move` : 'your move';
+    const dotB = lastMoveTime.b > 0 ? `${lastMoveTime.b.toFixed(1)}s · last move` : '—';
+    document.getElementById('lm-w').textContent = dotW;
+    document.getElementById('lm-b').textContent = dotB;
+  }
+}
+
+// ── Mascot speech bubble ─────────────────────────────────────
+const QUIPS = {
+  greeting: ["Hoot! Let's play. 🦉", "Don't be afraid, I'm just an owl.", "Make your move!"],
+  patient:  ["Take your time...", "Thinking?", "Hmm, interesting position...", "Don't overthink it!"],
+  impatient:["Hellooo?", "Are you still there?", "I'm growing feathers waiting!", "Time is ticking..."],
+  taunting: ["I could play 10 games by now! 😴", "Did you fall asleep?", "Should I move for you?", "🦉 Zzz... oh, your turn still?"],
+  encourage:["Nice move!", "Hmm, that's solid.", "Didn't see that coming!", "Sharp!"],
+  taunt_blunder:["Are you sure about that?? 😏", "Oh I see your plan... NOT.", "Easy peasy.", "My grandma plays better. (My grandma was an owl too.)"],
+  ai_thinking:["Let me think...", "Calculating my brilliance...", "Hmm hmm hmm...", "Plotting your doom 😈", "*owl noises*"],
+  on_check: ["CHECK! 😈", "Gotcha! Check!", "Your king's in trouble!"],
+  on_capture_self:["Ouch!", "Hey! That hurt!", "Fine, take it. I have more.", "Tactical sacrifice. Definitely."],
+  on_capture_player:["Yoink! 🦉", "Nom nom.", "Free piece for me!", "Thanks for the donation."],
+  win:  ["GG! Better luck next time. 🦉", "Checkmate! Owl > human."],
+  lose: ["Aaargh, I let you win!", "Beginner's luck.", "Okay, you got me."],
+  draw: ["Draw! Boring.", "Tie. Snore."],
+};
+let lastBubbleTime = 0;
+let mascotMessageLevel = 0;  // 0=quiet, 1=patient, 2=impatient, 3=taunting
+let playerMoveStartTime = Date.now();
+let bubbleHideTimer = null;
+
+function showBubble(msg, mood){
+  const b = document.getElementById('bubble');
+  b.textContent = msg;
+  b.className = 'bubble show' + (mood ? ' ' + mood : '');
+  if(bubbleHideTimer) clearTimeout(bubbleHideTimer);
+  bubbleHideTimer = setTimeout(()=>{ b.classList.remove('show'); }, 3500);
+  lastBubbleTime = Date.now();
+}
+
+function pickQuip(category){
+  const arr = QUIPS[category];
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function mascotReact(category, mood){
+  showBubble(pickQuip(category), mood);
+  const m = document.getElementById('mascot');
+  if(mood === 'angry') m.classList.add('nudge');
+  setTimeout(()=>m.classList.remove('nudge'), 1400);
+}
+
+function checkMascotTimeout(){
+  if(turn !== 'w' || aiThinking || gameOver) return;
+  const elapsed = (Date.now() - playerMoveStartTime) / 1000;
+  // 15s → patient, 30s → impatient, 60s+ → taunting (every ~25s thereafter)
+  if(elapsed > 15 && mascotMessageLevel < 1){
+    mascotMessageLevel = 1; showBubble(pickQuip('patient'));
+  } else if(elapsed > 35 && mascotMessageLevel < 2){
+    mascotMessageLevel = 2; showBubble(pickQuip('impatient'));
+  } else if(elapsed > 65 && mascotMessageLevel < 3){
+    mascotMessageLevel = 3; showBubble(pickQuip('taunting'), 'angry');
+  } else if(elapsed > 65 && Date.now() - lastBubbleTime > 25000){
+    showBubble(pickQuip('taunting'), 'angry');
+  }
+}
+
+function resetMascotTimer(){
+  playerMoveStartTime = Date.now();
+  mascotMessageLevel = 0;
+}
+
+// Make pupils gently track the cursor for a "watching" feel
+document.addEventListener('mousemove', (e)=>{
+  const pupL = document.getElementById('pupL');
+  const pupR = document.getElementById('pupR');
+  if(!pupL || !pupR) return;
+  const mr = document.getElementById('mascot').getBoundingClientRect();
+  const cx = mr.left + mr.width/2;
+  const cy = mr.top + mr.height/2;
+  const dx = (e.clientX - cx) / 80;
+  const dy = (e.clientY - cy) / 60;
+  const mx = Math.max(-3, Math.min(3, dx));
+  const my = Math.max(-2, Math.min(2, dy));
+  pupL.setAttribute('cx', 46 + mx);
+  pupL.setAttribute('cy', 46 + my);
+  pupR.setAttribute('cx', 76 + mx);
+  pupR.setAttribute('cy', 46 + my);
+});
+
 function loadState(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -245,10 +453,18 @@ function newGame(){
   gameOver = false;
   aiThinking = false;
   halfMoves = 0;
+  // Reset clocks + mascot
+  clock = { w:0, b:0, lastTick:0, activeSide:null };
+  lastMoveTime = { w:0, b:0 };
+  renderClock();
   hideEnd();
   renderBoard();
   updateHUD();
   setStatus('Your move (white) — click a piece.');
+  resetMascotTimer();
+  startClock('w');
+  // Mascot greeting at game start
+  setTimeout(()=>mascotReact('greeting'), 600);
 }
 
 // ── Helpers ──────────────────────────────────────────────────
@@ -464,6 +680,26 @@ function applyMoveToBoard(b, m){
 function playMove(m){
   const piece = board[m.from.r][m.from.c];
   const captured = board[m.to.r][m.to.c];
+  const movingSide = sqColor(piece);
+  // Snapshot how long the side took on this move
+  if(movingSide === 'w'){
+    lastMoveTime.w = (Date.now() - playerMoveStartTime) / 1000;
+  } else if(clock.activeSide === 'b' && clock.lastTick){
+    // AI side — clock has been ticking during aiMove
+    lastMoveTime.b = Math.min(15, clock.b - (history.length ? lastMoveTime.b : 0));
+  }
+  // Mascot reactions BEFORE turn flips
+  if(movingSide === 'w'){
+    // Player captured a black piece
+    if(captured && sqColor(captured) === 'b'){
+      mascotReact('on_capture_self', 'angry');
+    }
+  } else if(movingSide === 'b'){
+    // AI captured the player's piece
+    if(captured && sqColor(captured) === 'w'){
+      mascotReact('on_capture_player', 'happy');
+    }
+  }
   applyMoveToBoard(board, m);
   // Track king/rook moves for castling
   if(sqKind(piece) === 'K') kingMoved[sqColor(piece)] = true;
@@ -487,6 +723,13 @@ function playMove(m){
   history.push({move:m, san, captured});
   lastMove = {from:m.from, to:m.to};
   turn = opp(turn);
+  // Switch the active clock + reset mascot patience after a player move
+  if(!gameOver) startClock(turn);
+  if(turn === 'w'){
+    resetMascotTimer();
+    // Mascot reacts to check
+    if(isInCheck(board, 'w')) setTimeout(()=>mascotReact('on_check', 'happy'), 300);
+  }
   // Check for end-of-game
   checkGameEnd();
 }
@@ -608,6 +851,8 @@ function aiMove(){
   if(gameOver || turn !== 'b') return;
   aiThinking = true;
   setStatus('AI thinking <span class="thinking"></span>');
+  // Occasionally let the owl narrate its own thinking
+  if(Math.random() < 0.35) showBubble(pickQuip('ai_thinking'));
   // Allow UI to repaint before heavy work
   setTimeout(()=>{
     const depth = aiDepthForRating(oppRating);
@@ -735,6 +980,11 @@ function renderHistory(){
 // ── Game end + rating ──────────────────────────────────────
 function endGame(result, reason){
   gameOver = true;
+  stopClock();
+  // Mascot final word
+  if(result === 'win')  mascotReact('lose', 'happy');
+  else if(result === 'loss') mascotReact('win', 'angry');
+  else mascotReact('draw');
   const beforeR = playerRating;
   let delta = 0;
   const won = result === 'win';
