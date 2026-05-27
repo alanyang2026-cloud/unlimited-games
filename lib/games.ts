@@ -96,6 +96,14 @@ export const GAMES: Game[] = [
     color: "from-green-700 to-amber-700",
     controls: "WASD steer · Space / J punch riders · S brake",
   },
+  {
+    id: "chess",
+    title: "Rated Chess",
+    emoji: "♔",
+    description: "Climb the ELO ladder. AI scales with your rating.",
+    color: "from-amber-600 to-stone-800",
+    controls: "Click piece to see moves · Click target to play",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -110,6 +118,7 @@ const URL_MAP: Record<string, string> = {
   "doorman": "/games/doorman.html",
   "door-escape": "/games/door-escape.html",
   "downhill-brawl": "/games/downhill-brawl.html",
+  "chess": "/games/chess.html",
 };
 
 export function getGameUrl(id: string): string {
