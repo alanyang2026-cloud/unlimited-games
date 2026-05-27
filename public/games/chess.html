@@ -55,22 +55,28 @@ body{background:#0a0a14;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 .clock.active::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#fbbf24;margin-left:6px;animation:think 0.8s ease-in-out infinite}
 .clock .last-move{font-size:10px;color:#64748b;font-family:system-ui;margin-top:2px;letter-spacing:.05em}
 
-/* Mascot — sits above the board (behind black) and reacts */
-.mascot{position:absolute;top:-110px;right:30px;width:120px;height:100px;z-index:2;pointer-events:none;transition:transform .3s}
-.mascot svg{width:100%;height:100%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.4))}
+/* Mascot — perched just above the opponent's back rank, doesn't cover any data */
+.rating-bar{margin-bottom:120px}      /* leave clear vertical room for the owl + bubble */
+.mascot{position:absolute;top:-94px;left:calc(50% - 38px);width:76px;height:76px;z-index:2;pointer-events:none;transition:transform .3s}
+.mascot svg{width:100%;height:100%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.45))}
 .mascot.bobble{animation:bobble 2s ease-in-out infinite}
 .mascot.nudge{animation:nudge .4s ease-in-out 3}
 .mascot.happy{transform:rotate(-4deg)}
-.mascot.angry{transform:rotate(4deg) scale(1.05)}
+.mascot.angry{transform:rotate(4deg) scale(1.06)}
+.mascot.thinking{animation:think-tilt 1.4s ease-in-out infinite}
 @keyframes bobble{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
 @keyframes nudge{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px) rotate(-3deg)}75%{transform:translateX(3px) rotate(3deg)}}
-.bubble{position:absolute;top:-32px;right:160px;background:#fff;color:#1a1a2e;padding:10px 14px;border-radius:14px;font-size:13px;font-weight:600;max-width:240px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transform:translateY(8px) scale(.9);transition:opacity .25s,transform .25s;pointer-events:none;font-family:system-ui;z-index:3}
-.bubble::after{content:"";position:absolute;right:-12px;top:18px;border:8px solid transparent;border-left-color:#fff}
-.bubble.show{opacity:1;transform:translateY(0) scale(1)}
+@keyframes think-tilt{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(5deg)}}
+/* Speech bubble: appears ABOVE the owl (tail points down), centered, never blocks the side panels */
+.bubble{position:absolute;bottom:calc(100% + 110px);left:50%;transform:translateX(-50%) translateY(8px) scale(.9);background:#fff;color:#1a1a2e;padding:10px 14px;border-radius:14px;font-size:13px;font-weight:600;min-width:200px;max-width:260px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;font-family:system-ui;z-index:3;text-align:center}
+.bubble::after{content:"";position:absolute;bottom:-12px;left:50%;margin-left:-8px;border:8px solid transparent;border-top-color:#fff;border-bottom:none}
+.bubble.show{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}
 .bubble.angry{background:#fef2f2;color:#7f1d1d}
-.bubble.angry::after{border-left-color:#fef2f2}
+.bubble.angry::after{border-top-color:#fef2f2}
 .bubble.happy{background:#f0fdf4;color:#166534}
-.bubble.happy::after{border-left-color:#f0fdf4}
+.bubble.happy::after{border-top-color:#f0fdf4}
+.bubble.thinking{background:#eff6ff;color:#1e3a8a;font-style:italic}
+.bubble.thinking::after{border-top-color:#eff6ff}
 
 .status{margin-bottom:10px;font-size:14px;color:#cbd5e1;font-weight:600;letter-spacing:.05em;text-align:center;min-height:20px}
 .status .turn{color:#fbbf24}
@@ -325,19 +331,163 @@ function renderClock(){
 
 // ── Mascot speech bubble ─────────────────────────────────────
 const QUIPS = {
-  greeting: ["Hoot! Let's play. 🦉", "Don't be afraid, I'm just an owl.", "Make your move!"],
-  patient:  ["Take your time...", "Thinking?", "Hmm, interesting position...", "Don't overthink it!"],
-  impatient:["Hellooo?", "Are you still there?", "I'm growing feathers waiting!", "Time is ticking..."],
-  taunting: ["I could play 10 games by now! 😴", "Did you fall asleep?", "Should I move for you?", "🦉 Zzz... oh, your turn still?"],
-  encourage:["Nice move!", "Hmm, that's solid.", "Didn't see that coming!", "Sharp!"],
-  taunt_blunder:["Are you sure about that?? 😏", "Oh I see your plan... NOT.", "Easy peasy.", "My grandma plays better. (My grandma was an owl too.)"],
-  ai_thinking:["Let me think...", "Calculating my brilliance...", "Hmm hmm hmm...", "Plotting your doom 😈", "*owl noises*"],
-  on_check: ["CHECK! 😈", "Gotcha! Check!", "Your king's in trouble!"],
-  on_capture_self:["Ouch!", "Hey! That hurt!", "Fine, take it. I have more.", "Tactical sacrifice. Definitely."],
-  on_capture_player:["Yoink! 🦉", "Nom nom.", "Free piece for me!", "Thanks for the donation."],
-  win:  ["GG! Better luck next time. 🦉", "Checkmate! Owl > human."],
-  lose: ["Aaargh, I let you win!", "Beginner's luck.", "Okay, you got me."],
-  draw: ["Draw! Boring.", "Tie. Snore."],
+  greeting: [
+    "Hoot! Let's play. 🦉",
+    "Don't be afraid, I'm just an owl.",
+    "Make your move, mortal!",
+    "I've been studying for 1,000 years. You?",
+    "Welcome to my forest. The board is mine.",
+    "Show me your best opening!",
+    "♔ Game on! ♚",
+    "Coffee in hand? Let's begin.",
+    "Be brave. Or don't. I win either way.",
+    "Hoo-hoo… your move!",
+  ],
+  patient:  [
+    "Take your time...",
+    "Thinking?",
+    "Hmm, interesting position...",
+    "Don't overthink it!",
+    "Trust your instincts.",
+    "Just breathe...",
+    "What would Magnus do?",
+    "I'm patient. Mostly.",
+    "Counting your pieces?",
+    "I can wait. I'm an owl.",
+  ],
+  impatient:[
+    "Hellooo?",
+    "Are you still there?",
+    "I'm growing feathers waiting!",
+    "Time is ticking...",
+    "Tick... tock...",
+    "Did the wifi die?",
+    "My grandkids are getting old.",
+    "I've forgotten what we were playing.",
+    "*taps wing impatiently*",
+    "Anytime now...",
+  ],
+  taunting: [
+    "I could play 10 games by now! 😴",
+    "Did you fall asleep?",
+    "Should I move for you?",
+    "🦉 Zzz... oh, your turn still?",
+    "I've migrated south and back.",
+    "Trees grow faster than you move.",
+    "Should I order a pizza? 🍕",
+    "Is this the longest move in history?",
+    "I literally evolved waiting.",
+    "Hello, McFly!! Anyone home?",
+    "My WHOLE LIFE has passed.",
+    "I'm writing my memoir while you think.",
+    "Are you googling chess moves?",
+    "👀 *staring intensely*",
+    "Even paint dries faster.",
+  ],
+  encourage:[
+    "Nice move!",
+    "Hmm, that's solid.",
+    "Didn't see that coming!",
+    "Sharp!",
+    "Bold choice.",
+    "Okay, you can play.",
+    "Respect.",
+    "👀 Interesting…",
+    "You've been practicing!",
+    "Magnus would approve.",
+  ],
+  taunt_blunder:[
+    "Are you sure about that?? 😏",
+    "Oh I see your plan... NOT.",
+    "Easy peasy.",
+    "My grandma plays better. (Her wings are tiny.)",
+    "Bold move, Cotton. Let's see how it plays out.",
+    "Is this 4D chess or just chaos?",
+    "Did you mean to do that?",
+    "I'm not laughing. (I am.)",
+    "🦉 *internally screaming with joy*",
+  ],
+  ai_thinking:[
+    "Let me think...",
+    "Calculating my brilliance...",
+    "Hmm hmm hmm...",
+    "Plotting your doom 😈",
+    "*owl noises*",
+    "Crunching numbers...",
+    "Considering my options...",
+    "🧠 Big brain time.",
+  ],
+  ai_thinking_deep:[
+    "Hmm, this is tricky… 🤔",
+    "Many lines to check…",
+    "Calculating deeper…",
+    "Hold on, this is interesting.",
+    "🦉 *intense thinking*",
+    "Don't rush me, this is complex!",
+    "I see threats everywhere…",
+    "This needs careful play.",
+    "Searching for the best move…",
+  ],
+  on_check: [
+    "CHECK! 😈",
+    "Gotcha! Check!",
+    "Your king's in trouble!",
+    "Run, little king, run!",
+    "🚨 Check 🚨",
+    "Did you see that coming?",
+    "Looks bad for you!",
+  ],
+  on_capture_self:[
+    "Ouch!",
+    "Hey! That hurt!",
+    "Fine, take it. I have more.",
+    "Tactical sacrifice. Definitely.",
+    "Worth it. Probably.",
+    "I'll get you back.",
+    "Lucky shot!",
+    "Hmph. 😤",
+    "OK, you have a point.",
+  ],
+  on_capture_player:[
+    "Yoink! 🦉",
+    "Nom nom.",
+    "Free piece for me!",
+    "Thanks for the donation.",
+    "*munch munch*",
+    "Easy pickings!",
+    "I'll take that, thanks.",
+    "GG free piece.",
+    "Was that on purpose?",
+  ],
+  on_promote:[
+    "Pawn power! 🎉",
+    "Promoted! Nice.",
+    "Now we're talking.",
+  ],
+  win:  [
+    "GG! Better luck next time. 🦉",
+    "Checkmate! Owl > human.",
+    "Wisdom prevails.",
+    "1000 years of practice paid off.",
+    "Hoot hoot, victory!",
+    "Did you try your best?",
+  ],
+  lose: [
+    "Aaargh, I let you win!",
+    "Beginner's luck.",
+    "Okay, you got me.",
+    "Well played, human.",
+    "I demand a rematch!",
+    "Respect. 🙏",
+    "How??!",
+    "Note to self: don't underestimate humans.",
+  ],
+  draw: [
+    "Draw! Boring.",
+    "Tie. Snore.",
+    "We're equally smart, apparently.",
+    "Hmm, even match.",
+  ],
 };
 let lastBubbleTime = 0;
 let mascotMessageLevel = 0;  // 0=quiet, 1=patient, 2=impatient, 3=taunting
@@ -847,16 +997,50 @@ function minimax(b, depth, alpha, beta, maximizing, color){
   }
 }
 
+function isComplexPosition(b, color){
+  // Hard if: in check, many captures available, or low material (endgame)
+  if(isInCheck(b, color)) return true;
+  const moves = generateMoves(b, color, enPassant);
+  let captures = 0;
+  for(const m of moves){
+    if(b[m.to.r][m.to.c] || m.ep) captures++;
+  }
+  if(captures >= 4) return true;
+  // Endgame: few non-king pieces left
+  let nonKing = 0;
+  for(let r=0;r<8;r++) for(let c=0;c<8;c++){
+    const p = b[r][c];
+    if(p && sqKind(p) !== 'K') nonKing++;
+  }
+  if(nonKing <= 10) return true;
+  // Also consider it complex if the opponent (white) is in check or about to be
+  if(isInCheck(b, opp(color))) return true;
+  return false;
+}
+
 function aiMove(){
   if(gameOver || turn !== 'b') return;
   aiThinking = true;
-  setStatus('AI thinking <span class="thinking"></span>');
-  // Occasionally let the owl narrate its own thinking
-  if(Math.random() < 0.35) showBubble(pickQuip('ai_thinking'));
-  // Allow UI to repaint before heavy work
+  const hard = isComplexPosition(board, 'b');
+  setStatus(hard
+    ? 'AI thinking deeply <span class="thinking"></span>'
+    : 'AI thinking <span class="thinking"></span>');
+  // Owl narrates: special "deep thought" line on hard positions
+  const mascotEl = document.getElementById('mascot');
+  if(hard){
+    showBubble(pickQuip('ai_thinking_deep'), 'thinking');
+    if(mascotEl) mascotEl.classList.add('thinking');
+  } else if(Math.random() < 0.35){
+    showBubble(pickQuip('ai_thinking'));
+  }
+  // Hard positions get a visibly longer "think" pause + deeper search
+  const delayMs = hard ? 900 : 50;
   setTimeout(()=>{
-    const depth = aiDepthForRating(oppRating);
-    const blunder = aiBlunderChance(oppRating);
+    let depth = aiDepthForRating(oppRating);
+    if(hard) depth += 1;
+    // On hard positions the AI also blunders less (it's paying attention)
+    let blunder = aiBlunderChance(oppRating);
+    if(hard) blunder *= 0.4;
     const moves = generateMoves(board, 'b', enPassant);
     if(moves.length === 0){ aiThinking=false; return; }
     let pick;
@@ -868,9 +1052,10 @@ function aiMove(){
     }
     playMove(pick);
     aiThinking = false;
+    if(mascotEl) mascotEl.classList.remove('thinking');
     renderBoard();
     updateStatus();
-  }, 50);
+  }, delayMs);
 }
 
 // ── UI ──────────────────────────────────────────────────────
