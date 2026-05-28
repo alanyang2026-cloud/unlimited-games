@@ -27,22 +27,28 @@
     image-rendering:pixelated;
     image-rendering:-moz-crisp-edges;
     pointer-events:none;
-    /* drop white background of pixel sprite */
-    mix-blend-mode:multiply;
-    filter:drop-shadow(0 4px 0 rgba(0,0,0,.15));
+    filter:drop-shadow(0 4px 0 rgba(0,0,0,.25));
     transform-origin:bottom center;
-    transition:transform .15s ease-out;
+    transition:left .08s linear, top .08s linear;
+    will-change:left, top, transform;
   }
+  /* faceLeft is flipped horizontally via JS by setting --flip */
+  .dog{ transform: scaleX(var(--flip, 1)); }
   .dog.cast{animation:dogCast .5s ease-out}
   @keyframes dogCast{
-    0%  {transform:translateY(0) rotate(0)}
-    40% {transform:translateY(-6px) rotate(-8deg)}
-    100%{transform:translateY(0) rotate(0)}
+    0%  {transform:scaleX(var(--flip,1)) translateY(0) rotate(0)}
+    40% {transform:scaleX(var(--flip,1)) translateY(-6px) rotate(calc(var(--flip,1) * -8deg))}
+    100%{transform:scaleX(var(--flip,1)) translateY(0) rotate(0)}
   }
   .dog.reel{animation:dogReel .4s ease-out}
   @keyframes dogReel{
-    0%,100%{transform:translateY(0)}
-    50%{transform:translateY(-10px)}
+    0%,100%{transform:scaleX(var(--flip,1)) translateY(0)}
+    50%{transform:scaleX(var(--flip,1)) translateY(-10px)}
+  }
+  .dog.walk{animation:dogWalk .3s ease-in-out infinite}
+  @keyframes dogWalk{
+    0%,100%{transform:scaleX(var(--flip,1)) translateY(0)}
+    50%    {transform:scaleX(var(--flip,1)) translateY(-3px)}
   }
 
   .actions{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:10px;pointer-events:none;z-index:3}
@@ -109,7 +115,7 @@
     </div>
   </div>
 
-  <div class="legend">Click water to cast · Click again when the bobber bites · Upgrade rod &amp; dock to catch rarer fish</div>
+  <div class="legend">WASD / Arrows to walk · Click water (or Space) to cast · Click on bite to reel · [B] bucket · [U] upgrades</div>
 
   <!-- Bucket / inventory modal -->
   <div class="modal" id="bucket">
@@ -225,18 +231,33 @@ let reelResult = null;
 let lastBiteAt = 0;
 
 // ── Scene geometry ───────────────────────────────────────────
-const WATER_TOP = 280;
-const DOCK = { y: WATER_TOP - 30, h: 32 };  // big dock spans full width
-const DOG_POS = { x: 500, y: 200 };          // pixel coords — dog stands here
+const WATER_TOP = 200;                            // sky / water boundary
+const WATER_BOTTOM = 320;                          // water ends where dock begins
+const DOCK = { x: 0, y: WATER_BOTTOM, w: W, h: H - WATER_BOTTOM };  // wide deep platform
+// Player position is now dynamic
+const dog = {
+  x: W/2, y: WATER_BOTTOM + 80,
+  vx: 0, vy: 0,
+  facing: 1,        // 1 = right, -1 = left
+  moving: false,
+  speed: 3.4,
+};
+// Walkable bounds on the dock
+const DOG_BOUNDS = {
+  minX: 60, maxX: W - 60,
+  minY: WATER_BOTTOM + 30, maxY: H - 60,
+};
+// Track keys held
+const keys = {};
 
 // ── Background swimming fish (visual flavor) ─────────────────
 const bgFish = [];
-for(let i=0;i<22;i++){
+for(let i=0;i<18;i++){
   bgFish.push({
     x: Math.random()*W,
-    y: WATER_TOP + 20 + Math.random()*(H-WATER_TOP-30),
+    y: WATER_TOP + 15 + Math.random()*(WATER_BOTTOM - WATER_TOP - 25),
     vx: (Math.random()<0.5?-1:1) * (0.3 + Math.random()*0.9),
-    size: 5 + Math.random()*10,
+    size: 5 + Math.random()*9,
     color: ['#0369a1','#075985','#0c4a6e','#1e3a8a','#155e75'][Math.floor(Math.random()*5)],
     tier: Math.random() < 0.05 ? 5 : Math.random() < 0.15 ? 3 : 1,
   });
@@ -250,15 +271,23 @@ function fmtCoins(n){ return n >= 10000 ? (n/1000).toFixed(1)+'k' : n; }
 function fmtWeight(w){ return w < 1 ? (w*1000).toFixed(0)+'g' : w.toFixed(1)+'kg'; }
 
 function positionDog(){
-  // Place dog over the canvas at DOG_POS, scaled by canvas display size
+  // Place dog over the canvas at dog.x/dog.y, scaled by canvas display size
   const rect = cv.getBoundingClientRect();
   const stage = cv.parentElement.getBoundingClientRect();
   const scale = rect.width / W;
-  const sizePx = 96 * scale * 1.2;
+  const sizePx = 88 * scale;
   dogEl.style.width = sizePx + 'px';
   dogEl.style.height = sizePx + 'px';
-  dogEl.style.left = (rect.left - stage.left + (DOG_POS.x * scale) - sizePx/2) + 'px';
-  dogEl.style.top  = (rect.top  - stage.top  + (DOG_POS.y * scale) - sizePx/2) + 'px';
+  dogEl.style.left = (rect.left - stage.left + (dog.x * scale) - sizePx/2) + 'px';
+  dogEl.style.top  = (rect.top  - stage.top  + (dog.y * scale) - sizePx) + 'px';
+  // direction flip via CSS variable
+  dogEl.style.setProperty('--flip', dog.facing);
+  // walk animation while moving
+  if(dog.moving && mode === 'idle'){
+    if(!dogEl.classList.contains('walk')) dogEl.classList.add('walk');
+  } else {
+    dogEl.classList.remove('walk');
+  }
 }
 window.addEventListener('resize', positionDog);
 
@@ -352,12 +381,12 @@ function drawCloud(x,y,s){
 }
 
 function drawWater(now){
-  const g = ctx.createLinearGradient(0, WATER_TOP, 0, H);
+  const g = ctx.createLinearGradient(0, WATER_TOP, 0, WATER_BOTTOM);
   g.addColorStop(0,'#0ea5e9');
   g.addColorStop(0.5,'#075985');
   g.addColorStop(1,'#082f49');
   ctx.fillStyle = g;
-  ctx.fillRect(0, WATER_TOP, W, H-WATER_TOP);
+  ctx.fillRect(0, WATER_TOP, W, WATER_BOTTOM - WATER_TOP);
 
   // surface ripples
   ctx.strokeStyle = 'rgba(255,255,255,.3)';
@@ -399,120 +428,191 @@ function drawWater(now){
 }
 
 function drawDock(){
-  // The dock spans most of the width — a big peaceful pier
-  // Underwater pillars
-  const pillarCount = 6;
-  for(let i=0;i<pillarCount;i++){
-    const px = 100 + i * ((W - 200) / (pillarCount-1));
-    ctx.fillStyle = '#1e293b';
-    ctx.fillRect(px - 8, DOCK.y + DOCK.h, 16, 110);
-    // pillar shadow on water
-    ctx.fillStyle = 'rgba(0,0,0,.2)';
-    ctx.fillRect(px - 10, DOCK.y + DOCK.h, 4, 110);
-  }
-  // wave around pillars
-  ctx.strokeStyle = 'rgba(255,255,255,.6)';
-  ctx.lineWidth = 2;
-  for(let i=0;i<pillarCount;i++){
-    const px = 100 + i * ((W - 200) / (pillarCount-1));
-    ctx.beginPath();
-    ctx.ellipse(px, DOCK.y + DOCK.h + 4, 14, 3, 0, 0, Math.PI*2);
-    ctx.stroke();
-  }
+  // Wide top-down platform that fills the bottom of the canvas
+  const plankColor      = state.pier >= 3 ? '#a16207' : state.pier >= 2 ? '#92400e' : '#78350f';
+  const plankColorDark  = state.pier >= 3 ? '#854d0e' : state.pier >= 2 ? '#7c2d12' : '#451a03';
 
-  // Main planks
-  const plankColor = state.pier >= 3 ? '#a16207' : state.pier >= 2 ? '#92400e' : '#78350f';
+  // Front lip (front edge thickness — gives a slight 3D feel)
+  ctx.fillStyle = plankColorDark;
+  ctx.fillRect(0, DOCK.y, W, 10);
+
+  // Main planks fill (wood floor)
   ctx.fillStyle = plankColor;
-  ctx.fillRect(0, DOCK.y, W, DOCK.h);
-  // top edge highlight
-  ctx.fillStyle = 'rgba(255,255,255,.15)';
-  ctx.fillRect(0, DOCK.y, W, 3);
-  // bottom edge shadow
-  ctx.fillStyle = 'rgba(0,0,0,.3)';
-  ctx.fillRect(0, DOCK.y + DOCK.h - 3, W, 3);
+  ctx.fillRect(0, DOCK.y + 8, W, DOCK.h - 8);
 
-  // plank seams
-  ctx.strokeStyle = '#451a03';
+  // Plank seams — horizontal lines (running across the wide dock)
+  ctx.strokeStyle = plankColorDark;
   ctx.lineWidth = 1.5;
-  for(let i=1;i<14;i++){
-    const sx = i * (W / 14);
+  const plankHeight = 36;
+  for(let py = DOCK.y + 8; py < H; py += plankHeight){
     ctx.beginPath();
-    ctx.moveTo(sx, DOCK.y);
-    ctx.lineTo(sx, DOCK.y + DOCK.h);
+    ctx.moveTo(0, py);
+    ctx.lineTo(W, py);
+    ctx.stroke();
+    // nail dots
+    ctx.fillStyle = plankColorDark;
+    for(let nx = 30; nx < W; nx += 90){
+      ctx.beginPath();
+      ctx.arc(nx, py + 6, 1.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(nx, py + plankHeight - 6, 1.5, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Short vertical seams (staggered, brick-like)
+  ctx.strokeStyle = plankColorDark;
+  ctx.lineWidth = 1;
+  let row = 0;
+  for(let py = DOCK.y + 8; py < H; py += plankHeight){
+    const offset = (row % 2 === 0) ? 0 : 60;
+    for(let sx = offset; sx < W; sx += 120){
+      ctx.beginPath();
+      ctx.moveTo(sx, py);
+      ctx.lineTo(sx, py + plankHeight);
+      ctx.stroke();
+    }
+    row++;
+  }
+
+  // Underwater pillars visible just below dock front
+  const pillarCount = 7;
+  for(let i=0;i<pillarCount;i++){
+    const px = 60 + i * ((W - 120) / (pillarCount-1));
+    // pillar visible in water (above dock)
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(px - 6, DOCK.y - 14, 12, 14);
+    // ripple
+    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(px, DOCK.y - 2, 12, 3, 0, 0, Math.PI*2);
     ctx.stroke();
   }
 
-  // Bait bucket
-  const bX = DOG_POS.x - 90;
+  // Decorations on the dock — fixed positions
+  // Bait bucket (top-left of dock)
+  drawBucket(80, DOCK.y + 40);
+  // Tackle box (top-right of dock)
+  drawTackleBox(W - 140, DOCK.y + 36);
+  // Crate (bottom-left)
+  drawCrate(140, H - 90);
+  // Coil of rope (bottom-right)
+  drawRope(W - 120, H - 80);
+
+  // Lantern posts at left & right edges
+  drawLantern(40, DOCK.y);
+  drawLantern(W - 40, DOCK.y);
+}
+
+function drawBucket(x, y){
   ctx.fillStyle = '#dc2626';
-  ctx.fillRect(bX, DOCK.y - 22, 28, 22);
+  ctx.fillRect(x, y, 28, 22);
   ctx.strokeStyle = '#7f1d1d';
   ctx.lineWidth = 2;
-  ctx.strokeRect(bX, DOCK.y - 22, 28, 22);
-  ctx.fillStyle = '#374151';
+  ctx.strokeRect(x, y, 28, 22);
+  // handle
+  ctx.strokeStyle = '#1e293b';
   ctx.beginPath();
-  ctx.arc(bX + 14, DOCK.y - 22, 12, Math.PI, 0);
+  ctx.arc(x + 14, y, 12, Math.PI, 0);
   ctx.stroke();
-  // bait inside
+  // bait
   ctx.fillStyle = '#fbbf24';
-  ctx.fillRect(bX + 4, DOCK.y - 12, 6, 4);
-  ctx.fillRect(bX + 14, DOCK.y - 14, 6, 4);
+  ctx.fillRect(x + 4, y + 10, 6, 4);
+  ctx.fillRect(x + 14, y + 8, 6, 4);
+  ctx.fillRect(x + 20, y + 12, 4, 4);
+}
 
-  // Tackle box
-  const tX = DOG_POS.x + 70;
+function drawTackleBox(x, y){
   ctx.fillStyle = '#1e3a8a';
-  ctx.fillRect(tX, DOCK.y - 18, 36, 18);
+  ctx.fillRect(x, y, 44, 22);
   ctx.fillStyle = '#3b82f6';
-  ctx.fillRect(tX, DOCK.y - 18, 36, 6);
+  ctx.fillRect(x, y, 44, 7);
   ctx.strokeStyle = '#0f172a';
   ctx.lineWidth = 1.5;
-  ctx.strokeRect(tX, DOCK.y - 18, 36, 18);
-  // handle
+  ctx.strokeRect(x, y, 44, 22);
   ctx.beginPath();
-  ctx.arc(tX + 18, DOCK.y - 20, 5, Math.PI, 0);
+  ctx.arc(x + 22, y - 4, 6, Math.PI, 0);
   ctx.stroke();
+  // lock
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(x + 19, y + 5, 6, 4);
+}
 
-  // Lantern post at end of dock (right side)
+function drawCrate(x, y){
+  ctx.fillStyle = '#a16207';
+  ctx.fillRect(x, y, 50, 50);
+  ctx.strokeStyle = '#451a03';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, 50, 50);
+  // X bracing
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + 50, y + 50);
+  ctx.moveTo(x + 50, y); ctx.lineTo(x, y + 50);
+  ctx.stroke();
+}
+
+function drawRope(x, y){
+  ctx.strokeStyle = '#a8a29e';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  for(let r = 26; r > 6; r -= 5){
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+function drawLantern(x, baseY){
+  // post
   ctx.fillStyle = '#1e293b';
-  ctx.fillRect(W - 60, DOCK.y - 80, 4, 80);
+  ctx.fillRect(x - 2, baseY - 76, 4, 76);
   // lantern
   ctx.fillStyle = '#facc15';
   ctx.beginPath();
-  ctx.arc(W - 58, DOCK.y - 82, 8, 0, Math.PI*2);
+  ctx.arc(x, baseY - 82, 8, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle = '#1e293b';
   ctx.lineWidth = 1.5;
   ctx.stroke();
   // glow
-  ctx.fillStyle = 'rgba(252,204,21,.15)';
+  ctx.fillStyle = 'rgba(252,204,21,.18)';
   ctx.beginPath();
-  ctx.arc(W - 58, DOCK.y - 82, 30, 0, Math.PI*2);
+  ctx.arc(x, baseY - 82, 32, 0, Math.PI*2);
   ctx.fill();
 }
 
-// Rod tip relative to dog position
+// Rod tip relative to dog position — extends in the facing direction
 function rodTipPos(){
-  return { x: DOG_POS.x + 70, y: DOG_POS.y - 20 };
+  return {
+    x: dog.x + dog.facing * 60,
+    y: dog.y - 70,
+  };
 }
 
 function drawRod(now){
+  // Hide the rod while moving (cleaner look)
+  if(mode === 'idle' && dog.moving) return;
   const rodColor = ['#94a3b8','#cbd5e1','#fcd34d','#22d3ee','#f0abfc','#fb7185','#a78bfa','#34d399'][Math.min(7, state.rod-1)];
   const tip = rodTipPos();
-  const handleX = DOG_POS.x + 20, handleY = DOG_POS.y + 8;
+  // handle held by dog (mid-body, in front of dog)
+  const handleX = dog.x + dog.facing * 18;
+  const handleY = dog.y - 40;
+  const ctrlX = handleX + dog.facing * 30;
+  const ctrlY = handleY - 30;
   // dark outline
   ctx.strokeStyle = '#1e293b';
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(handleX, handleY);
-  ctx.quadraticCurveTo(handleX + 30, handleY - 30, tip.x, tip.y);
+  ctx.quadraticCurveTo(ctrlX, ctrlY, tip.x, tip.y);
   ctx.stroke();
   // colored rod
   ctx.strokeStyle = rodColor;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   ctx.moveTo(handleX, handleY);
-  ctx.quadraticCurveTo(handleX + 30, handleY - 30, tip.x, tip.y);
+  ctx.quadraticCurveTo(ctrlX, ctrlY, tip.x, tip.y);
   ctx.stroke();
   // reel
   ctx.fillStyle = '#475569';
@@ -579,7 +679,7 @@ function drawTutorial(now){
   ctx.font = 'bold 16px system-ui';
   ctx.textAlign = 'center';
   const bob = Math.sin(now*0.005) * 4;
-  ctx.fillText('👇 Click the water to cast!', W/2, 350 + bob);
+  ctx.fillText('WASD to walk · click water (or Space) to cast 🎣', W/2, WATER_TOP - 20 + bob);
 }
 
 // polyfill roundRect
@@ -595,11 +695,41 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
   };
 }
 
+// ── Movement ────────────────────────────────────────────────
+function updateDog(dt){
+  if(mode !== 'idle'){
+    dog.moving = false;
+    return;
+  }
+  let dx = 0, dy = 0;
+  if(keys['a'] || keys['arrowleft'])  dx -= 1;
+  if(keys['d'] || keys['arrowright']) dx += 1;
+  if(keys['w'] || keys['arrowup'])    dy -= 1;
+  if(keys['s'] || keys['arrowdown'])  dy += 1;
+  if(dx !== 0 || dy !== 0){
+    // normalize diagonal
+    const len = Math.hypot(dx, dy);
+    dx /= len; dy /= len;
+    dog.x += dx * dog.speed * (dt / 16.67);
+    dog.y += dy * dog.speed * (dt / 16.67);
+    if(dx > 0) dog.facing = 1;
+    else if(dx < 0) dog.facing = -1;
+    dog.moving = true;
+  } else {
+    dog.moving = false;
+  }
+  // clamp to dock
+  dog.x = Math.max(DOG_BOUNDS.minX, Math.min(DOG_BOUNDS.maxX, dog.x));
+  dog.y = Math.max(DOG_BOUNDS.minY, Math.min(DOG_BOUNDS.maxY, dog.y));
+}
+
 // ── Game loop ────────────────────────────────────────────────
 function loop(now){
   if(!lastFrame) lastFrame = now;
   const dt = Math.min(50, now - lastFrame);
   lastFrame = now;
+
+  updateDog(dt);
 
   // Cast landing
   if(mode === 'casting' && now - bobber.t0 > 700){
@@ -649,12 +779,14 @@ function startCast(targetX, targetY){
     renderBucket();
     return;
   }
-  // bobber lands in water — if no target provided, random
+  // bobber lands in water area — if no target provided, in front of the dog
   if(targetX === undefined){
-    targetX = 350 + Math.random() * (W - 500);
-    targetY = WATER_TOP + 40 + Math.random() * 80;
+    targetX = dog.x + dog.facing * (100 + Math.random()*80);
+    targetY = WATER_TOP + 30 + Math.random() * (WATER_BOTTOM - WATER_TOP - 60);
   }
-  targetY = Math.max(WATER_TOP + 20, Math.min(H - 40, targetY));
+  // clamp inside water area
+  targetX = Math.max(40, Math.min(W - 40, targetX));
+  targetY = Math.max(WATER_TOP + 20, Math.min(WATER_BOTTOM - 15, targetY));
   bobber = { x: targetX, y: targetY, t0: performance.now() };
   mode = 'casting';
   dogEl.classList.remove('cast'); void dogEl.offsetWidth;
@@ -770,10 +902,13 @@ function canvasClick(e){
     tryReel();
     return;
   }
-  if(mode === 'idle' && y > WATER_TOP){
-    startCast(x, y);
-  } else if(mode === 'idle'){
-    startCast(); // random spot
+  if(mode === 'idle'){
+    // click in water → cast there; click on dock → random cast in front of dog
+    if(y >= WATER_TOP && y <= WATER_BOTTOM){
+      startCast(x, y);
+    } else {
+      startCast();
+    }
   }
 }
 cv.addEventListener('click', canvasClick);
@@ -888,13 +1023,30 @@ $('shop').addEventListener('click', (e)=>{
 
 // Keyboard
 window.addEventListener('keydown', (e)=>{
+  const k = e.key.toLowerCase();
+  // movement keys (continuous)
+  if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){
+    keys[k] = true;
+    if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  }
   if(e.code === 'Space'){
     e.preventDefault();
     if(mode === 'bite' || mode === 'waiting') tryReel();
-    else startCast();
+    else if(mode === 'idle') startCast();
   }
-  if(e.code === 'KeyB'){ renderBucket(); $('bucket').classList.add('show'); }
-  if(e.code === 'KeyU'){ renderShop(); $('shop').classList.add('show'); }
+  if(k === 'b' && !$('shop').classList.contains('show')){
+    renderBucket(); $('bucket').classList.add('show');
+  }
+  if(k === 'u' && !$('bucket').classList.contains('show')){
+    renderShop(); $('shop').classList.add('show');
+  }
+});
+window.addEventListener('keyup', (e)=>{
+  keys[e.key.toLowerCase()] = false;
+});
+// Lose focus → clear keys (avoid stuck movement)
+window.addEventListener('blur', ()=>{
+  for(const k in keys) keys[k] = false;
 });
 
 // Day counter (flavor)
