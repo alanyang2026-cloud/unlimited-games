@@ -22,8 +22,6 @@
   /* The pixel dog GIF — sits on top of the canvas at the dock */
   .dog{
     position:absolute;
-    width:96px;
-    height:96px;
     image-rendering:pixelated;
     image-rendering:-moz-crisp-edges;
     pointer-events:none;
@@ -31,24 +29,23 @@
     transform-origin:bottom center;
     transition:left .08s linear, top .08s linear;
     will-change:left, top, transform;
+    object-fit:contain;
   }
-  /* faceLeft is flipped horizontally via JS by setting --flip */
-  .dog{ transform: scaleX(var(--flip, 1)); }
   .dog.cast{animation:dogCast .5s ease-out}
   @keyframes dogCast{
-    0%  {transform:scaleX(var(--flip,1)) translateY(0) rotate(0)}
-    40% {transform:scaleX(var(--flip,1)) translateY(-6px) rotate(calc(var(--flip,1) * -8deg))}
-    100%{transform:scaleX(var(--flip,1)) translateY(0) rotate(0)}
+    0%  {transform:translateY(0) rotate(0)}
+    40% {transform:translateY(-6px) rotate(-4deg)}
+    100%{transform:translateY(0) rotate(0)}
   }
   .dog.reel{animation:dogReel .4s ease-out}
   @keyframes dogReel{
-    0%,100%{transform:scaleX(var(--flip,1)) translateY(0)}
-    50%{transform:scaleX(var(--flip,1)) translateY(-10px)}
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(-10px)}
   }
   .dog.walk{animation:dogWalk .3s ease-in-out infinite}
   @keyframes dogWalk{
-    0%,100%{transform:scaleX(var(--flip,1)) translateY(0)}
-    50%    {transform:scaleX(var(--flip,1)) translateY(-3px)}
+    0%,100%{transform:translateY(0)}
+    50%    {transform:translateY(-3px)}
   }
 
   .actions{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:10px;pointer-events:none;z-index:3}
@@ -107,7 +104,7 @@
 
   <div class="stage">
     <canvas id="cv" width="1000" height="560"></canvas>
-    <img id="dog" class="dog" src="/games/assets/dog.gif" alt="dog">
+    <img id="dog" class="dog" src="/games/assets/dog-front.png" alt="dog">
     <button class="bucketBtn" id="bucketBtn">🪣 Bucket</button>
     <button class="shopBtn" id="shopBtn">🛠 Upgrades</button>
     <div class="actions">
@@ -238,10 +235,20 @@ const DOCK = { x: 0, y: WATER_BOTTOM, w: W, h: H - WATER_BOTTOM };  // wide deep
 const dog = {
   x: W/2, y: WATER_BOTTOM + 80,
   vx: 0, vy: 0,
-  facing: 1,        // 1 = right, -1 = left
+  facing: 'front',  // 'front' | 'back' | 'left' | 'right'
   moving: false,
   speed: 3.4,
 };
+// Sprite map — each direction has its own pixel art the user drew
+const DOG_SPRITES = {
+  front: '/games/assets/dog-front.png',
+  back:  '/games/assets/dog-back.png',
+  left:  '/games/assets/dog-left.png',
+  right: '/games/assets/dog-right.png',
+};
+// Approximate aspect ratios of the user's sprites:
+//   front/back are square-ish (~1:1), left/right are tall (~1:2)
+const DOG_ASPECT = { front:1, back:1, left:0.5, right:0.5 };
 // Walkable bounds on the dock
 const DOG_BOUNDS = {
   minX: 60, maxX: W - 60,
@@ -270,19 +277,24 @@ const dogEl = $('dog');
 function fmtCoins(n){ return n >= 10000 ? (n/1000).toFixed(1)+'k' : n; }
 function fmtWeight(w){ return w < 1 ? (w*1000).toFixed(0)+'g' : w.toFixed(1)+'kg'; }
 
+let currentSpriteFacing = null;
 function positionDog(){
-  // Place dog over the canvas at dog.x/dog.y, scaled by canvas display size
+  // Swap sprite only when facing actually changes (avoids reloading every frame)
+  if(currentSpriteFacing !== dog.facing){
+    dogEl.src = DOG_SPRITES[dog.facing];
+    currentSpriteFacing = dog.facing;
+  }
+  // Scale the on-screen size by canvas display size; tall sprites get a thinner box
   const rect = cv.getBoundingClientRect();
   const stage = cv.parentElement.getBoundingClientRect();
   const scale = rect.width / W;
-  const sizePx = 88 * scale;
-  dogEl.style.width = sizePx + 'px';
-  dogEl.style.height = sizePx + 'px';
-  dogEl.style.left = (rect.left - stage.left + (dog.x * scale) - sizePx/2) + 'px';
-  dogEl.style.top  = (rect.top  - stage.top  + (dog.y * scale) - sizePx) + 'px';
-  // direction flip via CSS variable
-  dogEl.style.setProperty('--flip', dog.facing);
-  // walk animation while moving
+  const heightPx = 92 * scale;
+  const widthPx  = heightPx * DOG_ASPECT[dog.facing];
+  dogEl.style.width  = widthPx + 'px';
+  dogEl.style.height = heightPx + 'px';
+  dogEl.style.left = (rect.left - stage.left + (dog.x * scale) - widthPx/2) + 'px';
+  dogEl.style.top  = (rect.top  - stage.top  + (dog.y * scale) - heightPx) + 'px';
+  // walk bob while moving (idle only)
   if(dog.moving && mode === 'idle'){
     if(!dogEl.classList.contains('walk')) dogEl.classList.add('walk');
   } else {
@@ -582,10 +594,21 @@ function drawLantern(x, baseY){
 }
 
 // Rod tip relative to dog position — extends in the facing direction
+function facingVec(){
+  // returns {dx, dy} where dog is "pointing"
+  switch(dog.facing){
+    case 'left':  return {dx:-1, dy:0};
+    case 'right': return {dx: 1, dy:0};
+    case 'front': return {dx: 0, dy:-1};  // up the screen (W)
+    case 'back':  return {dx: 0, dy: 1};  // down the screen (S)
+  }
+  return {dx:1, dy:0};
+}
 function rodTipPos(){
+  const {dx, dy} = facingVec();
   return {
-    x: dog.x + dog.facing * 60,
-    y: dog.y - 70,
+    x: dog.x + dx * 60,
+    y: dog.y - 70 + dy * 40,
   };
 }
 
@@ -594,11 +617,12 @@ function drawRod(now){
   if(mode === 'idle' && dog.moving) return;
   const rodColor = ['#94a3b8','#cbd5e1','#fcd34d','#22d3ee','#f0abfc','#fb7185','#a78bfa','#34d399'][Math.min(7, state.rod-1)];
   const tip = rodTipPos();
-  // handle held by dog (mid-body, in front of dog)
-  const handleX = dog.x + dog.facing * 18;
-  const handleY = dog.y - 40;
-  const ctrlX = handleX + dog.facing * 30;
-  const ctrlY = handleY - 30;
+  // handle held by dog (mid-body, offset in facing direction)
+  const {dx, dy} = facingVec();
+  const handleX = dog.x + dx * 18;
+  const handleY = dog.y - 40 + dy * 20;
+  const ctrlX = handleX + dx * 30;
+  const ctrlY = handleY - 30 + dy * 10;
   // dark outline
   ctx.strokeStyle = '#1e293b';
   ctx.lineWidth = 4;
@@ -696,24 +720,39 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
 }
 
 // ── Movement ────────────────────────────────────────────────
+// Track the most-recently-pressed direction key to decide facing on diagonals
+let lastDirKey = null;
 function updateDog(dt){
   if(mode !== 'idle'){
     dog.moving = false;
     return;
   }
   let dx = 0, dy = 0;
-  if(keys['a'] || keys['arrowleft'])  dx -= 1;
-  if(keys['d'] || keys['arrowright']) dx += 1;
-  if(keys['w'] || keys['arrowup'])    dy -= 1;
-  if(keys['s'] || keys['arrowdown'])  dy += 1;
+  const left  = keys['a'] || keys['arrowleft'];
+  const right = keys['d'] || keys['arrowright'];
+  const up    = keys['w'] || keys['arrowup'];
+  const down  = keys['s'] || keys['arrowdown'];
+  if(left)  dx -= 1;
+  if(right) dx += 1;
+  if(up)    dy -= 1;
+  if(down)  dy += 1;
+
   if(dx !== 0 || dy !== 0){
     // normalize diagonal
     const len = Math.hypot(dx, dy);
-    dx /= len; dy /= len;
-    dog.x += dx * dog.speed * (dt / 16.67);
-    dog.y += dy * dog.speed * (dt / 16.67);
-    if(dx > 0) dog.facing = 1;
-    else if(dx < 0) dog.facing = -1;
+    const nx = dx / len, ny = dy / len;
+    dog.x += nx * dog.speed * (dt / 16.67);
+    dog.y += ny * dog.speed * (dt / 16.67);
+    // pick facing: most recently pressed direction wins; otherwise dominant axis
+    const map = { a:'left', arrowleft:'left', d:'right', arrowright:'right',
+                  w:'front', arrowup:'front', s:'back', arrowdown:'back' };
+    if(lastDirKey && map[lastDirKey] && keys[lastDirKey]){
+      dog.facing = map[lastDirKey];
+    } else if(Math.abs(dx) >= Math.abs(dy)){
+      dog.facing = dx > 0 ? 'right' : 'left';
+    } else {
+      dog.facing = dy > 0 ? 'back' : 'front';
+    }
     dog.moving = true;
   } else {
     dog.moving = false;
@@ -781,8 +820,12 @@ function startCast(targetX, targetY){
   }
   // bobber lands in water area — if no target provided, in front of the dog
   if(targetX === undefined){
-    targetX = dog.x + dog.facing * (100 + Math.random()*80);
-    targetY = WATER_TOP + 30 + Math.random() * (WATER_BOTTOM - WATER_TOP - 60);
+    const f = facingVec();
+    // Cast forward; for horizontal-facing dogs, also drift toward water vertically
+    targetX = dog.x + f.dx * (100 + Math.random()*80);
+    targetY = (f.dy < 0)
+      ? WATER_TOP + 30 + Math.random() * (WATER_BOTTOM - WATER_TOP - 60)   // facing up: aim deep
+      : WATER_TOP + 80 + Math.random() * (WATER_BOTTOM - WATER_TOP - 110); // otherwise mid water
   }
   // clamp inside water area
   targetX = Math.max(40, Math.min(W - 40, targetX));
@@ -1027,6 +1070,7 @@ window.addEventListener('keydown', (e)=>{
   // movement keys (continuous)
   if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){
     keys[k] = true;
+    lastDirKey = k;
     if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
   }
   if(e.code === 'Space'){
