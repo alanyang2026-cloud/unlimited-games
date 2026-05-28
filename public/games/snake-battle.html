@@ -121,12 +121,25 @@ const d2=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy};
 const norm=a=>{while(a>Math.PI)a-=Math.PI*2;while(a<-Math.PI)a+=Math.PI*2;return a};
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
 
-// Dynamic snake radius — grows with length
-const segR=len=>Math.min(20, BASE_SR + Math.sqrt(Math.max(0,len-25))*0.52);
+// ── Growth tuning ────────────────────────────────────────────
+// Snake grows in LENGTH up to this point. After this, extra food makes the snake WIDER instead.
+const LEN_SOFT_CAP = 3000;
+// Hard ceiling that segments can ever reach (safety).
+const LEN_HARD_CAP = 5000;
+// Max extra radius (in pixels) added on top of the normal width.
+const MAX_EXTRA_R  = 40;
+
+// Dynamic snake radius — grows with length, then extra girth from over-eating.
+const segR = (len, extra=0) => {
+  const baseR  = Math.min(20, BASE_SR + Math.sqrt(Math.max(0,len-25))*0.52);
+  const extraR = Math.min(MAX_EXTRA_R, Math.sqrt(Math.max(0,extra))*1.2);
+  return baseR + extraR;
+};
 // Collision radius
-const collR=len=>segR(len)*1.72;
-// Target zoom — zooms out as player grows
-const zoomFor=len=>Math.max(0.30, 1.0 - Math.sqrt(Math.max(0,len-25))*0.040);
+const collR = (len, extra=0) => segR(len, extra)*1.72;
+// Target zoom — zooms out as player grows in length AND girth
+const zoomFor = (len, extra=0) =>
+  Math.max(0.18, 1.0 - Math.sqrt(Math.max(0,len-25))*0.040 - Math.sqrt(Math.max(0,extra))*0.015);
 // Mouse → world
 const mwx=mx=>mx/zoom+cam.x;
 const mwy=my=>my/zoom+cam.y;
@@ -141,7 +154,8 @@ function mkSnake(x,y,ang,col,name,isP,diff,len=25){
   return{segs,angle:ang,color:col,name,isPlayer:isP,difficulty:diff,alive:true,
     growing:0,boosting:false,stamina:100,aiTimer:0,aiTarget:{x:W/2,y:H/2},
     state:'food',kills:0,magnetUntil:0,shieldUntil:0,
-    coilDir:0,encircleDir:0,encircleTgt:null};
+    coilDir:0,encircleDir:0,encircleTgt:null,
+    extraGirth:0};  // food past LEN_SOFT_CAP goes here → wider snake
 }
 
 function mkPowerup(){
@@ -161,7 +175,7 @@ function mkFood(x,y,r,col){
 }
 
 function spawnCorpse(s){
-  const SR=segR(s.segs.length);
+  const SR=segR(s.segs.length, s.extraGirth||0);
   const step=Math.max(2,Math.floor(s.segs.length/80));
   for(let i=0;i<s.segs.length;i+=step){
     const sg=s.segs[i];
@@ -458,7 +472,7 @@ function nearestPU(h,maxD2){
 function setCoilTarget(s){
   if(!s.coilDir)s.coilDir=Math.random()<0.5?-1:1;
   const h=s.segs[0];
-  const lookAhead=Math.max(40,segR(s.segs.length)*4);
+  const lookAhead=Math.max(40,segR(s.segs.length, s.extraGirth||0)*4);
   const newAng=s.angle+s.coilDir*0.85;
   s.aiTarget={x:h.x+Math.cos(newAng)*lookAhead, y:h.y+Math.sin(newAng)*lookAhead};
 }
@@ -797,14 +811,14 @@ function moveSnake(s){
   const h=s.segs[0];
   s.segs.unshift({x:h.x+Math.cos(s.angle)*spd, y:h.y+Math.sin(s.angle)*spd});
   if(s.growing>0)s.growing--;else s.segs.pop();
-  while(s.segs.length>520)s.segs.pop();
+  while(s.segs.length>LEN_HARD_CAP)s.segs.pop();
 }
 
 // ── Collision ────────────────────────────────────────────────────
 function checkCol(){
   for(const s of snakes){
     if(!s.alive)continue;
-    const h=s.segs[0],SR=collR(s.segs.length);
+    const h=s.segs[0],SR=collR(s.segs.length, s.extraGirth||0);
     if(h.x<3||h.x>W-3||h.y<3||h.y>H-3){
       if(s.shieldUntil>frame){s.shieldUntil=0;
         // bounce inward
@@ -817,7 +831,7 @@ function checkCol(){
     let dead=false;
     for(const o of snakes){
       if(o===s||!o.alive||dead)continue; // skip self — you can coil!
-      const oSR=segR(o.segs.length);
+      const oSR=segR(o.segs.length, o.extraGirth||0);
       for(let i=0;i<o.segs.length;i++){
         const sg=o.segs[i];
         const hitR=(SR*0.6+oSR*0.6);
@@ -848,9 +862,11 @@ function kill(s,killer){
     running=false;
     // Adaptive Hard AI: fold this match's observations into the persistent profile
     commitObsToProfile();
-    const score=Math.max(0,(s.segs.length-25)*10);
+    const girth = s.extraGirth || 0;
+    const score = Math.max(0, (s.segs.length - 25) * 10) + girth * 15;  // girth food is worth more
+    const girthTxt = girth > 0 ? ` · Girth <b style="color:#f59e0b">+${girth}</b>` : '';
     document.getElementById('dm').innerHTML=
-      `Length <b style="color:#a855f7">${s.segs.length}</b> · Score <b style="color:#a855f7">${score}</b>`
+      `Length <b style="color:#a855f7">${s.segs.length}</b>${girthTxt} · Score <b style="color:#a855f7">${score}</b>`
       +(killer?` · Killed by <b style="color:${killer.color}">${killer.name}</b>`:'');
     setTimeout(()=>document.getElementById('ov-d').style.display='flex',700);
   } else {
@@ -869,7 +885,7 @@ function kill(s,killer){
 function checkFood(){
   for(const s of snakes){
     if(!s.alive)continue;
-    const h=s.segs[0],SR=segR(s.segs.length);
+    const h=s.segs[0],SR=segR(s.segs.length, s.extraGirth||0);
     // Magnet: pull nearby food toward head
     if(s.magnetUntil>frame){
       const r2=MAGNET_R*MAGNET_R;
@@ -886,7 +902,24 @@ function checkFood(){
     for(let i=foods.length-1;i>=0;i--){
       const f=foods[i];
       const eat=SR+f.r+4;
-      if(d2(h.x,h.y,f.x,f.y)<eat*eat){s.growing+=Math.max(1,Math.floor(f.r*0.4));foods.splice(i,1)}
+      if(d2(h.x,h.y,f.x,f.y)<eat*eat){
+        const gain = Math.max(1, Math.floor(f.r*0.4));
+        const projectedLen = s.segs.length + s.growing + gain;
+        if(projectedLen <= LEN_SOFT_CAP){
+          // normal length growth
+          s.growing += gain;
+        } else if(s.segs.length + s.growing < LEN_SOFT_CAP){
+          // straddling the cap — split between length and girth
+          const lenGain  = LEN_SOFT_CAP - (s.segs.length + s.growing);
+          const widthGain = gain - lenGain;
+          s.growing += lenGain;
+          s.extraGirth += widthGain;
+        } else {
+          // already at cap → all food becomes girth
+          s.extraGirth += gain;
+        }
+        foods.splice(i,1);
+      }
     }
   }
   while(foods.length<FOOD_MAX)
@@ -913,7 +946,7 @@ function updatePowerups(){
 function checkPowerups(){
   for(const s of snakes){
     if(!s.alive)continue;
-    const h=s.segs[0],SR=segR(s.segs.length);
+    const h=s.segs[0],SR=segR(s.segs.length, s.extraGirth||0);
     for(let i=powerups.length-1;i>=0;i--){
       const p=powerups[i];
       const grab=SR+18;
@@ -930,7 +963,7 @@ function checkPowerups(){
 // ── Camera & zoom ────────────────────────────────────────────────
 function updateCam(){
   if(player&&player.alive){
-    const tz=zoomFor(player.segs.length);
+    const tz=zoomFor(player.segs.length, player.extraGirth||0);
     zoom+=(tz-zoom)*0.003; // imperceptibly slow zoom
     const h=player.segs[0];
     const tx=h.x-C.width/(2*zoom), ty=h.y-C.height/(2*zoom);
@@ -1012,7 +1045,7 @@ function drawSnakes(){
   for(const s of snakes){
     if(!s.alive)continue;
     const segs=s.segs,len=segs.length;
-    const SR=segR(len);
+    const SR=segR(len, s.extraGirth||0);
     // Screen-space cull
     const hsx=wxs(segs[0].x),hsy=wys(segs[0].y);
     if(hsx<-500||hsx>C.width+500||hsy<-500||hsy>C.height+500)continue;
@@ -1148,14 +1181,18 @@ function updateHUD(){
   const sf=document.getElementById('sf');
   sf.style.width=pStam+'%';
   sf.style.background=pStam>60?'linear-gradient(to right,#a855f7,#06b6d4)':pStam>25?'linear-gradient(to right,#f97316,#eab308)':'linear-gradient(to right,#f43f5e,#f97316)';
-  // Leaderboard — all snakes compete
-  const sorted=[...snakes].filter(s=>s.alive).sort((a,b)=>b.segs.length-a.segs.length);
-  document.getElementById('lbr').innerHTML=sorted.slice(0,6).map(s=>`
+  // Leaderboard — all snakes compete (rank by total "mass" = length + 3 × girth)
+  const mass = s => s.segs.length + (s.extraGirth||0) * 3;
+  const sorted=[...snakes].filter(s=>s.alive).sort((a,b)=>mass(b)-mass(a));
+  document.getElementById('lbr').innerHTML=sorted.slice(0,6).map(s=>{
+    const fat = (s.extraGirth||0) > 0 ? ` <span style="color:#f59e0b">+${s.extraGirth}💪</span>` : '';
+    return `
     <div class="lbr">
       <div class="lbd" style="background:${s.color}"></div>
       <span class="lbn" style="${s.isPlayer?'color:#a855f7;font-weight:800':''}">${s.name}</span>
-      <span class="lbl">${s.segs.length}</span>
-    </div>`).join('');
+      <span class="lbl">${s.segs.length}${fat}</span>
+    </div>`;
+  }).join('');
   const rank=sorted.findIndex(s=>s.isPlayer)+1;
   document.getElementById('rk').textContent=`Rank #${rank} / ${sorted.length}`;
   // Buffs
