@@ -105,12 +105,12 @@ export const GAMES: Game[] = [
     controls: "Click piece to see moves · Click target to play",
   },
   {
-    id: "sushi-dock",
-    title: "Sushi Dock",
-    emoji: "🍣",
-    description: "Stick-figure dog fishes, makes sushi, serves animal customers.",
-    color: "from-sky-500 to-orange-500",
-    controls: "Tap to cast · Tap on bite · Cook & serve · Upgrade everything",
+    id: "fishing-sim",
+    title: "Fishing Sim",
+    emoji: "🎣",
+    description: "Cast, wait, reel. Peaceful pixel-dog fishing on a lone dock.",
+    color: "from-sky-600 to-indigo-700",
+    controls: "Click water to cast · Click on bite · Sell fish · Upgrade gear",
   },
 ];
 
@@ -127,7 +127,7 @@ const URL_MAP: Record<string, string> = {
   "door-escape": "/games/door-escape.html",
   "downhill-brawl": "/games/downhill-brawl.html",
   "chess": "/games/chess.html",
-  "sushi-dock": "/games/sushi-dock.html",
+  "fishing-sim": "/games/fishing-sim.html",
 };
 
 export function getGameUrl(id: string): string {

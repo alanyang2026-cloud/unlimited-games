@@ -1,0 +1,911 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Fishing Sim — Lone Dock</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:#0c1426;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;user-select:none}
+  body{display:flex;flex-direction:column;align-items:center}
+
+  .topbar{width:100%;background:rgba(0,0,0,.4);padding:8px 12px;display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;font-size:14px;font-weight:600;border-bottom:1px solid #1e293b;z-index:5}
+  .stat{background:#1e293b;padding:6px 12px;border-radius:8px;display:flex;align-items:center;gap:6px;min-width:80px;justify-content:center}
+  .stat .v{font-weight:800;font-size:15px}
+  .gold{color:#fbbf24}
+  .blue{color:#7dd3fc}
+  .green{color:#86efac}
+
+  .stage{position:relative;width:100%;max-width:1000px;flex:1;display:flex;align-items:center;justify-content:center;padding:8px}
+  canvas{display:block;background:#0c4a6e;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.6);max-width:100%;height:auto;touch-action:manipulation;cursor:crosshair}
+
+  /* The pixel dog GIF — sits on top of the canvas at the dock */
+  .dog{
+    position:absolute;
+    width:96px;
+    height:96px;
+    image-rendering:pixelated;
+    image-rendering:-moz-crisp-edges;
+    pointer-events:none;
+    /* drop white background of pixel sprite */
+    mix-blend-mode:multiply;
+    filter:drop-shadow(0 4px 0 rgba(0,0,0,.15));
+    transform-origin:bottom center;
+    transition:transform .15s ease-out;
+  }
+  .dog.cast{animation:dogCast .5s ease-out}
+  @keyframes dogCast{
+    0%  {transform:translateY(0) rotate(0)}
+    40% {transform:translateY(-6px) rotate(-8deg)}
+    100%{transform:translateY(0) rotate(0)}
+  }
+  .dog.reel{animation:dogReel .4s ease-out}
+  @keyframes dogReel{
+    0%,100%{transform:translateY(0)}
+    50%{transform:translateY(-10px)}
+  }
+
+  .actions{position:absolute;left:50%;transform:translateX(-50%);bottom:14px;display:flex;gap:10px;pointer-events:none;z-index:3}
+  .btn{pointer-events:auto;background:linear-gradient(180deg,#f59e0b,#d97706);border:none;color:#fff;font-weight:800;padding:13px 26px;border-radius:14px;font-size:16px;cursor:pointer;box-shadow:0 4px 0 #92400e,0 6px 12px rgba(0,0,0,.4);transition:transform .08s,box-shadow .08s;letter-spacing:.5px}
+  .btn:active{transform:translateY(3px);box-shadow:0 1px 0 #92400e,0 2px 6px rgba(0,0,0,.4)}
+  .btn.green{background:linear-gradient(180deg,#22c55e,#15803d);box-shadow:0 4px 0 #14532d,0 6px 12px rgba(0,0,0,.4)}
+  .btn.green:active{box-shadow:0 1px 0 #14532d,0 2px 6px rgba(0,0,0,.4)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;filter:grayscale(.5)}
+
+  .floater{position:absolute;font-weight:900;color:#fbbf24;text-shadow:0 2px 4px #000,0 0 8px rgba(251,191,36,.8);pointer-events:none;animation:floatUp 1.2s ease-out forwards;font-size:18px;z-index:4}
+  @keyframes floatUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-60px);opacity:0}}
+
+  .shopBtn{position:absolute;top:10px;right:10px;background:#7c3aed;color:white;border:none;padding:8px 14px;border-radius:10px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #5b21b6;font-size:14px;z-index:10}
+  .shopBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #5b21b6}
+
+  .bucketBtn{position:absolute;top:10px;left:10px;background:#0ea5e9;color:white;border:none;padding:8px 14px;border-radius:10px;font-weight:700;cursor:pointer;box-shadow:0 3px 0 #0369a1;font-size:14px;z-index:10}
+  .bucketBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #0369a1}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:100;padding:14px}
+  .modal.show{display:flex}
+  .modalInner{background:#1e293b;border-radius:14px;padding:18px;max-width:500px;width:100%;max-height:85vh;overflow-y:auto;border:2px solid #334155}
+  .modalInner h2{margin:0 0 8px 0;color:#fbbf24;text-align:center;font-size:20px}
+  .modalInner .sub{text-align:center;color:#94a3b8;font-size:12px;margin-bottom:14px}
+
+  .upRow{background:#0f172a;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+  .upInfo{flex:1;min-width:0}
+  .upName{font-weight:800;font-size:15px;color:#f1f5f9}
+  .upDesc{font-size:11px;color:#94a3b8;margin-top:2px}
+  .upLvl{font-size:11px;color:#7dd3fc;margin-top:2px}
+  .upBuy{background:#fbbf24;color:#1e293b;border:none;padding:8px 12px;border-radius:8px;font-weight:800;cursor:pointer;font-size:13px;white-space:nowrap;min-width:80px}
+  .upBuy:disabled{background:#475569;color:#94a3b8;cursor:not-allowed}
+
+  .fishRow{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .fishIcon{width:24px;height:14px;border-radius:50%;flex-shrink:0}
+  .fishInfo{flex:1;font-size:13px;font-weight:600}
+  .fishCount{color:#94a3b8;font-size:12px;margin-left:6px}
+  .fishVal{color:#fbbf24;font-weight:800;font-size:13px}
+
+  .closeBtn{display:block;width:100%;margin-top:10px;padding:10px;background:#475569;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:15px}
+  .sellAllBtn{display:block;width:100%;margin-top:10px;padding:12px;background:linear-gradient(180deg,#22c55e,#15803d);color:white;border:none;border-radius:8px;font-weight:800;cursor:pointer;font-size:15px}
+  .sellAllBtn:disabled{opacity:.4;cursor:not-allowed}
+
+  .toast{position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.95);color:#fbbf24;padding:10px 18px;border-radius:10px;font-weight:700;z-index:200;border:1px solid #334155;animation:toastFade 2.4s ease-out forwards;font-size:14px;text-align:center}
+  @keyframes toastFade{0%{opacity:0;transform:translateX(-50%) translateY(-10px)}10%,80%{opacity:1;transform:translateX(-50%) translateY(0)}100%{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+
+  .legend{font-size:11px;color:#94a3b8;text-align:center;margin-top:4px;padding:0 8px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="stat">💰 <span class="v gold" id="coins">0</span></div>
+    <div class="stat">🐟 <span class="v blue" id="fish">0</span><span style="color:#64748b">/<span id="fishCap">8</span></span></div>
+    <div class="stat">⭐ Day <span class="v" id="day">1</span></div>
+    <div class="stat">🏆 <span class="v green" id="best">—</span></div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv" width="1000" height="560"></canvas>
+    <img id="dog" class="dog" src="/games/assets/dog.gif" alt="dog">
+    <button class="bucketBtn" id="bucketBtn">🪣 Bucket</button>
+    <button class="shopBtn" id="shopBtn">🛠 Upgrades</button>
+    <div class="actions">
+      <button class="btn" id="castBtn">🎣 Cast Line</button>
+    </div>
+  </div>
+
+  <div class="legend">Click water to cast · Click again when the bobber bites · Upgrade rod &amp; dock to catch rarer fish</div>
+
+  <!-- Bucket / inventory modal -->
+  <div class="modal" id="bucket">
+    <div class="modalInner">
+      <h2>🪣 Your Bucket</h2>
+      <div class="sub">Sell fish for coins</div>
+      <div id="fishList"></div>
+      <button class="sellAllBtn" id="sellAllBtn">💰 Sell All</button>
+      <button class="closeBtn" id="closeBucket">Close</button>
+    </div>
+  </div>
+
+  <!-- Shop modal -->
+  <div class="modal" id="shop">
+    <div class="modalInner">
+      <h2>🛠 Upgrade Shop</h2>
+      <div class="sub">Better gear → bigger fish</div>
+      <div id="upList"></div>
+      <button class="closeBtn" id="closeShop">Close</button>
+    </div>
+  </div>
+
+<script>
+(function(){
+'use strict';
+
+// ── Canvas setup ─────────────────────────────────────────────
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// ── Game state ───────────────────────────────────────────────
+const SAVE_KEY = 'fishingSim.save.v1';
+let state = {
+  coins: 0,
+  fish: [],         // [{tier, weight}]
+  bestWeight: 0,
+  bestTier: 0,
+  day: 1,
+  rod: 1,           // bite window, line strength
+  bait: 1,          // bite speed, rare chance
+  bucket: 1,        // storage
+  pier: 1,          // dock visual + further casting → deeper fish
+};
+function load(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if(s) Object.assign(state, s);
+  }catch(e){}
+}
+function save(){
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){}
+}
+load();
+
+// ── Fish definitions ─────────────────────────────────────────
+const FISH = [
+  {tier:1, name:"Sardine",      icon:"🐟", color:"#94a3b8", base:5,   wMin:0.1, wMax:0.4},
+  {tier:2, name:"Mackerel",     icon:"🐠", color:"#60a5fa", base:14,  wMin:0.4, wMax:1.2},
+  {tier:3, name:"Bass",         icon:"🐟", color:"#86efac", base:34,  wMin:1.0, wMax:3.5},
+  {tier:4, name:"Tuna",         icon:"🐠", color:"#fbbf24", base:90,  wMin:3.0, wMax:12 },
+  {tier:5, name:"Golden Trout", icon:"✨", color:"#f0abfc", base:240, wMin:5.0, wMax:18 },
+  {tier:6, name:"Kraken Pup",   icon:"🐙", color:"#a78bfa", base:680, wMin:12,  wMax:45 },
+  {tier:7, name:"Moonfish",     icon:"🌙", color:"#fde68a", base:1800,wMin:25,  wMax:90 },
+];
+const TRASH = [
+  {name:"Old Boot",  icon:"🥾", color:"#78350f", base:0},
+  {name:"Tin Can",   icon:"🥫", color:"#94a3b8", base:0},
+  {name:"Seaweed",   icon:"🌿", color:"#4ade80", base:0},
+];
+
+// ── Upgrade definitions ──────────────────────────────────────
+const UPGRADES = {
+  rod: {
+    name:"Fishing Rod", icon:"🎣",
+    desc:l=>`Bite window ${(0.7 + l*0.3).toFixed(1)}s · catch chance ${(60 + l*7)}%`,
+    cost:l=>Math.floor(25 * Math.pow(2.4, l-1)),
+    max:8,
+  },
+  bait: {
+    name:"Bait Quality", icon:"🪱",
+    desc:l=>`Bite speed +${(l-1)*15}% · rare fish +${l*6}%`,
+    cost:l=>Math.floor(40 * Math.pow(2.5, l-1)),
+    max:8,
+  },
+  bucket: {
+    name:"Bucket", icon:"🪣",
+    desc:l=>`Hold up to ${6 + l*4} fish`,
+    cost:l=>Math.floor(30 * Math.pow(2.3, l-1)),
+    max:8,
+  },
+  pier: {
+    name:"Pier",       icon:"⚓",
+    desc:l=>`Reach deeper water · unlock tier ${Math.min(7, l+1)} fish`,
+    cost:l=>Math.floor(120 * Math.pow(2.8, l-1)),
+    max:6,
+  },
+};
+
+function fishCap(){ return 6 + state.bucket * 4; }
+function biteWindowMs(){ return 700 + state.rod * 300; }   // 1000..3100ms
+function catchChance(){ return Math.min(0.99, 0.60 + state.rod * 0.07); }
+function biteSpeedMult(){ return 1 / (1 + (state.bait-1) * 0.15); }
+function rareBonus(){ return state.bait * 0.06; }
+function maxTierAvailable(){ return Math.min(FISH.length, state.pier + 1); }
+
+// ── Modes ────────────────────────────────────────────────────
+let mode = 'idle';   // idle | casting | waiting | bite | reeling
+let bobber = null;
+let biteUntil = 0;
+let lastFrame = 0;
+let reelResult = null;
+let lastBiteAt = 0;
+
+// ── Scene geometry ───────────────────────────────────────────
+const WATER_TOP = 280;
+const DOCK = { y: WATER_TOP - 30, h: 32 };  // big dock spans full width
+const DOG_POS = { x: 500, y: 200 };          // pixel coords — dog stands here
+
+// ── Background swimming fish (visual flavor) ─────────────────
+const bgFish = [];
+for(let i=0;i<22;i++){
+  bgFish.push({
+    x: Math.random()*W,
+    y: WATER_TOP + 20 + Math.random()*(H-WATER_TOP-30),
+    vx: (Math.random()<0.5?-1:1) * (0.3 + Math.random()*0.9),
+    size: 5 + Math.random()*10,
+    color: ['#0369a1','#075985','#0c4a6e','#1e3a8a','#155e75'][Math.floor(Math.random()*5)],
+    tier: Math.random() < 0.05 ? 5 : Math.random() < 0.15 ? 3 : 1,
+  });
+}
+
+// ── DOM ──────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const dogEl = $('dog');
+
+function fmtCoins(n){ return n >= 10000 ? (n/1000).toFixed(1)+'k' : n; }
+function fmtWeight(w){ return w < 1 ? (w*1000).toFixed(0)+'g' : w.toFixed(1)+'kg'; }
+
+function positionDog(){
+  // Place dog over the canvas at DOG_POS, scaled by canvas display size
+  const rect = cv.getBoundingClientRect();
+  const stage = cv.parentElement.getBoundingClientRect();
+  const scale = rect.width / W;
+  const sizePx = 96 * scale * 1.2;
+  dogEl.style.width = sizePx + 'px';
+  dogEl.style.height = sizePx + 'px';
+  dogEl.style.left = (rect.left - stage.left + (DOG_POS.x * scale) - sizePx/2) + 'px';
+  dogEl.style.top  = (rect.top  - stage.top  + (DOG_POS.y * scale) - sizePx/2) + 'px';
+}
+window.addEventListener('resize', positionDog);
+
+function updateHUD(){
+  $('coins').textContent = fmtCoins(state.coins);
+  $('fish').textContent = state.fish.length;
+  $('fishCap').textContent = fishCap();
+  $('day').textContent = state.day;
+  if(state.bestWeight > 0){
+    const f = FISH[state.bestTier-1];
+    $('best').textContent = f ? f.name + ' ' + fmtWeight(state.bestWeight) : fmtWeight(state.bestWeight);
+  }
+}
+
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 2400);
+}
+
+function floater(x, y, txt, color){
+  const rect = cv.getBoundingClientRect();
+  const stage = cv.parentElement.getBoundingClientRect();
+  const sx = rect.left - stage.left + (x / W) * rect.width;
+  const sy = rect.top  - stage.top  + (y / H) * rect.height;
+  const el = document.createElement('div');
+  el.className = 'floater';
+  el.textContent = txt;
+  if(color) el.style.color = color;
+  el.style.left = sx + 'px';
+  el.style.top = sy + 'px';
+  cv.parentElement.appendChild(el);
+  setTimeout(()=>el.remove(), 1200);
+}
+
+// ── Drawing helpers ──────────────────────────────────────────
+function drawSky(now){
+  const g = ctx.createLinearGradient(0,0,0,WATER_TOP);
+  g.addColorStop(0,'#fcd34d');
+  g.addColorStop(0.4,'#fbcfe8');
+  g.addColorStop(1,'#bae6fd');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,W,WATER_TOP);
+  // sun
+  ctx.fillStyle = '#fef3c7';
+  ctx.globalAlpha = 0.3;
+  ctx.beginPath(); ctx.arc(180, 90, 60, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath(); ctx.arc(180, 90, 32, 0, Math.PI*2); ctx.fill();
+
+  // clouds drifting slowly
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  const t = now * 0.005;
+  drawCloud(((400 + t) % (W+200)) - 100, 60, 1);
+  drawCloud(((700 + t*0.6) % (W+200)) - 100, 110, 0.7);
+  drawCloud(((100 + t*0.4) % (W+200)) - 100, 40, 0.5);
+  drawCloud(((850 + t*0.8) % (W+200)) - 100, 80, 0.9);
+
+  // distant mountains
+  ctx.fillStyle = '#a5b4fc';
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(0, WATER_TOP);
+  for(let x=0;x<=W;x+=40){
+    ctx.lineTo(x, WATER_TOP - 60 - Math.sin(x*0.01)*30 - Math.sin(x*0.03+2)*20);
+  }
+  ctx.lineTo(W, WATER_TOP);
+  ctx.fill();
+  // closer mountains
+  ctx.fillStyle = '#818cf8';
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, WATER_TOP);
+  for(let x=0;x<=W;x+=30){
+    ctx.lineTo(x, WATER_TOP - 30 - Math.sin(x*0.015+1)*25);
+  }
+  ctx.lineTo(W, WATER_TOP);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+function drawCloud(x,y,s){
+  ctx.beginPath();
+  ctx.arc(x, y, 18*s, 0, Math.PI*2);
+  ctx.arc(x+20*s, y-6*s, 22*s, 0, Math.PI*2);
+  ctx.arc(x+40*s, y, 18*s, 0, Math.PI*2);
+  ctx.arc(x+24*s, y+8*s, 18*s, 0, Math.PI*2);
+  ctx.fill();
+}
+
+function drawWater(now){
+  const g = ctx.createLinearGradient(0, WATER_TOP, 0, H);
+  g.addColorStop(0,'#0ea5e9');
+  g.addColorStop(0.5,'#075985');
+  g.addColorStop(1,'#082f49');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, WATER_TOP, W, H-WATER_TOP);
+
+  // surface ripples
+  ctx.strokeStyle = 'rgba(255,255,255,.3)';
+  ctx.lineWidth = 1.5;
+  for(let i=0;i<10;i++){
+    const off = (now * 0.04 + i*120) % (W+200) - 100;
+    ctx.beginPath();
+    ctx.moveTo(off, WATER_TOP + 6 + Math.sin(now*0.003 + i)*2);
+    ctx.quadraticCurveTo(off+30, WATER_TOP - 2, off+60, WATER_TOP + 6);
+    ctx.stroke();
+  }
+
+  // sun glitter
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  for(let i=0;i<14;i++){
+    const gx = 100 + i*40 + Math.sin(now*0.001+i)*20;
+    const gy = WATER_TOP + 10 + Math.sin(now*0.002+i*2)*4;
+    ctx.fillRect(gx, gy, 8, 2);
+  }
+
+  // background swimming fish
+  for(const f of bgFish){
+    f.x += f.vx;
+    if(f.x < -20) f.x = W + 20;
+    if(f.x > W + 20) f.x = -20;
+    ctx.fillStyle = f.color;
+    ctx.beginPath();
+    ctx.ellipse(f.x, f.y, f.size, f.size*0.55, 0, 0, Math.PI*2);
+    ctx.fill();
+    // tail
+    ctx.beginPath();
+    const tx = f.vx > 0 ? -1 : 1;
+    ctx.moveTo(f.x + tx*f.size, f.y);
+    ctx.lineTo(f.x + tx*f.size*1.6, f.y - f.size*0.6);
+    ctx.lineTo(f.x + tx*f.size*1.6, f.y + f.size*0.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function drawDock(){
+  // The dock spans most of the width — a big peaceful pier
+  // Underwater pillars
+  const pillarCount = 6;
+  for(let i=0;i<pillarCount;i++){
+    const px = 100 + i * ((W - 200) / (pillarCount-1));
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(px - 8, DOCK.y + DOCK.h, 16, 110);
+    // pillar shadow on water
+    ctx.fillStyle = 'rgba(0,0,0,.2)';
+    ctx.fillRect(px - 10, DOCK.y + DOCK.h, 4, 110);
+  }
+  // wave around pillars
+  ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.lineWidth = 2;
+  for(let i=0;i<pillarCount;i++){
+    const px = 100 + i * ((W - 200) / (pillarCount-1));
+    ctx.beginPath();
+    ctx.ellipse(px, DOCK.y + DOCK.h + 4, 14, 3, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  // Main planks
+  const plankColor = state.pier >= 3 ? '#a16207' : state.pier >= 2 ? '#92400e' : '#78350f';
+  ctx.fillStyle = plankColor;
+  ctx.fillRect(0, DOCK.y, W, DOCK.h);
+  // top edge highlight
+  ctx.fillStyle = 'rgba(255,255,255,.15)';
+  ctx.fillRect(0, DOCK.y, W, 3);
+  // bottom edge shadow
+  ctx.fillStyle = 'rgba(0,0,0,.3)';
+  ctx.fillRect(0, DOCK.y + DOCK.h - 3, W, 3);
+
+  // plank seams
+  ctx.strokeStyle = '#451a03';
+  ctx.lineWidth = 1.5;
+  for(let i=1;i<14;i++){
+    const sx = i * (W / 14);
+    ctx.beginPath();
+    ctx.moveTo(sx, DOCK.y);
+    ctx.lineTo(sx, DOCK.y + DOCK.h);
+    ctx.stroke();
+  }
+
+  // Bait bucket
+  const bX = DOG_POS.x - 90;
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(bX, DOCK.y - 22, 28, 22);
+  ctx.strokeStyle = '#7f1d1d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bX, DOCK.y - 22, 28, 22);
+  ctx.fillStyle = '#374151';
+  ctx.beginPath();
+  ctx.arc(bX + 14, DOCK.y - 22, 12, Math.PI, 0);
+  ctx.stroke();
+  // bait inside
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(bX + 4, DOCK.y - 12, 6, 4);
+  ctx.fillRect(bX + 14, DOCK.y - 14, 6, 4);
+
+  // Tackle box
+  const tX = DOG_POS.x + 70;
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(tX, DOCK.y - 18, 36, 18);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(tX, DOCK.y - 18, 36, 6);
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(tX, DOCK.y - 18, 36, 18);
+  // handle
+  ctx.beginPath();
+  ctx.arc(tX + 18, DOCK.y - 20, 5, Math.PI, 0);
+  ctx.stroke();
+
+  // Lantern post at end of dock (right side)
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(W - 60, DOCK.y - 80, 4, 80);
+  // lantern
+  ctx.fillStyle = '#facc15';
+  ctx.beginPath();
+  ctx.arc(W - 58, DOCK.y - 82, 8, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // glow
+  ctx.fillStyle = 'rgba(252,204,21,.15)';
+  ctx.beginPath();
+  ctx.arc(W - 58, DOCK.y - 82, 30, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// Rod tip relative to dog position
+function rodTipPos(){
+  return { x: DOG_POS.x + 70, y: DOG_POS.y - 20 };
+}
+
+function drawRod(now){
+  const rodColor = ['#94a3b8','#cbd5e1','#fcd34d','#22d3ee','#f0abfc','#fb7185','#a78bfa','#34d399'][Math.min(7, state.rod-1)];
+  const tip = rodTipPos();
+  const handleX = DOG_POS.x + 20, handleY = DOG_POS.y + 8;
+  // dark outline
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(handleX, handleY);
+  ctx.quadraticCurveTo(handleX + 30, handleY - 30, tip.x, tip.y);
+  ctx.stroke();
+  // colored rod
+  ctx.strokeStyle = rodColor;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(handleX, handleY);
+  ctx.quadraticCurveTo(handleX + 30, handleY - 30, tip.x, tip.y);
+  ctx.stroke();
+  // reel
+  ctx.fillStyle = '#475569';
+  ctx.beginPath(); ctx.arc(handleX, handleY, 5, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // line + bobber
+  if(mode === 'casting' || mode === 'waiting' || mode === 'bite' || mode === 'reeling'){
+    let bx, by;
+    if(mode === 'casting'){
+      const t = Math.min(1, (performance.now() - bobber.t0) / 700);
+      bx = tip.x + (bobber.x - tip.x) * t;
+      by = tip.y + (bobber.y - tip.y) * t - Math.sin(t * Math.PI) * 80;
+    } else if(mode === 'reeling'){
+      const t = Math.min(1, (performance.now() - bobber.reelT0) / 500);
+      bx = bobber.x + (tip.x - bobber.x) * t;
+      by = bobber.y + (tip.y - bobber.y) * t;
+    } else {
+      bx = bobber.x;
+      by = bobber.y + (mode==='bite' ? Math.sin(performance.now()*0.025)*5 : Math.sin(performance.now()*0.004)*2);
+    }
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    // bobber (red & white)
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(bx, by, 7, 0, Math.PI, true); ctx.fill();
+    ctx.fillStyle = mode === 'bite' ? '#dc2626' : '#ef4444';
+    ctx.beginPath(); ctx.arc(bx, by, 7, 0, Math.PI, false); ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(bx, by, 7, 0, Math.PI*2); ctx.stroke();
+
+    // splash ripples when bite
+    if(mode === 'bite'){
+      const tt = (performance.now() % 700) / 700;
+      ctx.strokeStyle = `rgba(239,68,68,${1-tt})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(bx, by + 4, 10 + tt*26, 3 + tt*8, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawBiteAlert(now){
+  if(mode !== 'bite') return;
+  const pulse = 0.5 + 0.5 * Math.sin(now * 0.02);
+  ctx.fillStyle = `rgba(239,68,68,${0.7 + pulse*0.3})`;
+  ctx.font = 'bold 26px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('!!! BITE — CLICK TO REEL !!!', W/2, 60);
+}
+
+function drawTutorial(now){
+  if(state.coins > 0 || state.fish.length > 0) return;
+  if(mode !== 'idle') return;
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 16px system-ui';
+  ctx.textAlign = 'center';
+  const bob = Math.sin(now*0.005) * 4;
+  ctx.fillText('👇 Click the water to cast!', W/2, 350 + bob);
+}
+
+// polyfill roundRect
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+    this.beginPath();
+    this.moveTo(x+r,y);
+    this.arcTo(x+w,y,x+w,y+h,r);
+    this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r);
+    this.arcTo(x,y,x+w,y,r);
+    this.closePath();
+  };
+}
+
+// ── Game loop ────────────────────────────────────────────────
+function loop(now){
+  if(!lastFrame) lastFrame = now;
+  const dt = Math.min(50, now - lastFrame);
+  lastFrame = now;
+
+  // Cast landing
+  if(mode === 'casting' && now - bobber.t0 > 700){
+    mode = 'waiting';
+    const distFromDock = Math.abs(bobber.y - WATER_TOP);
+    const baseWait = 1500 + Math.random() * 3500;
+    // deeper casts → longer wait but bigger fish
+    biteUntil = now + (baseWait + distFromDock * 8) * biteSpeedMult();
+  }
+  // Bite trigger
+  if(mode === 'waiting' && now > biteUntil){
+    mode = 'bite';
+    biteUntil = now + biteWindowMs();
+    lastBiteAt = now;
+  }
+  // Missed bite
+  if(mode === 'bite' && now > biteUntil){
+    mode = 'idle';
+    bobber = null;
+    toast('🐟 The fish escaped!');
+  }
+  // Reeling complete
+  if(mode === 'reeling' && now - bobber.reelT0 > 500){
+    finishReel();
+  }
+
+  // Draw
+  ctx.clearRect(0,0,W,H);
+  drawSky(now);
+  drawWater(now);
+  drawDock();
+  drawRod(now);
+  drawBiteAlert(now);
+  drawTutorial(now);
+
+  positionDog();
+  updateHUD();
+  requestAnimationFrame(loop);
+}
+
+// ── Fishing actions ──────────────────────────────────────────
+function startCast(targetX, targetY){
+  if(mode !== 'idle') return;
+  if(state.fish.length >= fishCap()){
+    toast('🪣 Bucket full! Sell some fish.');
+    $('bucket').classList.add('show');
+    renderBucket();
+    return;
+  }
+  // bobber lands in water — if no target provided, random
+  if(targetX === undefined){
+    targetX = 350 + Math.random() * (W - 500);
+    targetY = WATER_TOP + 40 + Math.random() * 80;
+  }
+  targetY = Math.max(WATER_TOP + 20, Math.min(H - 40, targetY));
+  bobber = { x: targetX, y: targetY, t0: performance.now() };
+  mode = 'casting';
+  dogEl.classList.remove('cast'); void dogEl.offsetWidth;
+  dogEl.classList.add('cast');
+}
+
+function tryReel(){
+  if(mode === 'bite'){
+    // determine outcome based on catch chance
+    if(Math.random() > catchChance()){
+      // line escapes
+      mode = 'idle';
+      bobber = null;
+      toast('💨 Line snapped!');
+      return;
+    }
+    // catch! pick fish tier
+    reelResult = rollFish();
+    bobber.reelT0 = performance.now();
+    mode = 'reeling';
+    dogEl.classList.remove('reel'); void dogEl.offsetWidth;
+    dogEl.classList.add('reel');
+  } else if(mode === 'waiting'){
+    mode = 'idle';
+    bobber = null;
+    toast('⏰ Too early!');
+  }
+}
+
+function rollFish(){
+  // 10% chance of trash if pier is low
+  if(state.pier <= 1 && Math.random() < 0.10){
+    return {trash: TRASH[Math.floor(Math.random()*TRASH.length)]};
+  }
+  // Weighted random by depth + bait + pier
+  const maxT = maxTierAvailable();
+  const distFromDock = bobber ? Math.abs(bobber.y - WATER_TOP) : 50;
+  const depthBoost = Math.min(0.4, distFromDock / 250);
+  const rare = rareBonus() + depthBoost;
+
+  // probability distribution: lower tiers more likely
+  const weights = [];
+  for(let i=1;i<=maxT;i++){
+    weights.push(Math.pow(0.55, i-1) * (1 + (i >= 3 ? rare * (i-2) : 0)));
+  }
+  const sum = weights.reduce((a,b)=>a+b,0);
+  let r = Math.random() * sum;
+  let tier = 1;
+  for(let i=0;i<weights.length;i++){
+    r -= weights[i];
+    if(r <= 0){ tier = i+1; break; }
+  }
+  const f = FISH[tier-1];
+  const weight = f.wMin + Math.random() * (f.wMax - f.wMin);
+  return {fish: f, weight};
+}
+
+function finishReel(){
+  if(reelResult.trash){
+    floater(rodTipPos().x, rodTipPos().y - 20, reelResult.trash.icon + ' ' + reelResult.trash.name, reelResult.trash.color);
+    toast('Pulled up ' + reelResult.trash.name + '.');
+  } else {
+    const {fish: f, weight: w} = reelResult;
+    state.fish.push({tier: f.tier, weight: w});
+    const tag = w > f.wMax * 0.85 ? ' BIG!' : '';
+    floater(rodTipPos().x, rodTipPos().y - 20, f.icon + ' ' + f.name + ' ' + fmtWeight(w) + tag, f.color);
+    if(w > state.bestWeight){
+      state.bestWeight = w;
+      state.bestTier = f.tier;
+      toast('🏆 New record! ' + f.name + ' ' + fmtWeight(w));
+    }
+  }
+  mode = 'idle';
+  bobber = null;
+  reelResult = null;
+  save();
+}
+
+function sellFish(idx){
+  const f = state.fish[idx];
+  if(!f) return;
+  const def = FISH[f.tier - 1];
+  // bigger fish sells for more (linear with weight ratio)
+  const value = Math.floor(def.base * (0.6 + (f.weight / def.wMax) * 0.8));
+  state.coins += value;
+  state.fish.splice(idx, 1);
+  floater(W/2, 240, '+' + value, '#fbbf24');
+  save();
+  renderBucket();
+}
+
+function sellAll(){
+  if(state.fish.length === 0) return;
+  let total = 0;
+  for(const f of state.fish){
+    const def = FISH[f.tier - 1];
+    total += Math.floor(def.base * (0.6 + (f.weight / def.wMax) * 0.8));
+  }
+  state.coins += total;
+  state.fish = [];
+  toast('💰 Sold all for ' + total + ' coins!');
+  save();
+  renderBucket();
+}
+
+// ── Input ────────────────────────────────────────────────────
+function canvasClick(e){
+  const rect = cv.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (W / rect.width);
+  const y = (e.clientY - rect.top) * (H / rect.height);
+
+  if(mode === 'bite' || mode === 'waiting'){
+    tryReel();
+    return;
+  }
+  if(mode === 'idle' && y > WATER_TOP){
+    startCast(x, y);
+  } else if(mode === 'idle'){
+    startCast(); // random spot
+  }
+}
+cv.addEventListener('click', canvasClick);
+cv.addEventListener('touchstart', (e)=>{
+  e.preventDefault();
+  const t = e.touches[0];
+  canvasClick({clientX:t.clientX, clientY:t.clientY});
+}, {passive:false});
+
+$('castBtn').addEventListener('click', ()=>{
+  if(mode === 'bite' || mode === 'waiting') tryReel();
+  else startCast();
+});
+
+// ── Bucket UI ────────────────────────────────────────────────
+function renderBucket(){
+  const list = $('fishList');
+  list.innerHTML = '';
+  if(state.fish.length === 0){
+    list.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:20px">Bucket is empty. Go fish! 🎣</div>';
+    $('sellAllBtn').disabled = true;
+    return;
+  }
+  $('sellAllBtn').disabled = false;
+  // group by tier
+  const grouped = {};
+  state.fish.forEach((f, idx) => {
+    if(!grouped[f.tier]) grouped[f.tier] = [];
+    grouped[f.tier].push({f, idx});
+  });
+  for(let tier=FISH.length;tier>=1;tier--){
+    if(!grouped[tier]) continue;
+    for(const {f, idx} of grouped[tier]){
+      const def = FISH[tier-1];
+      const value = Math.floor(def.base * (0.6 + (f.weight / def.wMax) * 0.8));
+      const row = document.createElement('div');
+      row.className = 'fishRow';
+      row.innerHTML = `
+        <div class="fishIcon" style="background:${def.color}"></div>
+        <div class="fishInfo">${def.icon} ${def.name} <span class="fishCount">${fmtWeight(f.weight)}</span></div>
+        <div class="fishVal">💰 ${value}</div>
+        <button class="upBuy" data-idx="${idx}">Sell</button>
+      `;
+      list.appendChild(row);
+    }
+  }
+  list.querySelectorAll('.upBuy').forEach(b => {
+    b.addEventListener('click', ()=>{
+      sellFish(parseInt(b.dataset.idx));
+    });
+  });
+}
+$('bucketBtn').addEventListener('click', ()=>{
+  renderBucket();
+  $('bucket').classList.add('show');
+});
+$('closeBucket').addEventListener('click', ()=>$('bucket').classList.remove('show'));
+$('bucket').addEventListener('click', (e)=>{
+  if(e.target === $('bucket')) $('bucket').classList.remove('show');
+});
+$('sellAllBtn').addEventListener('click', sellAll);
+
+// ── Shop UI ──────────────────────────────────────────────────
+function renderShop(){
+  const list = $('upList');
+  list.innerHTML = '';
+  for(const key in UPGRADES){
+    const u = UPGRADES[key];
+    const lvl = state[key];
+    const maxed = lvl >= u.max;
+    const cost = u.cost(lvl);
+    const row = document.createElement('div');
+    row.className = 'upRow';
+    row.innerHTML = `
+      <div style="font-size:28px">${u.icon}</div>
+      <div class="upInfo">
+        <div class="upName">${u.name} <span style="color:#7dd3fc">Lv ${lvl}${maxed?' (MAX)':''}</span></div>
+        <div class="upDesc">${u.desc(lvl)}</div>
+        <div class="upLvl">${maxed ? '' : '↑ ' + u.desc(lvl + 1)}</div>
+      </div>
+      <button class="upBuy" data-k="${key}" ${maxed || state.coins < cost ? 'disabled' : ''}>
+        ${maxed ? 'MAX' : '💰 ' + fmtCoins(cost)}
+      </button>
+    `;
+    list.appendChild(row);
+  }
+  list.querySelectorAll('.upBuy').forEach(b => {
+    b.addEventListener('click', ()=>{
+      const k = b.dataset.k;
+      const u = UPGRADES[k];
+      const lvl = state[k];
+      if(lvl >= u.max) return;
+      const cost = u.cost(lvl);
+      if(state.coins < cost) return;
+      state.coins -= cost;
+      state[k]++;
+      save();
+      renderShop();
+      updateHUD();
+      toast(`⬆ ${u.name} → Lv ${state[k]}`);
+    });
+  });
+}
+$('shopBtn').addEventListener('click', ()=>{
+  renderShop();
+  $('shop').classList.add('show');
+});
+$('closeShop').addEventListener('click', ()=>$('shop').classList.remove('show'));
+$('shop').addEventListener('click', (e)=>{
+  if(e.target === $('shop')) $('shop').classList.remove('show');
+});
+
+// Keyboard
+window.addEventListener('keydown', (e)=>{
+  if(e.code === 'Space'){
+    e.preventDefault();
+    if(mode === 'bite' || mode === 'waiting') tryReel();
+    else startCast();
+  }
+  if(e.code === 'KeyB'){ renderBucket(); $('bucket').classList.add('show'); }
+  if(e.code === 'KeyU'){ renderShop(); $('shop').classList.add('show'); }
+});
+
+// Day counter (flavor)
+setInterval(()=>{ state.day++; save(); }, 60000);
+
+// Start
+positionDog();
+updateHUD();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
