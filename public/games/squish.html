@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Squishy — Stress Relief</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;user-select:none;-webkit-user-select:none}
+  body{display:flex;flex-direction:column;align-items:center;background:radial-gradient(circle at 50% 0%,#1e293b,#0f172a 60%)}
+
+  /* ── Material picker overlay ───────────────────────────── */
+  .picker{position:fixed;inset:0;background:rgba(15,23,42,.96);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)}
+  .picker.hide{display:none}
+  .picker h1{font-size:32px;margin:0 0 6px 0;background:linear-gradient(90deg,#fbbf24,#f0abfc,#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900;letter-spacing:.5px}
+  .picker .sub{color:#94a3b8;margin-bottom:24px;font-size:14px;text-align:center}
+  .mats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;max-width:640px;width:100%}
+  .matCard{background:#1e293b;border:2px solid #334155;border-radius:16px;padding:16px;cursor:pointer;text-align:center;transition:transform .15s,border-color .15s,box-shadow .15s}
+  .matCard:hover{transform:translateY(-4px);border-color:#fbbf24;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .matCard .swatch{width:60px;height:60px;border-radius:50%;margin:0 auto 8px;box-shadow:inset -8px -8px 14px rgba(0,0,0,.2),inset 6px 6px 14px rgba(255,255,255,.3),0 4px 12px rgba(0,0,0,.3)}
+  .matCard .nm{font-weight:800;font-size:15px;color:#f1f5f9}
+  .matCard .dc{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.3}
+
+  /* ── Main play area ────────────────────────────────────── */
+  .topbar{width:100%;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:rgba(0,0,0,.3);border-bottom:1px solid #1e293b;font-size:13px;font-weight:600;flex-wrap:wrap}
+  .stat{background:#1e293b;padding:6px 12px;border-radius:8px;display:flex;align-items:center;gap:6px}
+  .stat .v{font-weight:800;font-size:14px;color:#fbbf24}
+  .matLabel{display:flex;align-items:center;gap:8px}
+  .matLabel .sw{width:18px;height:18px;border-radius:50%}
+  .changeBtn{background:#7c3aed;color:white;border:none;padding:7px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;box-shadow:0 3px 0 #5b21b6}
+  .changeBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #5b21b6}
+
+  .stage{flex:1;width:100%;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden}
+  canvas{display:block;touch-action:none;cursor:grab}
+  canvas.grabbing{cursor:grabbing}
+
+  .hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:12px;color:#64748b;text-align:center;pointer-events:none}
+
+  .float{position:absolute;font-weight:900;color:#fbbf24;text-shadow:0 2px 4px #000;pointer-events:none;animation:fup 1s ease-out forwards;font-size:18px;z-index:5}
+  @keyframes fup{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-50px) scale(1.4);opacity:0}}
+</style>
+</head>
+<body>
+
+  <!-- Material picker -->
+  <div class="picker" id="picker">
+    <h1>🫧 Squishy</h1>
+    <div class="sub">Pick your stress toy material</div>
+    <div class="mats" id="matGrid"></div>
+  </div>
+
+  <div class="topbar">
+    <div class="matLabel">
+      <div class="sw" id="curSw"></div>
+      <span id="curName">—</span>
+    </div>
+    <div class="stat">✋ Squishes: <span class="v" id="squishCount">0</span></div>
+    <button class="changeBtn" id="changeBtn">↻ Change</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <canvas id="cv"></canvas>
+    <div class="hint" id="hint">Click and drag to squish · Click fast to poke</div>
+  </div>
+
+<script>
+(function(){
+'use strict';
+
+// ── Materials ────────────────────────────────────────────────
+const MATERIALS = [
+  {
+    id:'silicone',
+    name:'Silicone Squishy',
+    desc:'Slow squish · slow rebound',
+    color:'#fbbf24',
+    color2:'#fde047',
+    stiffness:0.04, damping:0.86, neighbor:0.5,
+    highlight:0.5, glossy:true, jiggle:0.6,
+    sound:{freq:380, type:'sine', dur:0.18, drop:0.4},
+    haptic:[15],
+  },
+  {
+    id:'slime',
+    name:'Slime',
+    desc:'Gooey · stretchy · jiggle forever',
+    color:'#86efac',
+    color2:'#22c55e',
+    stiffness:0.015, damping:0.94, neighbor:0.3,
+    highlight:0.7, glossy:true, jiggle:1.2,
+    alpha:0.78, drip:true,
+    sound:{freq:240, type:'sine', dur:0.35, drop:0.2},
+    haptic:[8, 30, 8],
+  },
+  {
+    id:'mochi',
+    name:'Mochi',
+    desc:'Soft · powdery · cloud-like',
+    color:'#fda4af',
+    color2:'#fecaca',
+    stiffness:0.025, damping:0.88, neighbor:0.4,
+    highlight:0.3, glossy:false, jiggle:0.7,
+    powder:true,
+    sound:{freq:300, type:'sine', dur:0.22, drop:0.5},
+    haptic:[12],
+  },
+  {
+    id:'stress',
+    name:'Stress Ball',
+    desc:'Firm · snappy bounce-back',
+    color:'#f97316',
+    color2:'#fb923c',
+    stiffness:0.10, damping:0.78, neighbor:0.7,
+    highlight:0.4, glossy:false, jiggle:0.3,
+    foam:true,
+    sound:{freq:520, type:'square', dur:0.10, drop:0.3},
+    haptic:[20],
+  },
+  {
+    id:'jelly',
+    name:'Jelly',
+    desc:'Wobbly · wiggly · translucent',
+    color:'#f472b6',
+    color2:'#fbcfe8',
+    stiffness:0.03, damping:0.92, neighbor:0.35,
+    highlight:0.9, glossy:true, jiggle:1.5,
+    alpha:0.85,
+    sound:{freq:340, type:'triangle', dur:0.30, drop:0.3},
+    haptic:[6, 12, 6, 12],
+  },
+  {
+    id:'bubble',
+    name:'Bubble Wrap',
+    desc:'Crunchy little pops',
+    color:'#bae6fd',
+    color2:'#e0f2fe',
+    stiffness:0.20, damping:0.70, neighbor:0.9,
+    highlight:0.8, glossy:true, jiggle:0.2,
+    pop:true, alpha:0.5,
+    sound:{freq:880, type:'square', dur:0.05, drop:0.2},
+    haptic:[40],
+  },
+];
+
+const $ = id => document.getElementById(id);
+
+// ── State ────────────────────────────────────────────────────
+let currentMat = null;
+let squishCount = parseInt(localStorage.getItem('squish.count') || '0', 10);
+$('squishCount').textContent = squishCount;
+
+// ── Material picker UI ───────────────────────────────────────
+function renderPicker(){
+  const grid = $('matGrid');
+  grid.innerHTML = '';
+  for(const m of MATERIALS){
+    const card = document.createElement('div');
+    card.className = 'matCard';
+    card.innerHTML = `
+      <div class="swatch" style="background:radial-gradient(circle at 35% 30%, ${m.color2}, ${m.color})"></div>
+      <div class="nm">${m.name}</div>
+      <div class="dc">${m.desc}</div>
+    `;
+    card.addEventListener('click', ()=>chooseMaterial(m));
+    grid.appendChild(card);
+  }
+}
+function chooseMaterial(m){
+  currentMat = m;
+  $('picker').classList.add('hide');
+  $('curName').textContent = m.name;
+  $('curSw').style.background = `radial-gradient(circle at 35% 30%, ${m.color2}, ${m.color})`;
+  resetBlob();
+}
+$('changeBtn').addEventListener('click', ()=>{
+  $('picker').classList.remove('hide');
+});
+renderPicker();
+
+// ── Canvas + Blob physics ────────────────────────────────────
+const cv = $('cv');
+const ctx = cv.getContext('2d');
+let W = 0, H = 0, cx = 0, cy = 0, R = 0;
+
+function resize(){
+  const stage = $('stage').getBoundingClientRect();
+  W = Math.floor(stage.width);
+  H = Math.floor(stage.height);
+  cv.width = W;
+  cv.height = H;
+  cx = W/2; cy = H/2;
+  R = Math.min(W, H) * 0.30;
+  if(currentMat) buildBlob();
+}
+window.addEventListener('resize', resize);
+
+const N = 36;
+let pts = [];
+function buildBlob(){
+  pts = [];
+  for(let i=0;i<N;i++){
+    const a = i / N * Math.PI*2;
+    const rx = cx + Math.cos(a) * R;
+    const ry = cy + Math.sin(a) * R;
+    pts.push({ x:rx, y:ry, px:rx, py:ry, rx, ry, vx:0, vy:0 });
+  }
+}
+function resetBlob(){
+  resize();
+  buildBlob();
+}
+
+// Verlet step + neighbor + rest spring
+function physics(){
+  if(!currentMat) return;
+  const m = currentMat;
+  // Spring back to rest position + neighbor smoothing
+  for(let i=0;i<N;i++){
+    const p = pts[i];
+    // Verlet velocity
+    const vx = (p.x - p.px) * m.damping;
+    const vy = (p.y - p.py) * m.damping;
+    p.px = p.x;
+    p.py = p.y;
+    // spring to rest
+    const dx = p.rx - p.x, dy = p.ry - p.y;
+    p.x += vx + dx * m.stiffness;
+    p.y += vy + dy * m.stiffness;
+  }
+  // Neighbor constraint — smooths shape
+  for(let iter=0; iter<2; iter++){
+    for(let i=0;i<N;i++){
+      const a = pts[i], b = pts[(i+1)%N];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const restD = 2 * Math.PI * R / N;
+      const d = Math.hypot(dx, dy) || 1;
+      const diff = (d - restD) / d * 0.5 * m.neighbor;
+      a.x += dx * diff;
+      a.y += dy * diff;
+      b.x -= dx * diff;
+      b.y -= dy * diff;
+    }
+  }
+  // Optional jiggle when at rest
+  if(m.jiggle > 0){
+    // tiny oscillation only when blob is near rest
+    // (skip — natural Verlet jiggle is plenty)
+  }
+}
+
+// ── Interaction ──────────────────────────────────────────────
+let dragging = null;     // index of grabbed point
+let lastPokeT = 0;
+let lastPokeX = 0, lastPokeY = 0;
+const POKE_RADIUS_FACTOR = 0.5;  // fraction of R that gets pushed
+
+function findNearestPoint(x, y){
+  let bestI = -1, bestD = Infinity;
+  for(let i=0;i<N;i++){
+    const dx = pts[i].x - x, dy = pts[i].y - y;
+    const d = dx*dx + dy*dy;
+    if(d < bestD){ bestD = d; bestI = i; }
+  }
+  return { i: bestI, dist: Math.sqrt(bestD) };
+}
+
+function poke(x, y, strength=1){
+  if(!currentMat) return;
+  const pokeR = R * POKE_RADIUS_FACTOR;
+  let touched = 0;
+  for(let i=0;i<N;i++){
+    const p = pts[i];
+    const dx = p.x - x, dy = p.y - y;
+    const d = Math.hypot(dx, dy);
+    if(d < pokeR + R){
+      // displacement toward poke center: pushes inward
+      const dirX = dx / (d || 1), dirY = dy / (d || 1);
+      const falloff = Math.max(0, 1 - d / (pokeR + R*0.6));
+      const force = falloff * 30 * strength;
+      p.x -= dirX * force * -1 + dirX * force;
+      // Stronger: push the point away from the cursor (denting inward)
+      p.x -= dirX * force;
+      p.y -= dirY * force;
+      touched++;
+    }
+  }
+  if(touched > 0){
+    onSquish(x, y, strength);
+  }
+}
+
+function pinch(x, y, strength=1){
+  if(!currentMat) return;
+  // grab nearest point and pull toward cursor (also pulls neighbors a bit)
+  const {i} = findNearestPoint(x, y);
+  for(let j=-3; j<=3; j++){
+    const idx = (i + j + N) % N;
+    const p = pts[idx];
+    const w = 1 - Math.abs(j)/4;
+    p.x += (x - p.x) * 0.6 * w * strength;
+    p.y += (y - p.y) * 0.6 * w * strength;
+  }
+}
+
+function onSquish(x, y, strength){
+  squishCount++;
+  localStorage.setItem('squish.count', squishCount);
+  $('squishCount').textContent = squishCount;
+  playSquish(strength);
+  if(navigator.vibrate && currentMat.haptic) navigator.vibrate(currentMat.haptic);
+  spawnFloater(x, y, strength);
+  // bubble pop visual
+  if(currentMat.pop) spawnPop(x, y);
+}
+
+const floaterIcons = ['✨','💖','🫧','💫','⭐','🌟'];
+function spawnFloater(x, y, strength){
+  const el = document.createElement('div');
+  el.className = 'float';
+  el.textContent = strength > 1.2 ? floaterIcons[Math.floor(Math.random()*floaterIcons.length)] : '·';
+  const stage = $('stage').getBoundingClientRect();
+  el.style.left = (x - 10) + 'px';
+  el.style.top = (y - 10) + 'px';
+  el.style.color = currentMat.color2;
+  $('stage').appendChild(el);
+  setTimeout(()=>el.remove(), 1000);
+}
+
+// Bubble pop ring
+const pops = [];
+function spawnPop(x, y){
+  pops.push({x, y, t:0, life:0.5});
+}
+
+// ── Audio ────────────────────────────────────────────────────
+let audioCtx = null;
+function ensureAudio(){
+  if(!audioCtx){
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ audioCtx = null; }
+  }
+}
+function playSquish(strength){
+  if(!currentMat || !currentMat.sound) return;
+  ensureAudio();
+  if(!audioCtx) return;
+  const s = currentMat.sound;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = s.type || 'sine';
+  const baseF = s.freq * (0.8 + Math.random()*0.4) * (0.7 + strength*0.3);
+  osc.frequency.setValueAtTime(baseF, t0);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(40, baseF * s.drop), t0 + s.dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.18, t0 + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + s.dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + s.dur + 0.02);
+}
+
+// ── Drawing ──────────────────────────────────────────────────
+function drawBlob(now){
+  if(!currentMat) return;
+  const m = currentMat;
+  // soft shadow underneath (slight squish)
+  ctx.fillStyle = 'rgba(0,0,0,.25)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + R + 14, R*0.85, R*0.18, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // build smooth spline path from pts
+  ctx.beginPath();
+  const p0 = pts[0];
+  const pLast = pts[N-1];
+  const mx0 = (pLast.x + p0.x)/2, my0 = (pLast.y + p0.y)/2;
+  ctx.moveTo(mx0, my0);
+  for(let i=0;i<N;i++){
+    const a = pts[i], b = pts[(i+1)%N];
+    const mx = (a.x + b.x)/2, my = (a.y + b.y)/2;
+    ctx.quadraticCurveTo(a.x, a.y, mx, my);
+  }
+  ctx.closePath();
+
+  // fill — radial gradient gives that 3D toy look
+  const grad = ctx.createRadialGradient(cx - R*0.3, cy - R*0.4, R*0.1, cx, cy, R*1.4);
+  grad.addColorStop(0, m.color2);
+  grad.addColorStop(0.65, m.color);
+  grad.addColorStop(1, shade(m.color, -30));
+  ctx.fillStyle = grad;
+  if(m.alpha){ ctx.globalAlpha = m.alpha; }
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // dark outline (subtle)
+  ctx.strokeStyle = shade(m.color, -50);
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // glossy highlight
+  if(m.glossy){
+    ctx.save();
+    ctx.clip();
+    const hg = ctx.createRadialGradient(cx - R*0.35, cy - R*0.5, 1, cx - R*0.35, cy - R*0.5, R*0.8);
+    hg.addColorStop(0, `rgba(255,255,255,${0.55 * m.highlight})`);
+    hg.addColorStop(0.5, `rgba(255,255,255,${0.15 * m.highlight})`);
+    hg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hg;
+    ctx.fillRect(cx - R*1.2, cy - R*1.2, R*2.4, R*2.4);
+    // small bright spot
+    ctx.beginPath();
+    ctx.ellipse(cx - R*0.35, cy - R*0.5, R*0.18, R*0.10, -0.5, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,255,255,${0.85 * m.highlight})`;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // texture overlays
+  if(m.foam){
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = shade(m.color, -20);
+    for(let i=0;i<60;i++){
+      const ax = cx - R + (i*37 % (R*2));
+      const ay = cy - R + ((i*53) % (R*2));
+      ctx.beginPath();
+      ctx.arc(ax, ay, 1.2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  if(m.powder){
+    ctx.save(); ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,.4)';
+    for(let i=0;i<35;i++){
+      const ang = (i * 1.7);
+      const dist = (i * 7.3) % R;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(ang)*dist, cy + Math.sin(ang)*dist, 0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  // bubble wrap: little circles inside
+  if(m.pop){
+    ctx.save(); ctx.clip();
+    ctx.strokeStyle = shade(m.color, -30);
+    ctx.lineWidth = 1.5;
+    const step = R*0.4;
+    for(let bx = cx - R; bx <= cx + R; bx += step){
+      for(let by = cy - R; by <= cy + R; by += step){
+        ctx.beginPath();
+        ctx.arc(bx, by, step*0.32, 0, Math.PI*2);
+        ctx.stroke();
+        // tiny highlight on each bubble
+        ctx.fillStyle = 'rgba(255,255,255,.4)';
+        ctx.beginPath();
+        ctx.arc(bx - step*0.10, by - step*0.10, step*0.08, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  // slime drip stretching lines
+  if(m.drip && dragging !== null){
+    ctx.strokeStyle = m.color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.6;
+    for(let k=-2;k<=2;k++){
+      const idx = (dragging + k + N) % N;
+      const p = pts[idx];
+      const dx = p.x - p.rx, dy = p.y - p.ry;
+      if(Math.hypot(dx,dy) > 4){
+        ctx.beginPath();
+        ctx.moveTo(p.rx, p.ry);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Pops
+  for(let i=pops.length-1;i>=0;i--){
+    const pp = pops[i];
+    pp.t += 1/60;
+    const f = pp.t / pp.life;
+    if(f >= 1){ pops.splice(i,1); continue; }
+    ctx.strokeStyle = `rgba(255,255,255,${1-f})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(pp.x, pp.y, f * R*0.4, 0, Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+function shade(hex, amt){
+  // amt: -100..+100 (negative darkens, positive lightens)
+  let c = hex.startsWith('#') ? hex.slice(1) : hex;
+  if(c.length === 3) c = c[0]+c[0]+c[1]+c[1]+c[2]+c[2];
+  let r = parseInt(c.slice(0,2), 16);
+  let g = parseInt(c.slice(2,4), 16);
+  let b = parseInt(c.slice(4,6), 16);
+  r = Math.max(0, Math.min(255, r + amt));
+  g = Math.max(0, Math.min(255, g + amt));
+  b = Math.max(0, Math.min(255, b + amt));
+  return '#' + [r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Input ────────────────────────────────────────────────────
+function getPos(e){
+  const rect = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}
+
+let pointerStart = null;
+let pointerDownT = 0;
+let dragMoved = false;
+
+cv.addEventListener('pointerdown', (e)=>{
+  e.preventDefault();
+  ensureAudio();
+  const p = getPos(e);
+  // grab nearest point if close enough
+  const {i, dist} = findNearestPoint(p.x, p.y);
+  // Are we inside the blob?
+  const insideDist = Math.hypot(p.x - cx, p.y - cy);
+  if(insideDist < R * 1.4){
+    dragging = i;
+    pointerStart = p;
+    pointerDownT = performance.now();
+    dragMoved = false;
+    cv.classList.add('grabbing');
+    cv.setPointerCapture(e.pointerId);
+  }
+});
+cv.addEventListener('pointermove', (e)=>{
+  if(dragging === null) return;
+  const p = getPos(e);
+  // movement amount
+  if(pointerStart){
+    const dx = p.x - pointerStart.x, dy = p.y - pointerStart.y;
+    if(Math.hypot(dx, dy) > 5) dragMoved = true;
+  }
+  // Apply pinch — pull grabbed point and neighbors toward cursor
+  pinch(p.x, p.y, 0.55);
+});
+cv.addEventListener('pointerup', (e)=>{
+  const p = getPos(e);
+  const dur = performance.now() - pointerDownT;
+  if(!dragMoved && dur < 250){
+    // quick tap → poke
+    poke(p.x, p.y, 1);
+  } else if(dragMoved){
+    // released after stretch — count as squish
+    onSquish(p.x, p.y, 1.3);
+  }
+  dragging = null;
+  pointerStart = null;
+  cv.classList.remove('grabbing');
+});
+cv.addEventListener('pointercancel', ()=>{
+  dragging = null;
+  cv.classList.remove('grabbing');
+});
+
+// Prevent default touch scrolling on the canvas
+cv.addEventListener('touchstart', (e)=>e.preventDefault(), {passive:false});
+cv.addEventListener('touchmove',  (e)=>e.preventDefault(), {passive:false});
+
+// ── Loop ─────────────────────────────────────────────────────
+function loop(now){
+  ctx.clearRect(0,0,W,H);
+  physics();
+  drawBlob(now);
+  requestAnimationFrame(loop);
+}
+
+// Boot
+resize();
+requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>

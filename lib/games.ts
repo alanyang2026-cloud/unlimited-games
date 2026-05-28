@@ -104,6 +104,14 @@ export const GAMES: Game[] = [
     color: "from-amber-600 to-stone-800",
     controls: "Click piece to see moves · Click target to play",
   },
+  {
+    id: "squish",
+    title: "Squishy",
+    emoji: "🫧",
+    description: "Pick a material. Poke, squish, pop. Pure relaxation.",
+    color: "from-pink-400 to-purple-500",
+    controls: "Click to poke · Click & drag to squish · Try every material",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -119,6 +127,7 @@ const URL_MAP: Record<string, string> = {
   "door-escape": "/games/door-escape.html",
   "downhill-brawl": "/games/downhill-brawl.html",
   "chess": "/games/chess.html",
+  "squish": "/games/squish.html",
 };
 
 export function getGameUrl(id: string): string {
