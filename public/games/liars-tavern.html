@@ -555,10 +555,11 @@ function init3D(){
   scene.fog = new THREE.Fog(0x2a1810, 14, 36);
 
   // Wider FOV + slightly pulled-back camera so all three NPCs fit on
-  // screen at their 90°-spaced seats around the round table.
+  // screen at their 90°-spaced seats around the round table. Raised
+  // a touch to keep good view over the now-taller bar table.
   camera = new THREE.PerspectiveCamera(82, innerWidth/innerHeight, 0.1, 100);
-  camera.position.set(0, 1.55, 3.0);
-  camera.lookAt(0, 1.2, -0.4);
+  camera.position.set(0, 1.72, 3.0);
+  camera.lookAt(0, 1.35, -0.4);
 
   // ── Lighting: brighter, cozier, with a fill hemisphere ────
   scene.add(new THREE.AmbientLight(0xffe0b0, 0.55));
@@ -568,9 +569,12 @@ function init3D(){
   fill.position.set(0, 3.0, 0);
   scene.add(fill);
 
+  // Y of the table TOP surface — keep all on-table props consistent
+  const TABLE_TOP_Y = 1.04;
+
   // ── Three candles with BLACK iron candelabra holders ──────
   for(let i=0;i<3;i++){
-    const x = (i-1)*1.6, baseY = 0.86, z = -1.65;
+    const x = (i-1)*1.6, baseY = TABLE_TOP_Y, z = -1.55;
 
     // Black metal saucer (the holder dish)
     const saucer = new THREE.Mesh(
@@ -633,22 +637,64 @@ function init3D(){
     candleLights.push(light);
   }
 
-  // ── Round wooden table with plank-grain top ───────────────
-  const tableTopTex = makeWoodPlankTexture({planks:7, base:[122,70,32], variance:18, dark:24});
+  // ── Round wooden table — taller, dark black-brown ────────
+  // Total height ≈ 1.04m (bar table). Wood-plank top tinted very dark.
+  const TABLE_THICKNESS = 0.20;
+  const tableTopTex = makeWoodPlankTexture({planks:7, base:[42,22,12], variance:10, dark:14});
   tableTopTex.repeat.set(2,2);
   const tableTop = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.9, 1.9, 0.16, 32),
-    new THREE.MeshStandardMaterial({map:tableTopTex, roughness:0.75})
+    new THREE.CylinderGeometry(1.9, 1.9, TABLE_THICKNESS, 36),
+    new THREE.MeshStandardMaterial({map:tableTopTex, roughness:0.82, color:0x32180c})
   );
-  tableTop.position.set(0, 0.78, 0);
+  tableTop.position.set(0, TABLE_TOP_Y - TABLE_THICKNESS/2, 0);
   scene.add(tableTop);
-
-  const leg = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.22, 0.32, 0.78, 10),
-    new THREE.MeshStandardMaterial({color:0x2a1409, roughness:0.85})
+  // Subtle rim around the table top edge
+  const rim = new THREE.Mesh(
+    new THREE.TorusGeometry(1.9, 0.025, 6, 36),
+    new THREE.MeshStandardMaterial({color:0x0d0703, roughness:0.6, metalness:0.2})
   );
-  leg.position.set(0, 0.39, 0);
+  rim.position.set(0, TABLE_TOP_Y - 0.01, 0);
+  rim.rotation.x = Math.PI/2;
+  scene.add(rim);
+
+  // Central support — heavier dark column
+  const leg = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.24, 0.36, TABLE_TOP_Y - TABLE_THICKNESS, 12),
+    new THREE.MeshStandardMaterial({color:0x140803, roughness:0.9})
+  );
+  leg.position.set(0, (TABLE_TOP_Y - TABLE_THICKNESS)/2, 0);
   scene.add(leg);
+  // Cast base disc
+  const base = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.55, 0.65, 0.08, 16),
+    new THREE.MeshStandardMaterial({color:0x0d0501, roughness:0.95})
+  );
+  base.position.set(0, 0.04, 0);
+  scene.add(base);
+
+  // ── Small pile of face-down cards in the middle of the table ──
+  const cardBackMat = new THREE.MeshStandardMaterial({color:0x7c1d1d, roughness:0.55});
+  const cardEdgeMat = new THREE.MeshStandardMaterial({color:0xfef3c7, roughness:0.7});
+  const pile = new THREE.Group();
+  const PILE_COUNT = 7;
+  for(let i=0; i<PILE_COUNT; i++){
+    // Multi-material box: top/bottom faces are red back, edges are cream
+    const card = new THREE.Mesh(
+      new THREE.BoxGeometry(0.20, 0.005, 0.28),
+      [cardEdgeMat, cardEdgeMat, cardBackMat, cardBackMat, cardEdgeMat, cardEdgeMat]
+    );
+    // Random offset and rotation for "tossed" look
+    const a = (i*1.7 + Math.random()*0.4) % (Math.PI*2);
+    card.position.set(
+      Math.cos(a) * 0.06 * Math.random(),
+      i * 0.0065,
+      Math.sin(a) * 0.06 * Math.random()
+    );
+    card.rotation.y = (Math.random() - 0.5) * 0.7;
+    pile.add(card);
+  }
+  pile.position.set(0, TABLE_TOP_Y + 0.005, 0);
+  scene.add(pile);
 
   // ── FLOOR: real wood-plank texture ────────────────────────
   const floorTex = makeWoodPlankTexture({planks:5, base:[96,56,26], variance:18, dark:22});
@@ -694,19 +740,19 @@ function init3D(){
   beam.position.set(0, 3.8, 0);
   scene.add(beam);
 
-  // Whiskey bottles on the table
+  // Whiskey bottles on the table — sit on the new taller top
   for(const [x,z] of [[1.4,-0.6],[-1.3,-0.7]]){
     const bottle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07,0.09,0.32,8),
-      new THREE.MeshLambertMaterial({color:0x4a2a10, transparent:true, opacity:0.85})
+      new THREE.CylinderGeometry(0.07,0.09,0.32,10),
+      new THREE.MeshStandardMaterial({color:0x4a2a10, transparent:true, opacity:0.88, roughness:0.4})
     );
-    bottle.position.set(x, 1.0, z);
+    bottle.position.set(x, TABLE_TOP_Y + 0.16, z);
     scene.add(bottle);
     const neck = new THREE.Mesh(
       new THREE.CylinderGeometry(0.03,0.05,0.1,8),
-      new THREE.MeshLambertMaterial({color:0x2a1408})
+      new THREE.MeshStandardMaterial({color:0x2a1408, roughness:0.6})
     );
-    neck.position.set(x, 1.21, z);
+    neck.position.set(x, TABLE_TOP_Y + 0.37, z);
     scene.add(neck);
   }
 
@@ -878,8 +924,11 @@ function makePigNPC(cfg){
     g.add(innerEar);
   }
 
-  // Face the table center (camera will see them looking inward)
-  g.lookAt(0, 1.5, 0);
+  // Pure y-axis spin toward the table center — lookAt() also TILTED
+  // the body forward (because target y > group y) and shoved the chest
+  // INSIDE the table cylinder, making the NPC occlude themselves.
+  // Pure y-rotation keeps them upright.
+  g.rotation.y = Math.atan2(-cfg.x, -cfg.z);
   return g;
 }
 
@@ -940,8 +989,8 @@ function makeNPC(cfg){
   mouth.position.set(0, 2.00, 0.21);
   g.add(mouth);
 
-  // Face the center of the table (so all 3 NPCs look inward)
-  g.lookAt(0, 1.5, 0);
+  // Pure y-axis spin toward the table center (see comment in makePigNPC)
+  g.rotation.y = Math.atan2(-cfg.x, -cfg.z);
 
   return g;
 }
