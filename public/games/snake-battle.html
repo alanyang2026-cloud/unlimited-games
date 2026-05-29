@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Snake Battle</title>
+<!-- Firebase (loaded async; multiplayer is graceful no-op if it fails) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#050510;overflow:hidden;font-family:system-ui,sans-serif}
@@ -59,9 +62,10 @@ canvas{display:block;cursor:none}
   <div class="br">
     <button class="btn be" onclick="go(5,'easy')">😌 Easy<br><small style="font-weight:400;font-size:11px">5 slow snakes</small></button>
     <button class="btn bn" onclick="go(8,'normal')">😎 Normal<br><small style="font-weight:400;font-size:11px">8 opponents</small></button>
-    <button class="btn bh" onclick="go(12,'hard')">💀 Hard<br><small style="font-weight:400;font-size:11px" id="hard-sub">12 pros</small></button>
+    <button class="btn bh" onclick="go(12,'hard')">💀 Hard<br><small style="font-weight:400;font-size:11px" id="hard-sub">12 pros</small><br><small style="font-weight:600;font-size:10px;color:#fbbf24">🌐 LIVE PvP</small></button>
   </div>
   <p class="hints">Mobile: drag one finger · two-finger to boost</p>
+  <p class="hints" style="color:#ec4899">🌐 Hard mode auto-matches you with another live player worldwide.<br>If alone, you face only AI until someone else joins.</p>
   <p id="learn-badge" style="margin-top:8px;font-size:11px;color:#fbbf24;letter-spacing:.08em;display:none">🧠 Hard AI has analyzed <span id="learn-rounds">0</span> of your fights</p>
 </div>
 
@@ -112,6 +116,224 @@ let snakes=[],foods=[],powerups=[],player=null;
 let cam={x:0,y:0},mouse={x:0,y:0};
 let boosting=false,running=false,frame=0;
 let pStam=100,kfItems=[],zoom=1,lastDiff='normal',lastBots=8;
+
+// ── Multiplayer (Hard mode only) ─────────────────────────────────
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAN1x_-_ayc63ZRM7fnU2sDHXqGCGaaCTQ",
+  authDomain:"unlimited-games-522cb.firebaseapp.com",
+  databaseURL:"https://unlimited-games-522cb-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"unlimited-games-522cb",
+  storageBucket:"unlimited-games-522cb.firebasestorage.app",
+  messagingSenderId:"336774802790",
+  appId:"1:336774802790:web:070b9dcb062542d1a82ca7"
+};
+const MP={
+  ready:false, db:null,
+  playerId:null, playerName:null,
+  matchId:null, opponentId:null, opponentName:null, isHost:false,
+  remoteSnakeIdx:-1, savedAI:null,
+  lobbyRef:null, myStateRef:null, oppStateRef:null, lobbyWatcher:null,
+  lastBroadcastFrame:0,
+};
+try{
+  if(typeof firebase!=='undefined'){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    MP.db=firebase.database();
+    MP.ready=true;
+    let pid=localStorage.getItem('mp.pid');
+    if(!pid){
+      pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      localStorage.setItem('mp.pid',pid);
+    }
+    MP.playerId=pid;
+  }
+}catch(e){ console.warn('Multiplayer disabled:',e); }
+
+function mpEnterLobby(){
+  if(!MP.ready||MP.matchId) return;
+  // Sit in /lobby/hard/<myId> waiting to be paired
+  MP.lobbyRef=MP.db.ref('lobby/hard/'+MP.playerId);
+  MP.lobbyRef.set({
+    name:MP.playerName||'Player',
+    ts:firebase.database.ServerValue.TIMESTAMP,
+  });
+  MP.lobbyRef.onDisconnect().remove();
+
+  // Watch lobby for any other waiting player
+  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
+  MP.lobbyWatcher=MP.db.ref('lobby/hard');
+  MP.lobbyWatcher.on('value',snap=>{
+    if(MP.matchId) return;
+    const all=snap.val()||{};
+    const now=Date.now();
+    // Pick the oldest other player whose timestamp is fresh (<60s)
+    const others=Object.entries(all)
+      .filter(([id,v])=>id!==MP.playerId)
+      .filter(([id,v])=>v&&(!v.ts||now-v.ts<60000))
+      .sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+    if(others.length===0) return;
+    const [otherId,other]=others[0];
+    mpTryMatch(otherId,other.name||'Player');
+  });
+}
+
+function mpTryMatch(otherId,otherName){
+  if(MP.matchId) return;
+  const ids=[MP.playerId,otherId].sort();
+  const matchId=ids.join('__');
+  const isHost=ids[0]===MP.playerId;
+  MP.db.ref('matches/'+matchId+'/players/'+MP.playerId).set({
+    name:MP.playerName, joined:Date.now(),
+  }).then(()=>{
+    MP.matchId=matchId; MP.opponentId=otherId; MP.opponentName=otherName; MP.isHost=isHost;
+    if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
+    if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
+    MP.db.ref('lobby/hard/'+MP.playerId).remove();
+    MP.myStateRef=MP.db.ref('matches/'+matchId+'/state/'+MP.playerId);
+    MP.oppStateRef=MP.db.ref('matches/'+matchId+'/state/'+otherId);
+    MP.myStateRef.onDisconnect().remove();
+    MP.db.ref('matches/'+matchId+'/players/'+MP.playerId).onDisconnect().remove();
+    MP.oppStateRef.on('value',s=>{
+      const data=s.val();
+      if(!data){
+        if(MP.matchId) mpOpponentLeft();
+        return;
+      }
+      mpApplyOpponentState(data);
+    });
+    mpInjectRemoteSnake();
+    showMpToast('🎯 Matched with '+otherName+'!');
+  }).catch(e=>console.warn('match claim failed',e));
+}
+
+function mpInjectRemoteSnake(){
+  // Find an AI snake to replace with the opponent
+  let aiIdx=-1;
+  for(let i=0;i<snakes.length;i++){
+    if(!snakes[i].isPlayer && !snakes[i].isRemote){ aiIdx=i; break; }
+  }
+  if(aiIdx<0) return;
+  const s=snakes[aiIdx];
+  MP.savedAI={ name:s.name, color:s.color, difficulty:s.difficulty };
+  s.isRemote=true;
+  s.name=MP.opponentName;
+  s.color='#ec4899';   // hot pink for real-player opponent
+  s.difficulty='remote';
+  MP.remoteSnakeIdx=aiIdx;
+}
+
+function mpRestoreAI(){
+  if(MP.remoteSnakeIdx<0||!MP.savedAI) return;
+  const s=snakes[MP.remoteSnakeIdx];
+  if(s){
+    s.isRemote=false;
+    s.name=MP.savedAI.name;
+    s.color=MP.savedAI.color;
+    s.difficulty=MP.savedAI.difficulty;
+    s.alive=true;
+  }
+  MP.remoteSnakeIdx=-1; MP.savedAI=null;
+}
+
+function mpOpponentLeft(){
+  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
+  if(MP.myStateRef){ MP.myStateRef.remove(); MP.myStateRef=null; }
+  MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
+  mpRestoreAI();
+  showMpToast('🛡️ Opponent left — AI restored');
+  if(lastDiff==='hard'&&running) mpEnterLobby();
+}
+
+function mpLeaveAll(){
+  if(!MP.ready) return;
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
+  MP.db.ref('lobby/hard/'+MP.playerId).remove().catch(()=>{});
+  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
+  if(MP.myStateRef){ MP.myStateRef.remove(); MP.myStateRef=null; }
+  if(MP.matchId){
+    MP.db.ref('matches/'+MP.matchId+'/players/'+MP.playerId).remove().catch(()=>{});
+  }
+  mpRestoreAI();
+  MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
+}
+
+function mpBroadcast(){
+  if(!MP.matchId||!MP.myStateRef) return;
+  if(frame-MP.lastBroadcastFrame<6) return;  // ~10Hz @ 60fps
+  MP.lastBroadcastFrame=frame;
+  if(!player||!player.alive){
+    MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
+    return;
+  }
+  const segs=player.segs;
+  // Downsample to keep payload small
+  const step=Math.max(1,Math.floor(segs.length/100));
+  const flat=[];
+  for(let i=0;i<segs.length;i+=step){
+    flat.push(Math.round(segs[i].x), Math.round(segs[i].y));
+  }
+  if((segs.length-1)%step!==0){
+    flat.push(Math.round(segs[segs.length-1].x), Math.round(segs[segs.length-1].y));
+  }
+  MP.myStateRef.set({
+    segs:flat,
+    angle:+player.angle.toFixed(3),
+    boost:!!player.boosting,
+    girth:player.extraGirth||0,
+    name:MP.playerName,
+    alive:true,
+  }).catch(()=>{});
+}
+
+function mpApplyOpponentState(data){
+  if(MP.remoteSnakeIdx<0) return;
+  const s=snakes[MP.remoteSnakeIdx];
+  if(!s) return;
+  s.alive=data.alive!==false;
+  if(!s.alive){
+    s.segs=[{x:-99999,y:-99999}];
+    return;
+  }
+  if(Array.isArray(data.segs)){
+    const ns=[];
+    for(let i=0;i<data.segs.length;i+=2){
+      ns.push({x:data.segs[i],y:data.segs[i+1]});
+    }
+    if(ns.length>0) s.segs=ns;
+  }
+  if(typeof data.angle==='number') s.angle=data.angle;
+  if(typeof data.boost==='boolean') s.boosting=data.boost;
+  if(typeof data.girth==='number') s.extraGirth=data.girth;
+}
+
+function showMpToast(msg){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.92);color:#fbbf24;padding:10px 18px;border-radius:10px;border:1px solid rgba(251,191,36,.4);font-weight:700;z-index:300;font-size:14px;backdrop-filter:blur(8px);box-shadow:0 0 30px rgba(251,191,36,.3);font-family:system-ui';
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+function updateMpIndicator(){
+  let el=document.getElementById('mpInd');
+  if(!el){
+    el=document.createElement('div');
+    el.id='mpInd';
+    el.style.cssText='position:fixed;top:12px;right:50%;transform:translateX(50%);background:rgba(0,0,0,.7);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;z-index:50;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);font-family:system-ui';
+    document.body.appendChild(el);
+  }
+  if(!MP.ready||lastDiff!=='hard'||!running){
+    el.style.display='none';
+    return;
+  }
+  el.style.display='block';
+  if(MP.matchId){
+    el.innerHTML='🎯 PvP vs <span style="color:#ec4899">'+MP.opponentName+'</span>';
+  } else {
+    el.innerHTML='🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
+  }
+}
 
 // ── Helpers ──────────────────────────────────────────────────────
 const rnd=(a,b)=>a+Math.random()*(b-a);
@@ -398,9 +620,12 @@ setTimeout(updateMenuLearnedBadge, 0);
 
 // ── Game init ────────────────────────────────────────────────────
 function go(bots,diff){
+  // Cleanly drop any in-flight multiplayer state from a previous match
+  mpLeaveAll();
   lastDiff=diff;lastBots=bots;
   document.getElementById('ov-s').style.display='none';
   const name=document.getElementById('ni').value.trim()||'Player';
+  MP.playerName=name;
   snakes=[];foods=[];powerups=[];frame=0;pStam=100;kfItems=[];
   document.getElementById('kf').innerHTML='';
   zoom=1;
@@ -433,6 +658,9 @@ function go(bots,diff){
   cam={x:W/2-C.width/2,y:H/2-C.height/2};
   mouse={x:C.width/2,y:C.height/2};
   running=true;
+
+  // Only Hard mode enters the matchmaking lobby
+  if(diff==='hard') mpEnterLobby();
 }
 
 function respawn(){
@@ -447,6 +675,7 @@ function respawn(){
 }
 
 function menu(){
+  mpLeaveAll();
   document.getElementById('ov-d').style.display='none';
   document.getElementById('ov-s').style.display='flex';
   running=false;
@@ -795,6 +1024,7 @@ function aiHard(s){
 // ── Movement ─────────────────────────────────────────────────────
 function moveSnake(s){
   if(!s.alive)return;
+  if(s.isRemote)return;  // remote snake's position comes from network — don't simulate
   const cfg=s.isPlayer?null:DC[s.difficulty];
 
   // Stamina for AI
@@ -818,6 +1048,7 @@ function moveSnake(s){
 function checkCol(){
   for(const s of snakes){
     if(!s.alive)continue;
+    if(s.isRemote)continue;  // remote snake's collisions are decided by their own game
     const h=s.segs[0],SR=collR(s.segs.length, s.extraGirth||0);
     if(h.x<3||h.x>W-3||h.y<3||h.y>H-3){
       if(s.shieldUntil>frame){s.shieldUntil=0;
@@ -1246,9 +1477,9 @@ function loop(){
       pStam=canB?Math.max(0,pStam-P_SD):Math.min(100,pStam+P_SR);
     }
 
-    // AI update + turn
+    // AI update + turn (skip remote-player snakes — their state comes from network)
     for(const s of snakes){
-      if(s.isPlayer||!s.alive)continue;
+      if(s.isPlayer||!s.alive||s.isRemote)continue;
       if(s.difficulty==='easy')      aiEasy(s);
       else if(s.difficulty==='normal')aiNormal(s);
       else                           aiHard(s);
@@ -1262,6 +1493,8 @@ function loop(){
     checkCol();checkFood();checkPowerups();
     observePlayer();          // adaptive learning: watch the player
     updateCam();updateHUD();
+    mpBroadcast();            // send my snake's state to opponent
+    updateMpIndicator();      // "Looking for opponent…" / "PvP vs X"
   }
 
   // Draw — world in transformed ctx, UI in screen coords
