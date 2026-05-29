@@ -134,247 +134,152 @@ const FIREBASE_CONFIG={
 const MP={
   ready:false, db:null,
   playerId:null, playerName:null,
-  matchId:null, opponentId:null, opponentName:null, isHost:false,
-  remoteSnakeIdx:-1, savedAI:null,
-  lobbyRef:null, myStateRef:null, oppStateRef:null, lobbyWatcher:null,
-  inviteRef:null,        // /invitations/<myId> — incoming invites
+  inRoom:false,
+  // members: pid -> { name, snakeIdx, savedAI, stateRef, stateListener, color }
+  members:{},
+  myMemberRef:null, myStateRef:null,
+  membersRef:null,
   lastBroadcastFrame:0,
-  opponentHasBroadcast:false,
 };
+// Distinct hot colors for up to 12 remote players (cycled if more)
+const MP_COLORS=['#ec4899','#22d3ee','#facc15','#a855f7','#34d399','#fb923c','#f87171','#60a5fa','#f0abfc','#84cc16','#06b6d4','#fbbf24'];
 try{
   if(typeof firebase!=='undefined'){
     firebase.initializeApp(FIREBASE_CONFIG);
     MP.db=firebase.database();
     MP.ready=true;
-    let pid=localStorage.getItem('mp.pid');
+    // Per-tab id so two windows in the same browser are two players
+    let pid=sessionStorage.getItem('mp.pid');
     if(!pid){
       pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      localStorage.setItem('mp.pid',pid);
+      sessionStorage.setItem('mp.pid',pid);
     }
     MP.playerId=pid;
   }
 }catch(e){ console.warn('Multiplayer disabled:',e); }
 
-function mpEnterLobby(){
-  if(!MP.ready||MP.matchId) return;
-  console.log('[MP] Entering lobby as', MP.playerId, '(', MP.playerName, ')');
+// ── Room model ───────────────────────────────────────────────────
+// Up to 12 real players share /room/hard. Each real player kicks one
+// AI out of the local world. When they leave, the AI comes back.
 
-  // 1) Sit in /lobby/hard/<myId>
-  MP.lobbyRef=MP.db.ref('lobby/hard/'+MP.playerId);
-  MP.lobbyRef.set({
+function mpJoinRoom(){
+  if(!MP.ready||MP.inRoom) return;
+  MP.inRoom=true;
+  MP.members={};
+  console.log('[MP] Joining hard room as', MP.playerId, '(', MP.playerName, ')');
+
+  // Announce ourselves
+  MP.myMemberRef=MP.db.ref('room/hard/players/'+MP.playerId);
+  MP.myMemberRef.set({
     name:MP.playerName||'Player',
-    ts:firebase.database.ServerValue.TIMESTAMP,
+    joinedAt:firebase.database.ServerValue.TIMESTAMP,
   });
-  MP.lobbyRef.onDisconnect().remove();
+  MP.myMemberRef.onDisconnect().remove();
 
-  // 2) Listen for incoming invitations on /invitations/<myId>.
-  //    Anyone who wants to match us writes here directly; this is the
-  //    reliable channel even if the lobby listener missed an event.
-  if(MP.inviteRef) MP.inviteRef.off();
-  MP.inviteRef=MP.db.ref('invitations/'+MP.playerId);
-  MP.inviteRef.onDisconnect().remove();
-  MP.inviteRef.on('value',snap=>{
-    if(MP.matchId) return;
-    const inv=snap.val();
-    if(!inv||!inv.fromId) return;
-    console.log('[MP] Got invitation from', inv.fromName, '(', inv.fromId, ')');
-    // Clear the invite first to avoid re-processing
-    MP.inviteRef.remove();
-    mpTryMatch(inv.fromId, inv.fromName||'Player');
+  // Prepare our state ref (cleaned on disconnect)
+  MP.myStateRef=MP.db.ref('room/hard/state/'+MP.playerId);
+  MP.myStateRef.onDisconnect().remove();
+
+  // Watch the player roster — child_added/removed gives us joiners and leavers
+  MP.membersRef=MP.db.ref('room/hard/players');
+  MP.membersRef.on('child_added', snap=>{
+    const id=snap.key;
+    if(id===MP.playerId) return;
+    if(MP.members[id]) return;
+    const info=snap.val()||{};
+    mpAddRemotePlayer(id, info.name||'Player');
   });
-
-  // 3) Watch lobby. Only the LOWER-ID player is the initiator —
-  //    higher-ID just waits for an invitation. This is asymmetric on
-  //    purpose: it eliminates the both-race that made the original
-  //    matching unreliable.
-  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
-  MP.lobbyWatcher=MP.db.ref('lobby/hard');
-  MP.lobbyWatcher.on('value',snap=>{
-    if(MP.matchId) return;
-    const all=snap.val()||{};
-    const now=Date.now();
-    const others=Object.entries(all)
-      .filter(([id,v])=>id!==MP.playerId)
-      .filter(([id,v])=>v&&(typeof v.ts!=='number'||now-v.ts<120000))
-      .sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
-    if(others.length===0) return;
-    const [otherId,other]=others[0];
-    // Asymmetric: only the lower-ID side initiates
-    const ids=[MP.playerId,otherId].sort();
-    const iInitiate=ids[0]===MP.playerId;
-    if(!iInitiate){
-      console.log('[MP] Saw partner', other.name, 'in lobby — waiting for them to invite me');
-      return;
+  MP.membersRef.on('child_removed', snap=>{
+    const id=snap.key;
+    if(id===MP.playerId) return;
+    mpRemoveRemotePlayer(id);
+  });
+  MP.membersRef.on('child_changed', snap=>{
+    const id=snap.key;
+    if(id===MP.playerId) return;
+    const info=snap.val()||{};
+    const m=MP.members[id];
+    if(m && info.name && info.name!==m.name){
+      m.name=info.name;
+      const s=snakes[m.snakeIdx];
+      if(s) s.name=info.name;
     }
-    console.log('[MP] I am initiator — inviting', other.name);
-    // Send invitation to the other player
-    MP.db.ref('invitations/'+otherId).set({
-      fromId:MP.playerId,
-      fromName:MP.playerName||'Player',
-      ts:firebase.database.ServerValue.TIMESTAMP,
-    }).then(()=>{
-      // Also lock our own state locally
-      mpTryMatch(otherId,other.name||'Player');
-    }).catch(e=>console.warn('[MP] invite send failed',e));
   });
 }
 
-function mpTryMatch(otherId,otherName){
-  // CRITICAL: claim the match SYNCHRONOUSLY so the lobby listener can't
-  // re-enter and inject a second (or third…) remote snake before the async
-  // Firebase write resolves. Without this guard, every lobby snapshot fires
-  // mpTryMatch again until the .then() resolves, and every call converts
-  // one more AI to "remote" — that's why all snakes turned into the friend.
-  if(MP.matchId||MP.remoteSnakeIdx>=0) return;
-  const ids=[MP.playerId,otherId].sort();
-  const matchId=ids.join('__');
-  const isHost=ids[0]===MP.playerId;
-
-  // Lock in immediately
-  MP.matchId=matchId;
-  MP.opponentId=otherId;
-  MP.opponentName=otherName;
-  MP.isHost=isHost;
-  MP.opponentHasBroadcast=false;  // gates the "opponent disappeared" check
-  // Tear down lobby right now — no more matchmaking until we leave
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
-  MP.db.ref('lobby/hard/'+MP.playerId).remove().catch(()=>{});
-
-  console.log('[MP] Match locked:', matchId, '— I am', isHost?'host':'client', '— opponent:', otherName);
-  // Convert exactly one AI snake to the opponent's slot (idempotent)
-  mpInjectRemoteSnake();
-
-  // Now claim the match in the DB
-  MP.db.ref('matches/'+matchId+'/players/'+MP.playerId).set({
-    name:MP.playerName, joined:Date.now(),
-  }).then(()=>{
-    MP.myStateRef=MP.db.ref('matches/'+matchId+'/state/'+MP.playerId);
-    MP.oppStateRef=MP.db.ref('matches/'+matchId+'/state/'+otherId);
-    MP.myStateRef.onDisconnect().remove();
-    MP.db.ref('matches/'+matchId+'/players/'+MP.playerId).onDisconnect().remove();
-    MP.oppStateRef.on('value',s=>{
-      const data=s.val();
-      if(!data){
-        // Only treat "no data" as a leave if the opponent had previously
-        // broadcast at least once. Initial null = they just haven't sent
-        // their first frame yet.
-        if(MP.opponentHasBroadcast && MP.matchId) mpOpponentLeft();
-        return;
-      }
-      MP.opponentHasBroadcast=true;
-      mpApplyOpponentState(data);
-    });
-    // Safety: if the partner never broadcasts within 10s, the entry was
-    // probably a ghost from a crashed session — abandon and rematch.
-    const claimedMatchId=MP.matchId;
-    setTimeout(()=>{
-      if(MP.matchId===claimedMatchId && !MP.opponentHasBroadcast){
-        console.warn('[MP] Opponent silent for 10s — likely a ghost, retrying');
-        mpOpponentLeft();
-      }
-    }, 10000);
-    showMpToast('🎯 Matched with '+otherName+'!');
-  }).catch(e=>{
-    console.warn('match claim failed, rolling back',e);
-    // Roll back so we can try again
-    MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
-    mpRestoreAI();
-    if(lastDiff==='hard'&&running) mpEnterLobby();
-  });
-}
-
-function mpInjectRemoteSnake(){
-  // Idempotent: if we already converted a snake for this match, do nothing.
-  if(MP.remoteSnakeIdx>=0 && snakes[MP.remoteSnakeIdx] && snakes[MP.remoteSnakeIdx].isRemote) return;
-  // Find an AI snake to replace with the opponent
+function mpAddRemotePlayer(otherId, otherName){
+  // Find a free AI slot (or grow snakes[] if we're somehow out of room)
   let aiIdx=-1;
   for(let i=0;i<snakes.length;i++){
     if(!snakes[i].isPlayer && !snakes[i].isRemote){ aiIdx=i; break; }
   }
-  if(aiIdx<0) return;
+  let createdNew=false;
+  if(aiIdx<0){
+    // All AI already converted — add a fresh snake for this player
+    const ang=Math.random()*Math.PI*2, r=600+Math.random()*1800;
+    const bx=clamp(W/2+Math.cos(ang)*r,200,W-200);
+    const by=clamp(H/2+Math.sin(ang)*r,200,H-200);
+    const ns=mkSnake(bx,by,Math.random()*Math.PI*2,'#ec4899',otherName,false,'hard',25);
+    snakes.push(ns);
+    aiIdx=snakes.length-1;
+    createdNew=true;
+  }
   const s=snakes[aiIdx];
-  MP.savedAI={ name:s.name, color:s.color, difficulty:s.difficulty };
+  // Pick a color from the palette by member index — stable per session
+  const colorIdx=Object.keys(MP.members).length % MP_COLORS.length;
+  const member={
+    name:otherName,
+    snakeIdx:aiIdx,
+    color:MP_COLORS[colorIdx],
+    savedAI:createdNew ? null : { name:s.name, color:s.color, difficulty:s.difficulty },
+    stateRef:MP.db.ref('room/hard/state/'+otherId),
+  };
   s.isRemote=true;
-  s.name=MP.opponentName;
-  s.color='#ec4899';   // hot pink for real-player opponent
+  s.name=otherName;
+  s.color=member.color;
   s.difficulty='remote';
-  MP.remoteSnakeIdx=aiIdx;
+  s.alive=true;
+  MP.members[otherId]=member;
+
+  member.stateRef.on('value', snap=>{
+    const data=snap.val();
+    if(!data) return;
+    mpApplyRemoteState(otherId, data);
+  });
+
+  console.log('[MP] +', otherName, '→ slot', aiIdx);
+  showMpToast('🎯 '+otherName+' joined the room');
 }
 
-function mpRestoreAI(){
-  if(MP.remoteSnakeIdx<0||!MP.savedAI) return;
-  const s=snakes[MP.remoteSnakeIdx];
+function mpRemoveRemotePlayer(otherId){
+  const m=MP.members[otherId];
+  if(!m) return;
+  if(m.stateRef) m.stateRef.off();
+  const s=snakes[m.snakeIdx];
   if(s){
-    s.isRemote=false;
-    s.name=MP.savedAI.name;
-    s.color=MP.savedAI.color;
-    s.difficulty=MP.savedAI.difficulty;
-    s.alive=true;
+    if(m.savedAI){
+      // Restore the original AI
+      s.isRemote=false;
+      s.name=m.savedAI.name;
+      s.color=m.savedAI.color;
+      s.difficulty=m.savedAI.difficulty;
+      s.alive=true;
+    } else {
+      // We created this snake just for them — kill it
+      s.alive=false;
+      s.isRemote=false;
+      s.segs=[{x:-99999,y:-99999}];
+    }
   }
-  MP.remoteSnakeIdx=-1; MP.savedAI=null;
+  delete MP.members[otherId];
+  console.log('[MP] −', m.name);
+  showMpToast('👋 '+m.name+' left');
 }
 
-function mpOpponentLeft(){
-  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
-  if(MP.myStateRef){ MP.myStateRef.remove(); MP.myStateRef=null; }
-  MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
-  mpRestoreAI();
-  showMpToast('🛡️ Opponent left — AI restored');
-  if(lastDiff==='hard'&&running) mpEnterLobby();
-}
-
-function mpLeaveAll(){
-  if(!MP.ready) return;
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
-  MP.db.ref('lobby/hard/'+MP.playerId).remove().catch(()=>{});
-  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef=null; }
-  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
-  if(MP.myStateRef){ MP.myStateRef.remove(); MP.myStateRef=null; }
-  if(MP.matchId){
-    MP.db.ref('matches/'+MP.matchId+'/players/'+MP.playerId).remove().catch(()=>{});
-  }
-  mpRestoreAI();
-  MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
-  MP.opponentHasBroadcast=false;
-}
-
-function mpBroadcast(){
-  if(!MP.matchId||!MP.myStateRef) return;
-  // ~7Hz (every 9 frames @ 60fps) — reduces Firebase write pressure
-  if(frame-MP.lastBroadcastFrame<9) return;
-  MP.lastBroadcastFrame=frame;
-  if(!player||!player.alive){
-    MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
-    return;
-  }
-  const segs=player.segs;
-  // Downsample to ~50 points max (was 100) — halves the payload
-  const TARGET_POINTS = 50;
-  const step=Math.max(1,Math.floor(segs.length/TARGET_POINTS));
-  const flat=[];
-  for(let i=0;i<segs.length;i+=step){
-    flat.push(Math.round(segs[i].x), Math.round(segs[i].y));
-  }
-  // Always include the tail tip
-  const lastIdx = segs.length-1;
-  if(lastIdx%step!==0){
-    flat.push(Math.round(segs[lastIdx].x), Math.round(segs[lastIdx].y));
-  }
-  MP.myStateRef.set({
-    segs:flat,
-    angle:+player.angle.toFixed(2),
-    boost:!!player.boosting,
-    girth:player.extraGirth||0,
-    name:MP.playerName,
-    alive:true,
-  }).catch(()=>{});
-}
-
-function mpApplyOpponentState(data){
-  if(MP.remoteSnakeIdx<0) return;
-  const s=snakes[MP.remoteSnakeIdx];
+function mpApplyRemoteState(otherId, data){
+  const m=MP.members[otherId];
+  if(!m) return;
+  const s=snakes[m.snakeIdx];
   if(!s) return;
   s.alive=data.alive!==false;
   if(!s.alive){
@@ -391,6 +296,49 @@ function mpApplyOpponentState(data){
   if(typeof data.angle==='number') s.angle=data.angle;
   if(typeof data.boost==='boolean') s.boosting=data.boost;
   if(typeof data.girth==='number') s.extraGirth=data.girth;
+}
+
+function mpLeaveAll(){
+  if(!MP.ready) return;
+  if(MP.membersRef){ MP.membersRef.off(); MP.membersRef=null; }
+  if(MP.myMemberRef){ MP.myMemberRef.remove().catch(()=>{}); MP.myMemberRef=null; }
+  if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
+  // Restore all remote snakes
+  for(const id of Object.keys(MP.members)){
+    mpRemoveRemotePlayer(id);
+  }
+  MP.members={};
+  MP.inRoom=false;
+}
+
+function mpBroadcast(){
+  if(!MP.inRoom||!MP.myStateRef) return;
+  // ~7Hz (every 9 frames @ 60fps)
+  if(frame-MP.lastBroadcastFrame<9) return;
+  MP.lastBroadcastFrame=frame;
+  if(!player||!player.alive){
+    MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
+    return;
+  }
+  const segs=player.segs;
+  const TARGET_POINTS=50;
+  const step=Math.max(1,Math.floor(segs.length/TARGET_POINTS));
+  const flat=[];
+  for(let i=0;i<segs.length;i+=step){
+    flat.push(Math.round(segs[i].x), Math.round(segs[i].y));
+  }
+  const lastIdx=segs.length-1;
+  if(lastIdx%step!==0){
+    flat.push(Math.round(segs[lastIdx].x), Math.round(segs[lastIdx].y));
+  }
+  MP.myStateRef.set({
+    segs:flat,
+    angle:+player.angle.toFixed(2),
+    boost:!!player.boosting,
+    girth:player.extraGirth||0,
+    name:MP.playerName,
+    alive:true,
+  }).catch(()=>{});
 }
 
 function showMpToast(msg){
@@ -414,10 +362,12 @@ function updateMpIndicator(){
     return;
   }
   el.style.display='block';
-  if(MP.matchId){
-    el.innerHTML='🎯 PvP vs <span style="color:#ec4899">'+MP.opponentName+'</span>';
+  const count=Object.keys(MP.members).length;
+  if(count===0){
+    el.innerHTML='🔍 <span style="color:#94a3b8">Waiting for friends…</span>';
   } else {
-    el.innerHTML='🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
+    const names=Object.values(MP.members).map(m=>'<span style="color:'+m.color+'">'+m.name+'</span>').join(', ');
+    el.innerHTML='👥 <span style="color:#fbbf24">'+(count+1)+' players</span> · vs '+names;
   }
 }
 
@@ -745,8 +695,8 @@ function go(bots,diff){
   mouse={x:C.width/2,y:C.height/2};
   running=true;
 
-  // Only Hard mode enters the matchmaking lobby
-  if(diff==='hard') mpEnterLobby();
+  // Only Hard mode joins the shared multiplayer room
+  if(diff==='hard') mpJoinRoom();
 }
 
 function respawn(){
