@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>Arcade Brawl</title>
+<!-- Firebase (multiplayer is a graceful no-op if it fails to load) -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#05050f;overflow:hidden;font-family:'Impact','Arial Black',system-ui,sans-serif;color:#fff;user-select:none}
@@ -92,7 +95,9 @@ canvas{display:block;image-rendering:pixelated}
   <div class="diff-row">
     <button class="btn" onclick="confirmHero('normal')">FIGHT</button>
     <button class="btn alt" onclick="confirmHero('hard')">HARD MODE</button>
+    <button class="btn" style="background:linear-gradient(180deg,#ec4899,#be185d)" onclick="confirmHero('pvp')">🌐 LIVE PvP</button>
   </div>
+  <p style="color:#94a3b8;font-family:system-ui;font-size:11px;margin-top:10px;letter-spacing:.06em">PvP: auto-matches you with another real player worldwide. If alone, you face AI until someone joins.</p>
   <button class="hero-back" onclick="backFromHero()">← Back</button>
 </div>
 
@@ -142,6 +147,239 @@ let projectiles=[], shadowClones=[], swords=[];
 let shake=0, hitstop=0, frame=0;
 let lastDiff='normal', aiDiff='normal';
 let bgTime=0;
+
+// ── Multiplayer (Firebase) ─────────────────────────────────────
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyAN1x_-_ayc63ZRM7fnU2sDHXqGCGaaCTQ",
+  authDomain:"unlimited-games-522cb.firebaseapp.com",
+  databaseURL:"https://unlimited-games-522cb-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"unlimited-games-522cb",
+  storageBucket:"unlimited-games-522cb.firebasestorage.app",
+  messagingSenderId:"336774802790",
+  appId:"1:336774802790:web:070b9dcb062542d1a82ca7"
+};
+const MP={
+  ready:false, db:null,
+  playerId:null, playerName:'YOU',
+  inLobby:false, matched:false,
+  matchId:null, opponentId:null, opponentName:'',
+  isHost:false,
+  lobbyRef:null, lobbyWatcher:null, inviteRef:null,
+  myStateRef:null, oppStateRef:null,
+  removeTimer:null,
+  lastBroadcastFrame:0,
+  opponentHasBroadcast:false,
+  lastSentName:null,
+};
+try{
+  if(typeof firebase!=='undefined'){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    MP.db=firebase.database();
+    MP.ready=true;
+    let pid=sessionStorage.getItem('mp.pid');
+    if(!pid){
+      pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+      sessionStorage.setItem('mp.pid',pid);
+    }
+    MP.playerId=pid;
+  }
+}catch(e){ console.warn('Multiplayer disabled:',e); }
+
+function mpEnterLobby(name){
+  if(!MP.ready||MP.inLobby||MP.matched) return;
+  MP.playerName=name||'Player';
+  MP.inLobby=true;
+  console.log('[MP] Entering brawl lobby as', MP.playerId);
+
+  MP.lobbyRef=MP.db.ref('lobby/brawl/'+MP.playerId);
+  MP.lobbyRef.set({ name:MP.playerName, ts:firebase.database.ServerValue.TIMESTAMP });
+  MP.lobbyRef.onDisconnect().remove();
+
+  // Listen for incoming invitations
+  if(MP.inviteRef) MP.inviteRef.off();
+  MP.inviteRef=MP.db.ref('invitations/brawl/'+MP.playerId);
+  MP.inviteRef.onDisconnect().remove();
+  MP.inviteRef.on('value',snap=>{
+    if(MP.matched) return;
+    const inv=snap.val();
+    if(!inv||!inv.fromId) return;
+    console.log('[MP] Got invite from', inv.fromName);
+    MP.inviteRef.remove();
+    mpStartMatch(inv.fromId, inv.fromName||'Player');
+  });
+
+  // Watch lobby — lower-ID player initiates with an invitation
+  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
+  MP.lobbyWatcher=MP.db.ref('lobby/brawl');
+  MP.lobbyWatcher.on('value',snap=>{
+    if(MP.matched) return;
+    const all=snap.val()||{};
+    const now=Date.now();
+    const others=Object.entries(all)
+      .filter(([id,v])=>id!==MP.playerId)
+      .filter(([id,v])=>v&&(typeof v.ts!=='number'||now-v.ts<120000))
+      .sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
+    if(others.length===0) return;
+    const [otherId,other]=others[0];
+    const ids=[MP.playerId,otherId].sort();
+    if(ids[0]!==MP.playerId) return;  // not the initiator
+    console.log('[MP] Inviting', other.name);
+    MP.db.ref('invitations/brawl/'+otherId).set({
+      fromId:MP.playerId, fromName:MP.playerName,
+      ts:firebase.database.ServerValue.TIMESTAMP,
+    }).then(()=>{
+      mpStartMatch(otherId, other.name||'Player');
+    }).catch(e=>console.warn('[MP] invite failed',e));
+  });
+}
+
+function mpStartMatch(otherId, otherName){
+  if(MP.matched) return;
+  MP.matched=true;
+  MP.inLobby=false;
+  const ids=[MP.playerId,otherId].sort();
+  MP.matchId=ids.join('__');
+  MP.isHost=ids[0]===MP.playerId;
+  MP.opponentId=otherId;
+  MP.opponentName=otherName;
+  MP.opponentHasBroadcast=false;
+  // Tear down lobby listener and entry
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef=null; }
+  MP.db.ref('lobby/brawl/'+MP.playerId).remove().catch(()=>{});
+
+  console.log('[MP] Matched with', otherName, 'host?', MP.isHost);
+
+  MP.myStateRef=MP.db.ref('matches/brawl/'+MP.matchId+'/state/'+MP.playerId);
+  MP.oppStateRef=MP.db.ref('matches/brawl/'+MP.matchId+'/state/'+otherId);
+  MP.myStateRef.onDisconnect().remove();
+
+  MP.oppStateRef.on('value',snap=>{
+    const data=snap.val();
+    if(!data){
+      if(MP.opponentHasBroadcast) mpOpponentLeft();
+      return;
+    }
+    MP.opponentHasBroadcast=true;
+    mpApplyOpponentState(data);
+  });
+
+  // Convert f2 from AI to remote (will be initialized when round starts)
+  if(f2) f2.isRemote=true;
+  if(f2) f2.name=otherName;
+  showMpToast('🥊 Matched with '+otherName+'!');
+}
+
+function mpOpponentLeft(){
+  if(!MP.matched) return;
+  console.log('[MP] Opponent disconnected');
+  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
+  if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
+  MP.matched=false;
+  MP.matchId=null; MP.opponentId=null; MP.opponentName='';
+  MP.opponentHasBroadcast=false;
+  if(f2){ f2.isRemote=false; f2.name='CPU'; }
+  showMpToast('🛡️ Opponent left — AI restored');
+}
+
+function mpLeaveAll(){
+  if(!MP.ready) return;
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef=null; }
+  MP.db.ref('lobby/brawl/'+MP.playerId).remove().catch(()=>{});
+  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef=null; }
+  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
+  if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
+  MP.matched=false; MP.inLobby=false;
+  MP.matchId=null; MP.opponentId=null; MP.opponentName='';
+  MP.opponentHasBroadcast=false; MP.lastSentName=null;
+  if(f2) f2.isRemote=false;
+}
+
+// Mirror horizontal world coordinate so both players see themselves on
+// the LEFT — the game world is flipped between the two clients.
+const mx = x => W - x;
+
+function mpBroadcast(){
+  if(!MP.matched||!MP.myStateRef||!f1) return;
+  if(frame-MP.lastBroadcastFrame<4) return;  // ~15Hz for fighter
+  MP.lastBroadcastFrame=frame;
+  const payload={
+    x:Math.round(f1.x), y:Math.round(f1.y),
+    vx:+f1.vx.toFixed(1), vy:+f1.vy.toFixed(1),
+    fc:f1.facing,
+    st:f1.state, t:f1.sTime,
+    hp:Math.round(f1.hp), m:Math.round(f1.meter), r:Math.round(f1.rage),
+    hs:f1.hitstun||0,
+    bl:f1.blocking?1:0,
+    og:f1.onGround?1:0,
+    sr:f1.swordRainT||0,
+    ko:f1.ko?1:0,
+  };
+  if(f1.state==='dashing'){
+    payload.dsx=Math.round(f1.dashStartX);
+    payload.dex=Math.round(f1.dashEndX);
+  }
+  if(MP.playerName!==MP.lastSentName){
+    payload.n=MP.playerName;
+    MP.lastSentName=MP.playerName;
+  }
+  MP.myStateRef.set(payload).catch(()=>{});
+}
+
+function mpApplyOpponentState(data){
+  if(!f2 || !MP.matched) return;
+  // Mirror x / vx / facing so opponent appears on RIGHT side of our screen
+  if(typeof data.x==='number') f2.x = mx(data.x);
+  if(typeof data.y==='number') f2.y = data.y;
+  if(typeof data.vx==='number') f2.vx = -data.vx;
+  if(typeof data.vy==='number') f2.vy = data.vy;
+  if(typeof data.fc==='number') f2.facing = -data.fc;
+  if(data.st) f2.state = data.st;
+  if(typeof data.t==='number') f2.sTime = data.t;
+  if(typeof data.hp==='number') f2.hp = data.hp;
+  if(typeof data.m==='number') f2.meter = data.m;
+  if(typeof data.r==='number') f2.rage = data.r;
+  if(typeof data.hs==='number') f2.hitstun = data.hs;
+  if(typeof data.bl==='number') f2.blocking = !!data.bl;
+  if(typeof data.og==='number') f2.onGround = !!data.og;
+  if(typeof data.sr==='number') f2.swordRainT = data.sr;
+  // Detect KO from network — opponent reported their HP hit 0 in their game
+  const wasKO = f2.ko;
+  if(typeof data.ko==='number') f2.ko = !!data.ko;
+  if(!wasKO && f2.ko && phase==='play'){
+    triggerKO(f1, f2);
+  }
+  if(typeof data.dsx==='number') f2.dashStartX = mx(data.dsx);
+  if(typeof data.dex==='number') f2.dashEndX  = mx(data.dex);
+  if(data.n) f2.name = data.n;
+}
+
+function showMpToast(msg){
+  const el=document.createElement('div');
+  el.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.92);color:#fbbf24;padding:10px 18px;border-radius:10px;border:1px solid rgba(251,191,36,.4);font-weight:700;z-index:300;font-size:14px;backdrop-filter:blur(8px);box-shadow:0 0 30px rgba(251,191,36,.3);font-family:system-ui;letter-spacing:.05em';
+  el.textContent=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),3500);
+}
+
+function mpUpdateIndicator(){
+  let el=document.getElementById('mpInd');
+  if(!el){
+    el=document.createElement('div');
+    el.id='mpInd';
+    el.style.cssText='position:fixed;top:12px;right:50%;transform:translateX(50%);background:rgba(0,0,0,.7);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;z-index:50;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);font-family:system-ui';
+    document.body.appendChild(el);
+  }
+  if(!MP.ready||phase==='menu'){ el.style.display='none'; return; }
+  if(!MP.inLobby && !MP.matched){ el.style.display='none'; return; }
+  el.style.display='block';
+  if(MP.matched){
+    el.innerHTML='🥊 PvP vs <span style="color:#ec4899">'+MP.opponentName+'</span>';
+  } else {
+    el.innerHTML='🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
+  }
+}
 
 // ── Palettes ──────────────────────────────────────────────────
 const PAL={
@@ -238,11 +476,18 @@ const MOVES={
 // ── Init / restart ─────────────────────────────────────────────
 function start(diff){
   hideAllOv();
-  aiDiff=lastDiff=diff;
+  // Clean up any previous multiplayer state from the last round
+  mpLeaveAll();
+  // 'pvp' is a network mode; AI difficulty defaults to 'hard' for the
+  // brief solo period before the opponent joins.
+  const isPvp = diff === 'pvp';
+  aiDiff = isPvp ? 'hard' : diff;
+  lastDiff = diff;
   p1Wins=0; p2Wins=0; round=1;
   applyHero(PAL.p1, selectedHeroId);
   applyHero(PAL.p2, 'kenshin');  // AI is always Kenshin for now
   initRound(0,0);
+  if(isPvp) mpEnterLobby('YOU');
 }
 
 // Render a hero portrait into a preview canvas
@@ -594,7 +839,8 @@ function backFromHero(){ hideAllOv(); showOv('ov-s'); }
 
 function initRound(m1,m2){
   f1=mkFighter(260,1,true,'YOU',PAL.p1);
-  f2=mkFighter(W-260,-1,false,'CPU',PAL.p2);
+  f2=mkFighter(W-260,-1,false,MP.matched?MP.opponentName:'CPU',PAL.p2);
+  if(MP.matched) f2.isRemote=true;
   f1.meter=m1; f2.meter=m2;
   particles=[]; hitSparks=[]; damageNums=[];
   projectiles=[]; shadowClones=[]; swords=[];
@@ -606,7 +852,7 @@ function initRound(m1,m2){
 function hideAllOv(){['ov-s','ov-hero','ov-cd','ov-ko','ov-end'].forEach(id=>document.getElementById(id).style.display='none')}
 function showOv(id){document.getElementById(id).style.display='flex'}
 function hideEnd(){document.getElementById('ov-end').style.display='none'}
-function backToMenu(){hideAllOv();showOv('ov-s');phase='menu'}
+function backToMenu(){mpLeaveAll();hideAllOv();showOv('ov-s');phase='menu'}
 
 // ── Per-frame controls / actions ───────────────────────────────
 function actionFor(f, opp){
@@ -697,6 +943,16 @@ const WALK=2.6, JUMP_VY=-12, GRAV=0.62;
 
 // ── Update one fighter ─────────────────────────────────────────
 function updateFighter(f, opp){
+  // In multiplayer, the remote opponent's state is fully driven by network
+  // broadcasts. Skip local physics/AI; their position, animation, hp, etc.
+  // are set by mpApplyOpponentState.
+  if(f.isRemote){
+    // Light tick — still decay some local-only counters so visuals work
+    if(f.hitFlash>0) f.hitFlash--;
+    if(f.comboTimer>0) f.comboTimer--; else f.combo=0;
+    f.sTime++;
+    return;
+  }
   // Gravity (always except certain locks)
   f.vy+=GRAV;
   f.y+=f.vy;
@@ -1033,27 +1289,40 @@ function registerHit(att, def, mv){
   let dmg = mv.dmg;          // punch/kick now dmg=0, so HP never drops from melee
   let kb = mv.kb;
   const blocked = def.blocking && def.facing !== att.facing;
-  if(blocked){
+  // In multiplayer, each side is authoritative for their own fighter:
+  //   - Changes to `def` only apply if def is f1 (owned by us)
+  //   - Changes to `att` only apply if att is f1
+  // Otherwise the broadcast overwrites local writes and you get flicker.
+  const ownsDef = !MP.matched || def === f1;
+  const ownsAtt = !MP.matched || att === f1;
+
+  if(!blocked){
+    if(ownsDef){
+      def.hitstun = (mv.name==='kick'?18:13);
+      def.hitFlash = 8;
+    }
+    if(ownsAtt){
+      att.combo++; att.comboTimer = 80;
+    }
+  } else {
     dmg = 0;
     kb = Math.max(2, Math.floor(kb*0.35));
-  } else {
-    def.hitstun = (mv.name==='kick'?18:13);
-    def.hitFlash = 8;
-    att.combo++; att.comboTimer = 80;
   }
-  def.hp = Math.max(0, def.hp - dmg);
-  // RAGE rules: defender +8 on being hit (unblocked), attacker +3 on landing a hit
-  // ENERGY: landing a clean melee hit also charges the attacker (combo → skill)
+  if(ownsDef) def.hp = Math.max(0, def.hp - dmg);
   if(!blocked){
-    def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
-    att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
-    if(mv.name === 'punch') att.meter = Math.min(att.maxMeter, att.meter + 3);
-    else if(mv.name === 'kick') att.meter = Math.min(att.maxMeter, att.meter + 5);
+    if(ownsDef) def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
+    if(ownsAtt){
+      att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
+      if(mv.name === 'punch') att.meter = Math.min(att.maxMeter, att.meter + 3);
+      else if(mv.name === 'kick') att.meter = Math.min(att.maxMeter, att.meter + 5);
+    }
   }
-  def.vx = att.facing * kb;
-  if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
+  if(ownsDef){
+    def.vx = att.facing * kb;
+    if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
+  }
 
-  // VFX
+  // VFX always (visual feedback on both sides)
   const hx = def.x - def.facing*22;
   const hy = def.y - 70;
   spawnHitSpark(hx, hy, blocked, mv.name);
@@ -1063,7 +1332,7 @@ function registerHit(att, def, mv){
     hitstop = mv.name==='kick'?5:2;
   }
 
-  if(def.hp<=0){
+  if(ownsDef && def.hp<=0){
     def.ko=true; def.vy=-8; def.vx=att.facing*6;
     triggerKO(att, def);
   }
@@ -2433,6 +2702,8 @@ function loop(){
   updateFx();
   if(shake>0)shake*=0.86;
   drawAll();
+  mpBroadcast();
+  mpUpdateIndicator();
   resetPressed();
 }
 
