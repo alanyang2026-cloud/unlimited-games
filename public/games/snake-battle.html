@@ -1187,7 +1187,20 @@ function aiHard(s){
 // ── Movement ─────────────────────────────────────────────────────
 function moveSnake(s){
   if(!s.alive)return;
-  if(s.isRemote)return;  // remote snake's position comes from network — don't simulate
+  if(s.isRemote){
+    // Client-side extrapolation: between low-rate network packets,
+    // keep stepping the head forward at the same speed the local snake
+    // would, using the most-recent broadcasted angle. Without this the
+    // snake freezes for ~143ms then teleports forward; with it, it glides
+    // at a steady 60fps and the next packet only nudges it slightly.
+    if(s.segs.length>0){
+      const h=s.segs[0];
+      const spd=s.boosting?P_BSPD:P_SPD;
+      s.segs.unshift({x:h.x+Math.cos(s.angle)*spd, y:h.y+Math.sin(s.angle)*spd});
+      s.segs.pop();
+    }
+    return;
+  }
   const cfg=s.isPlayer?null:DC[s.difficulty];
 
   // Stamina for AI
