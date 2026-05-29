@@ -178,17 +178,35 @@ function mpEnterLobby(){
 }
 
 function mpTryMatch(otherId,otherName){
-  if(MP.matchId) return;
+  // CRITICAL: claim the match SYNCHRONOUSLY so the lobby listener can't
+  // re-enter and inject a second (or third…) remote snake before the async
+  // Firebase write resolves. Without this guard, every lobby snapshot fires
+  // mpTryMatch again until the .then() resolves, and every call converts
+  // one more AI to "remote" — that's why all snakes turned into the friend.
+  if(MP.matchId||MP.remoteSnakeIdx>=0) return;
   const ids=[MP.playerId,otherId].sort();
   const matchId=ids.join('__');
   const isHost=ids[0]===MP.playerId;
+
+  // Lock in immediately
+  MP.matchId=matchId;
+  MP.opponentId=otherId;
+  MP.opponentName=otherName;
+  MP.isHost=isHost;
+  MP.opponentHasBroadcast=false;  // gates the "opponent disappeared" check
+  // Tear down lobby right now — no more matchmaking until we leave
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
+  MP.db.ref('lobby/hard/'+MP.playerId).remove().catch(()=>{});
+
+  console.log('[MP] Match locked:', matchId, '— I am', isHost?'host':'client', '— opponent:', otherName);
+  // Convert exactly one AI snake to the opponent's slot (idempotent)
+  mpInjectRemoteSnake();
+
+  // Now claim the match in the DB
   MP.db.ref('matches/'+matchId+'/players/'+MP.playerId).set({
     name:MP.playerName, joined:Date.now(),
   }).then(()=>{
-    MP.matchId=matchId; MP.opponentId=otherId; MP.opponentName=otherName; MP.isHost=isHost;
-    if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
-    if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
-    MP.db.ref('lobby/hard/'+MP.playerId).remove();
     MP.myStateRef=MP.db.ref('matches/'+matchId+'/state/'+MP.playerId);
     MP.oppStateRef=MP.db.ref('matches/'+matchId+'/state/'+otherId);
     MP.myStateRef.onDisconnect().remove();
@@ -196,17 +214,28 @@ function mpTryMatch(otherId,otherName){
     MP.oppStateRef.on('value',s=>{
       const data=s.val();
       if(!data){
-        if(MP.matchId) mpOpponentLeft();
+        // Only treat "no data" as a leave if the opponent had previously
+        // broadcast at least once. Initial null = they just haven't sent
+        // their first frame yet.
+        if(MP.opponentHasBroadcast && MP.matchId) mpOpponentLeft();
         return;
       }
+      MP.opponentHasBroadcast=true;
       mpApplyOpponentState(data);
     });
-    mpInjectRemoteSnake();
     showMpToast('🎯 Matched with '+otherName+'!');
-  }).catch(e=>console.warn('match claim failed',e));
+  }).catch(e=>{
+    console.warn('match claim failed, rolling back',e);
+    // Roll back so we can try again
+    MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
+    mpRestoreAI();
+    if(lastDiff==='hard'&&running) mpEnterLobby();
+  });
 }
 
 function mpInjectRemoteSnake(){
+  // Idempotent: if we already converted a snake for this match, do nothing.
+  if(MP.remoteSnakeIdx>=0 && snakes[MP.remoteSnakeIdx] && snakes[MP.remoteSnakeIdx].isRemote) return;
   // Find an AI snake to replace with the opponent
   let aiIdx=-1;
   for(let i=0;i<snakes.length;i++){
