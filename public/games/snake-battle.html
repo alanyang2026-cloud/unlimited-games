@@ -180,19 +180,43 @@ function mpJoinRoom(){
   MP.myStateRef=MP.db.ref('room/hard/state/'+MP.playerId);
   MP.myStateRef.onDisconnect().remove();
 
-  // Watch the player roster — child_added/removed gives us joiners and leavers
+  // Watch the player roster — child_added/removed gives us joiners and leavers.
+  // We DON'T act immediately on child_removed because Firebase fires it on
+  // brief network blips (onDisconnect can flap when WiFi hiccups), which
+  // made remote players seem to vanish and reappear every few seconds.
+  // Instead we queue removal with a 4-second grace period, and cancel it
+  // if the player is re-added within the window.
   MP.membersRef=MP.db.ref('room/hard/players');
   MP.membersRef.on('child_added', snap=>{
     const id=snap.key;
     if(id===MP.playerId) return;
-    if(MP.members[id]) return;
+    const existing=MP.members[id];
+    if(existing){
+      // They're back within the grace window — cancel pending removal
+      if(existing.removeTimer){
+        clearTimeout(existing.removeTimer);
+        existing.removeTimer=null;
+        console.log('[MP]', existing.name, 'reconnected, removal cancelled');
+      }
+      return;
+    }
     const info=snap.val()||{};
     mpAddRemotePlayer(id, info.name||'Player');
   });
   MP.membersRef.on('child_removed', snap=>{
     const id=snap.key;
     if(id===MP.playerId) return;
-    mpRemoveRemotePlayer(id);
+    const m=MP.members[id];
+    if(!m) return;
+    if(m.removeTimer) return;  // already pending
+    console.log('[MP]', m.name, 'flicker — queued removal in 4s');
+    m.removeTimer=setTimeout(()=>{
+      // Only remove if still queued (not cancelled by a re-add)
+      if(MP.members[id] && MP.members[id].removeTimer){
+        MP.members[id].removeTimer=null;
+        mpRemoveRemotePlayer(id);
+      }
+    }, 4000);
   });
   MP.membersRef.on('child_changed', snap=>{
     const id=snap.key;
@@ -255,6 +279,7 @@ function mpAddRemotePlayer(otherId, otherName){
 function mpRemoveRemotePlayer(otherId){
   const m=MP.members[otherId];
   if(!m) return;
+  if(m.removeTimer){ clearTimeout(m.removeTimer); m.removeTimer=null; }
   if(m.stateRef) m.stateRef.off();
   const s=snakes[m.snakeIdx];
   if(s){
@@ -352,7 +377,7 @@ function mpLeaveAll(){
   if(MP.membersRef){ MP.membersRef.off(); MP.membersRef=null; }
   if(MP.myMemberRef){ MP.myMemberRef.remove().catch(()=>{}); MP.myMemberRef=null; }
   if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
-  // Restore all remote snakes
+  // Restore all remote snakes (also clears any pending removal timers)
   for(const id of Object.keys(MP.members)){
     mpRemoveRemotePlayer(id);
   }
