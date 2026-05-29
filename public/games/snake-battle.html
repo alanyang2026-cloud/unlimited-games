@@ -233,6 +233,7 @@ function mpAddRemotePlayer(otherId, otherName){
     color:MP_COLORS[colorIdx],
     savedAI:createdNew ? null : { name:s.name, color:s.color, difficulty:s.difficulty },
     stateRef:MP.db.ref('room/hard/state/'+otherId),
+    lastSeenAlive:false,  // gates corpse spawning on death
   };
   s.isRemote=true;
   s.name=otherName;
@@ -281,11 +282,18 @@ function mpApplyRemoteState(otherId, data){
   if(!m) return;
   const s=snakes[m.snakeIdx];
   if(!s) return;
-  s.alive=data.alive!==false;
-  if(!s.alive){
+  const nowAlive=data.alive!==false;
+  // Death event: was alive before, now dead — convert their body to food
+  // in OUR local world so it doesn't sit there as a ghost killing people.
+  if(!nowAlive && s.alive && m.lastSeenAlive && Array.isArray(s.segs) && s.segs.length>3){
+    spawnCorpse(s);
+  }
+  s.alive=nowAlive;
+  if(!nowAlive){
     s.segs=[{x:-99999,y:-99999}];
     return;
   }
+  m.lastSeenAlive=true;
   if(Array.isArray(data.segs) && data.segs.length>=2){
     // Sampled "spine" points from the broadcast (low density)
     const spine=[];
@@ -1158,6 +1166,12 @@ function kill(s,killer){
   // Adaptive learning: record kill context if a Hard AI died
   recordHardAIDeath(s, killer);
   if(s.isPlayer){
+    // CRITICAL: explicit death broadcast BEFORE running=false stops the
+    // broadcast loop. Without this, other players see my snake frozen in
+    // mid-air and crash into the ghost body, which still kills them.
+    if(MP.myStateRef){
+      MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
+    }
     running=false;
     // Adaptive Hard AI: fold this match's observations into the persistent profile
     commitObsToProfile();
