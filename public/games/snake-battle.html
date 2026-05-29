@@ -300,21 +300,44 @@ function mpApplyRemoteState(otherId, data){
     for(let i=0;i<data.segs.length;i+=2){
       spine.push({x:data.segs[i], y:data.segs[i+1]});
     }
-    // Reconstruct a full-density segment list so the snake renders
-    // smooth (same density as local snakes) instead of as a string of
-    // overlapping balls. Lerp along the spine to fullLen samples.
     const targetLen=Math.max(spine.length, Math.min(LEN_HARD_CAP, data.fullLen||spine.length));
-    const dense=new Array(targetLen);
     const lastSpineIdx=spine.length-1;
     if(targetLen===spine.length || lastSpineIdx===0){
       s.segs=spine;
-    } else {
+    } else if(lastSpineIdx===1){
+      // Only 2 points → linear interpolation is the best we can do
+      const dense=new Array(targetLen);
       for(let i=0;i<targetLen;i++){
-        const t=(i/(targetLen-1))*lastSpineIdx;
-        const a=spine[Math.floor(t)];
-        const b=spine[Math.min(lastSpineIdx, Math.floor(t)+1)];
-        const frac=t-Math.floor(t);
-        dense[i]={ x:a.x+(b.x-a.x)*frac, y:a.y+(b.y-a.y)*frac };
+        const frac=i/(targetLen-1);
+        dense[i]={x:spine[0].x+(spine[1].x-spine[0].x)*frac,
+                  y:spine[0].y+(spine[1].y-spine[0].y)*frac};
+      }
+      s.segs=dense;
+    } else {
+      // Catmull-Rom spline interpolation through the spine points —
+      // produces SMOOTH curves through every sample point instead of
+      // straight kinks between them. This is what makes the snake look
+      // "round like local ones" instead of "a twisted branch".
+      const dense=new Array(targetLen);
+      const segments=lastSpineIdx;  // number of spans
+      for(let i=0;i<targetLen;i++){
+        const t=(i/(targetLen-1))*segments;
+        const seg=Math.min(segments-1, Math.floor(t));
+        const u=t-seg;          // local t in [0..1]
+        const u2=u*u, u3=u2*u;
+        // 4 control points (clamped at start/end so curves don't fly off)
+        const p0=spine[Math.max(0, seg-1)];
+        const p1=spine[seg];
+        const p2=spine[seg+1];
+        const p3=spine[Math.min(segments, seg+2)];
+        // Catmull-Rom basis (tension 0.5)
+        const x=0.5*((2*p1.x)+(-p0.x+p2.x)*u
+                    +(2*p0.x-5*p1.x+4*p2.x-p3.x)*u2
+                    +(-p0.x+3*p1.x-3*p2.x+p3.x)*u3);
+        const y=0.5*((2*p1.y)+(-p0.y+p2.y)*u
+                    +(2*p0.y-5*p1.y+4*p2.y-p3.y)*u2
+                    +(-p0.y+3*p1.y-3*p2.y+p3.y)*u3);
+        dense[i]={x,y};
       }
       s.segs=dense;
     }
