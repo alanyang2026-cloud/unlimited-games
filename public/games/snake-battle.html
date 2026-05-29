@@ -106,6 +106,10 @@ const DC={
   normal:{spd:3.0, bspd:5.2, turn:0.055, rlo:14,rhi:26,  sd:1.0, srg:0.34},
   hard:  {spd:3.3, bspd:5.8, turn:0.068, rlo:6, rhi:15,  sd:0.85,srg:0.3},
 };
+// Remote players (other humans over the network) use hard stats when
+// AI bots predict their movement. This prevents DC[s.difficulty]
+// crashes when s.difficulty === 'remote'.
+DC.remote = DC.hard;
 
 const BNAMES=['Shadow','Neon','Storm','Blaze','Viper','Frost','Titan','Ghost','Cobra','Pixel','Rogue','Spark'];
 const BCOLS=['#06b6d4','#22c55e','#f97316','#f43f5e','#eab308','#8b5cf6','#ec4899','#14b8a6','#fb923c','#38bdf8','#a3e635','#f472b6'];
@@ -261,6 +265,15 @@ function mpTryMatch(otherId,otherName){
       MP.opponentHasBroadcast=true;
       mpApplyOpponentState(data);
     });
+    // Safety: if the partner never broadcasts within 10s, the entry was
+    // probably a ghost from a crashed session — abandon and rematch.
+    const claimedMatchId=MP.matchId;
+    setTimeout(()=>{
+      if(MP.matchId===claimedMatchId && !MP.opponentHasBroadcast){
+        console.warn('[MP] Opponent silent for 10s — likely a ghost, retrying');
+        mpOpponentLeft();
+      }
+    }, 10000);
     showMpToast('🎯 Matched with '+otherName+'!');
   }).catch(e=>{
     console.warn('match claim failed, rolling back',e);
@@ -329,25 +342,29 @@ function mpLeaveAll(){
 
 function mpBroadcast(){
   if(!MP.matchId||!MP.myStateRef) return;
-  if(frame-MP.lastBroadcastFrame<6) return;  // ~10Hz @ 60fps
+  // ~7Hz (every 9 frames @ 60fps) — reduces Firebase write pressure
+  if(frame-MP.lastBroadcastFrame<9) return;
   MP.lastBroadcastFrame=frame;
   if(!player||!player.alive){
     MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
     return;
   }
   const segs=player.segs;
-  // Downsample to keep payload small
-  const step=Math.max(1,Math.floor(segs.length/100));
+  // Downsample to ~50 points max (was 100) — halves the payload
+  const TARGET_POINTS = 50;
+  const step=Math.max(1,Math.floor(segs.length/TARGET_POINTS));
   const flat=[];
   for(let i=0;i<segs.length;i+=step){
     flat.push(Math.round(segs[i].x), Math.round(segs[i].y));
   }
-  if((segs.length-1)%step!==0){
-    flat.push(Math.round(segs[segs.length-1].x), Math.round(segs[segs.length-1].y));
+  // Always include the tail tip
+  const lastIdx = segs.length-1;
+  if(lastIdx%step!==0){
+    flat.push(Math.round(segs[lastIdx].x), Math.round(segs[lastIdx].y));
   }
   MP.myStateRef.set({
     segs:flat,
-    angle:+player.angle.toFixed(3),
+    angle:+player.angle.toFixed(2),
     boost:!!player.boosting,
     girth:player.extraGirth||0,
     name:MP.playerName,
@@ -1549,11 +1566,11 @@ function loop(){
     // AI update + turn (skip remote-player snakes — their state comes from network)
     for(const s of snakes){
       if(s.isPlayer||!s.alive||s.isRemote)continue;
+      const cfg=DC[s.difficulty];
+      if(!cfg) continue;  // defensive: unknown difficulty, skip rather than crash
       if(s.difficulty==='easy')      aiEasy(s);
       else if(s.difficulty==='normal')aiNormal(s);
       else                           aiHard(s);
-      // Apply turn
-      const cfg=DC[s.difficulty];
       s.angle+=clamp(norm(Math.atan2(s.aiTarget.y-s.segs[0].y,s.aiTarget.x-s.segs[0].x)-s.angle),-cfg.turn,cfg.turn);
     }
 
