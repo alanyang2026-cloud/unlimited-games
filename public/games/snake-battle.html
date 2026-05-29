@@ -133,7 +133,9 @@ const MP={
   matchId:null, opponentId:null, opponentName:null, isHost:false,
   remoteSnakeIdx:-1, savedAI:null,
   lobbyRef:null, myStateRef:null, oppStateRef:null, lobbyWatcher:null,
+  inviteRef:null,        // /invitations/<myId> — incoming invites
   lastBroadcastFrame:0,
+  opponentHasBroadcast:false,
 };
 try{
   if(typeof firebase!=='undefined'){
@@ -151,7 +153,9 @@ try{
 
 function mpEnterLobby(){
   if(!MP.ready||MP.matchId) return;
-  // Sit in /lobby/hard/<myId> waiting to be paired
+  console.log('[MP] Entering lobby as', MP.playerId, '(', MP.playerName, ')');
+
+  // 1) Sit in /lobby/hard/<myId>
   MP.lobbyRef=MP.db.ref('lobby/hard/'+MP.playerId);
   MP.lobbyRef.set({
     name:MP.playerName||'Player',
@@ -159,21 +163,55 @@ function mpEnterLobby(){
   });
   MP.lobbyRef.onDisconnect().remove();
 
-  // Watch lobby for any other waiting player
+  // 2) Listen for incoming invitations on /invitations/<myId>.
+  //    Anyone who wants to match us writes here directly; this is the
+  //    reliable channel even if the lobby listener missed an event.
+  if(MP.inviteRef) MP.inviteRef.off();
+  MP.inviteRef=MP.db.ref('invitations/'+MP.playerId);
+  MP.inviteRef.onDisconnect().remove();
+  MP.inviteRef.on('value',snap=>{
+    if(MP.matchId) return;
+    const inv=snap.val();
+    if(!inv||!inv.fromId) return;
+    console.log('[MP] Got invitation from', inv.fromName, '(', inv.fromId, ')');
+    // Clear the invite first to avoid re-processing
+    MP.inviteRef.remove();
+    mpTryMatch(inv.fromId, inv.fromName||'Player');
+  });
+
+  // 3) Watch lobby. Only the LOWER-ID player is the initiator —
+  //    higher-ID just waits for an invitation. This is asymmetric on
+  //    purpose: it eliminates the both-race that made the original
+  //    matching unreliable.
   if(MP.lobbyWatcher) MP.lobbyWatcher.off();
   MP.lobbyWatcher=MP.db.ref('lobby/hard');
   MP.lobbyWatcher.on('value',snap=>{
     if(MP.matchId) return;
     const all=snap.val()||{};
     const now=Date.now();
-    // Pick the oldest other player whose timestamp is fresh (<60s)
     const others=Object.entries(all)
       .filter(([id,v])=>id!==MP.playerId)
-      .filter(([id,v])=>v&&(!v.ts||now-v.ts<60000))
+      .filter(([id,v])=>v&&(typeof v.ts!=='number'||now-v.ts<120000))
       .sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
     if(others.length===0) return;
     const [otherId,other]=others[0];
-    mpTryMatch(otherId,other.name||'Player');
+    // Asymmetric: only the lower-ID side initiates
+    const ids=[MP.playerId,otherId].sort();
+    const iInitiate=ids[0]===MP.playerId;
+    if(!iInitiate){
+      console.log('[MP] Saw partner', other.name, 'in lobby — waiting for them to invite me');
+      return;
+    }
+    console.log('[MP] I am initiator — inviting', other.name);
+    // Send invitation to the other player
+    MP.db.ref('invitations/'+otherId).set({
+      fromId:MP.playerId,
+      fromName:MP.playerName||'Player',
+      ts:firebase.database.ServerValue.TIMESTAMP,
+    }).then(()=>{
+      // Also lock our own state locally
+      mpTryMatch(otherId,other.name||'Player');
+    }).catch(e=>console.warn('[MP] invite send failed',e));
   });
 }
 
@@ -278,6 +316,7 @@ function mpLeaveAll(){
   if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
   if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef=null; }
   MP.db.ref('lobby/hard/'+MP.playerId).remove().catch(()=>{});
+  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef=null; }
   if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
   if(MP.myStateRef){ MP.myStateRef.remove(); MP.myStateRef=null; }
   if(MP.matchId){
@@ -285,6 +324,7 @@ function mpLeaveAll(){
   }
   mpRestoreAI();
   MP.matchId=null; MP.opponentId=null; MP.opponentName=null;
+  MP.opponentHasBroadcast=false;
 }
 
 function mpBroadcast(){
