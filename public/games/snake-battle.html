@@ -286,12 +286,30 @@ function mpApplyRemoteState(otherId, data){
     s.segs=[{x:-99999,y:-99999}];
     return;
   }
-  if(Array.isArray(data.segs)){
-    const ns=[];
+  if(Array.isArray(data.segs) && data.segs.length>=2){
+    // Sampled "spine" points from the broadcast (low density)
+    const spine=[];
     for(let i=0;i<data.segs.length;i+=2){
-      ns.push({x:data.segs[i],y:data.segs[i+1]});
+      spine.push({x:data.segs[i], y:data.segs[i+1]});
     }
-    if(ns.length>0) s.segs=ns;
+    // Reconstruct a full-density segment list so the snake renders
+    // smooth (same density as local snakes) instead of as a string of
+    // overlapping balls. Lerp along the spine to fullLen samples.
+    const targetLen=Math.max(spine.length, Math.min(LEN_HARD_CAP, data.fullLen||spine.length));
+    const dense=new Array(targetLen);
+    const lastSpineIdx=spine.length-1;
+    if(targetLen===spine.length || lastSpineIdx===0){
+      s.segs=spine;
+    } else {
+      for(let i=0;i<targetLen;i++){
+        const t=(i/(targetLen-1))*lastSpineIdx;
+        const a=spine[Math.floor(t)];
+        const b=spine[Math.min(lastSpineIdx, Math.floor(t)+1)];
+        const frac=t-Math.floor(t);
+        dense[i]={ x:a.x+(b.x-a.x)*frac, y:a.y+(b.y-a.y)*frac };
+      }
+      s.segs=dense;
+    }
   }
   if(typeof data.angle==='number') s.angle=data.angle;
   if(typeof data.boost==='boolean') s.boosting=data.boost;
@@ -333,6 +351,7 @@ function mpBroadcast(){
   }
   MP.myStateRef.set({
     segs:flat,
+    fullLen:segs.length,   // <-- send TRUE length so receiver can rebuild density
     angle:+player.angle.toFixed(2),
     boost:!!player.boosting,
     girth:player.extraGirth||0,
@@ -1451,12 +1470,23 @@ function updateHUD(){
   // Leaderboard — all snakes compete (rank by total "mass" = length + 3 × girth)
   const mass = s => s.segs.length + (s.extraGirth||0) * 3;
   const sorted=[...snakes].filter(s=>s.alive).sort((a,b)=>mass(b)-mass(a));
-  document.getElementById('lbr').innerHTML=sorted.slice(0,6).map(s=>{
+  document.getElementById('lbr').innerHTML=sorted.slice(0,8).map(s=>{
     const fat = (s.extraGirth||0) > 0 ? ` <span style="color:#f59e0b">+${s.extraGirth}💪</span>` : '';
+    // Highlight real humans (player + other live players) so they stand
+    // out from AI bots. Player in purple, other humans in their snake color.
+    let nameStyle='';
+    let tag='';
+    if(s.isPlayer){
+      nameStyle='color:#a855f7;font-weight:800';
+      tag=' <span style="font-size:9px;color:#a855f7;letter-spacing:.05em">YOU</span>';
+    } else if(s.isRemote){
+      nameStyle='color:'+s.color+';font-weight:800';
+      tag=' <span style="font-size:9px;color:'+s.color+';letter-spacing:.05em">LIVE</span>';
+    }
     return `
     <div class="lbr">
       <div class="lbd" style="background:${s.color}"></div>
-      <span class="lbn" style="${s.isPlayer?'color:#a855f7;font-weight:800':''}">${s.name}</span>
+      <span class="lbn" style="${nameStyle}">${s.name}${tag}</span>
       <span class="lbl">${s.segs.length}${fat}</span>
     </div>`;
   }).join('');
