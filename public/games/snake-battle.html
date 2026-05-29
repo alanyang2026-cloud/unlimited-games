@@ -140,6 +140,10 @@ const MP={
   myMemberRef:null, myStateRef:null,
   membersRef:null,
   lastBroadcastFrame:0,
+  // Bandwidth trackers — only resend "rarely changing" fields when they change
+  lastSentName:null,
+  lastSentBoost:false,
+  lastSentGirth:0,
 };
 // Distinct hot colors for up to 12 remote players (cycled if more)
 const MP_COLORS=['#ec4899','#22d3ee','#facc15','#a855f7','#34d399','#fb923c','#f87171','#60a5fa','#f0abfc','#84cc16','#06b6d4','#fbbf24'];
@@ -307,25 +311,43 @@ function mpApplyRemoteState(otherId, data){
   if(!m) return;
   const s=snakes[m.snakeIdx];
   if(!s) return;
-  const nowAlive=data.alive!==false;
-  // Death event: was alive before, now dead — convert their body to food
-  // in OUR local world so it doesn't sit there as a ghost killing people.
-  if(!nowAlive && s.alive && m.lastSeenAlive && Array.isArray(s.segs) && s.segs.length>3){
-    spawnCorpse(s);
-  }
-  s.alive=nowAlive;
+  // Read short keys (new) with fallback to long keys (legacy)
+  const segsArr = data.s || data.segs;
+  const fullLen = data.f || data.fullLen;
+  const angle   = (data.a !== undefined) ? data.a/100
+                : (data.angle !== undefined) ? data.angle
+                : null;
+  const boost   = !!(data.b !== undefined ? data.b : data.boost);
+  const girth   = data.g !== undefined ? data.g
+                : data.girth !== undefined ? data.girth
+                : undefined;
+  const name    = data.n || data.name;
+  const dead    = data.d === 1 || data.alive === false;
+
+  if(name && name!==m.name){ m.name=name; s.name=name; }
+
+  const nowAlive = !dead;
   if(!nowAlive){
+    if(s.alive && m.lastSeenAlive && Array.isArray(s.segs) && s.segs.length>3){
+      spawnCorpse(s);
+    }
+    s.alive=false;
     s.segs=[{x:-99999,y:-99999}];
     return;
   }
+  s.alive=true;
   m.lastSeenAlive=true;
-  if(Array.isArray(data.segs) && data.segs.length>=2){
+  if(angle!==null) s.angle=angle;
+  s.boosting=boost;
+  if(girth!==undefined) s.extraGirth=girth;
+
+  if(Array.isArray(segsArr) && segsArr.length>=2){
     // Sampled "spine" points from the broadcast (low density)
     const spine=[];
-    for(let i=0;i<data.segs.length;i+=2){
-      spine.push({x:data.segs[i], y:data.segs[i+1]});
+    for(let i=0;i<segsArr.length;i+=2){
+      spine.push({x:segsArr[i], y:segsArr[i+1]});
     }
-    const targetLen=Math.max(spine.length, Math.min(LEN_HARD_CAP, data.fullLen||spine.length));
+    const targetLen=Math.max(spine.length, Math.min(LEN_HARD_CAP, fullLen||spine.length));
     const lastSpineIdx=spine.length-1;
     if(targetLen===spine.length || lastSpineIdx===0){
       s.segs=spine;
@@ -367,9 +389,8 @@ function mpApplyRemoteState(otherId, data){
       s.segs=dense;
     }
   }
-  if(typeof data.angle==='number') s.angle=data.angle;
-  if(typeof data.boost==='boolean') s.boosting=data.boost;
-  if(typeof data.girth==='number') s.extraGirth=data.girth;
+  // angle / boost / girth were already applied above from the
+  // short-key payload, so no work needed here.
 }
 
 function mpLeaveAll(){
@@ -383,6 +404,11 @@ function mpLeaveAll(){
   }
   MP.members={};
   MP.inRoom=false;
+  // Reset bandwidth trackers so the next room's first broadcast
+  // re-sends the name (rather than assuming it's still cached upstream)
+  MP.lastSentName=null;
+  MP.lastSentBoost=false;
+  MP.lastSentGirth=0;
 }
 
 function mpBroadcast(){
@@ -391,12 +417,14 @@ function mpBroadcast(){
   if(frame-MP.lastBroadcastFrame<9) return;
   MP.lastBroadcastFrame=frame;
   if(!player||!player.alive){
-    MP.myStateRef.set({ alive:false, name:MP.playerName }).catch(()=>{});
+    // Special death packet: d=1
+    MP.myStateRef.set({ d:1, n:MP.playerName }).catch(()=>{});
     return;
   }
   const segs=player.segs;
-  const TARGET_POINTS=50;
-  const step=Math.max(1,Math.floor(segs.length/TARGET_POINTS));
+  // Adaptive sample count — short snakes don't need 50 points
+  const TARGET=Math.min(50, Math.max(8, Math.ceil(segs.length/4)));
+  const step=Math.max(1,Math.floor(segs.length/TARGET));
   const flat=[];
   for(let i=0;i<segs.length;i+=step){
     flat.push(Math.round(segs[i].x), Math.round(segs[i].y));
@@ -405,15 +433,26 @@ function mpBroadcast(){
   if(lastIdx%step!==0){
     flat.push(Math.round(segs[lastIdx].x), Math.round(segs[lastIdx].y));
   }
-  MP.myStateRef.set({
-    segs:flat,
-    fullLen:segs.length,   // <-- send TRUE length so receiver can rebuild density
-    angle:+player.angle.toFixed(2),
-    boost:!!player.boosting,
-    girth:player.extraGirth||0,
-    name:MP.playerName,
-    alive:true,
-  }).catch(()=>{});
+  // Short keys + skip defaults. Keys:
+  //   s = sampled segments (flat x,y array)
+  //   f = full segment count (so receiver can rebuild density)
+  //   a = angle × 100, rounded (saves 1-2 chars vs decimals)
+  //   b = boosting (omitted when false)
+  //   g = extra girth (omitted when 0)
+  //   n = name (only when it changes; almost never)
+  //   d = dead flag (omitted when alive — the default)
+  const payload={ s:flat, f:segs.length, a:Math.round(player.angle*100) };
+  const boost=!!player.boosting;
+  if(boost) payload.b=1;
+  const girth=player.extraGirth||0;
+  if(girth) payload.g=girth;
+  if(MP.playerName!==MP.lastSentName){
+    payload.n=MP.playerName;
+    MP.lastSentName=MP.playerName;
+  }
+  MP.lastSentBoost=boost;
+  MP.lastSentGirth=girth;
+  MP.myStateRef.set(payload).catch(()=>{});
 }
 
 function showMpToast(msg){
