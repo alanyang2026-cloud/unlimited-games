@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Liar's Tavern</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;background:#000;color:#fef3c7;font-family:'Georgia','Times New Roman',serif;overflow:hidden;user-select:none}
+  canvas{display:block;cursor:crosshair}
+
+  .hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.7);color:#fbbf24;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;border:1px solid rgba(251,191,36,.3);backdrop-filter:blur(8px)}
+
+  /* Title screen */
+  .title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:50;background:radial-gradient(circle at 50% 40%, rgba(120,53,15,.6), #0a0606 75%);text-align:center;padding:20px}
+  .title h1{font-size:54px;color:#fbbf24;text-shadow:0 0 40px rgba(251,191,36,.7),0 4px 0 rgba(0,0,0,.5);margin-bottom:14px;letter-spacing:.06em}
+  .title h1 small{font-size:18px;color:#d6d3d1;display:block;margin-top:6px;letter-spacing:.2em}
+  .title p{font-size:14px;color:#d6d3d1;max-width:540px;line-height:1.8;margin-bottom:26px}
+  .title button{background:linear-gradient(180deg,#a16207,#78350f);color:#fef3c7;border:2px solid #fbbf24;font-family:Georgia,serif;font-size:20px;padding:13px 42px;border-radius:6px;cursor:pointer;letter-spacing:.12em;box-shadow:0 6px 0 #451a03,0 8px 24px rgba(0,0,0,.6);transition:transform .1s}
+  .title button:active{transform:translateY(3px);box-shadow:0 3px 0 #451a03}
+  .rules{font-size:12px;color:#a8a29e;margin-top:24px;line-height:1.8;background:rgba(0,0,0,.4);padding:14px 22px;border-radius:8px;border:1px solid rgba(251,191,36,.15)}
+
+  /* HUD */
+  .hud{position:fixed;inset:0;pointer-events:none;z-index:30;display:none}
+  .hud.on{display:block}
+
+  .topbar{position:absolute;top:0;left:0;right:0;background:linear-gradient(rgba(0,0,0,.85),transparent);padding:14px 18px;display:flex;justify-content:space-between;color:#fbbf24;font-size:14px;letter-spacing:.05em;text-shadow:0 2px 4px #000;font-family:Georgia,serif}
+  .target-card{background:#fef3c7;color:#7c2d12;padding:3px 12px;border-radius:4px;font-weight:bold;font-size:18px;margin-left:8px;box-shadow:0 0 16px rgba(251,191,36,.8);font-family:Georgia,serif}
+
+  .players{position:absolute;top:64px;left:0;right:0;display:flex;justify-content:space-around;padding:0 30px;pointer-events:none}
+  .pcard{background:rgba(0,0,0,.75);border:1px solid #78350f;border-radius:10px;padding:10px 14px;color:#fef3c7;font-size:13px;backdrop-filter:blur(8px);min-width:124px;text-align:center;transition:all .2s}
+  .pcard.dead{opacity:.35;background:rgba(40,0,0,.7);filter:grayscale(1)}
+  .pcard.active{border-color:#fbbf24;box-shadow:0 0 20px rgba(251,191,36,.6);transform:translateY(-4px)}
+  .pcard .nm{font-weight:bold;font-size:15px;color:#fbbf24;letter-spacing:.04em}
+  .pcard .ch{display:flex;gap:3px;justify-content:center;margin-top:6px}
+  .pcard .ch .b{width:9px;height:9px;background:#374151;border-radius:50%;border:1px solid #1f2937}
+  .pcard .ch .b.fired{background:#9ca3af}
+  .pcard .ch .b.dead{background:#dc2626;box-shadow:0 0 10px #dc2626}
+  .pcard .crd{color:#fbbf24;font-size:11px;margin-top:5px;opacity:.8}
+
+  .hand{position:absolute;bottom:90px;left:50%;transform:translateX(-50%);display:flex;gap:6px;pointer-events:auto;align-items:flex-end;perspective:600px}
+  .card{width:76px;height:108px;background:linear-gradient(160deg,#fef9c3,#fde68a);border:2px solid #92400e;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:42px;font-weight:bold;color:#7c2d12;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 4px 14px rgba(0,0,0,.6);font-family:Georgia,serif;position:relative}
+  .card .corner{position:absolute;font-size:12px;font-weight:bold;color:#7c2d12;line-height:1}
+  .card .corner.tl{top:5px;left:6px}
+  .card .corner.br{bottom:5px;right:6px;transform:rotate(180deg)}
+  .card:hover{transform:translateY(-16px);box-shadow:0 12px 22px rgba(0,0,0,.8),0 0 16px rgba(251,191,36,.5)}
+  .card.selected{transform:translateY(-26px);box-shadow:0 16px 26px rgba(0,0,0,.9),0 0 24px #fbbf24;border-color:#fbbf24}
+  .card.joker{background:linear-gradient(160deg,#f0abfc,#c084fc);color:#581c87}
+  .card.joker .corner{color:#581c87}
+
+  .actions{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:10px;pointer-events:auto}
+  .btn{background:linear-gradient(180deg,#a16207,#78350f);color:#fef3c7;border:2px solid #fbbf24;font-family:Georgia,serif;font-size:15px;padding:10px 22px;border-radius:6px;cursor:pointer;letter-spacing:.1em;box-shadow:0 4px 0 #451a03;transition:transform .1s}
+  .btn:hover{filter:brightness(1.15)}
+  .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #451a03}
+  .btn:disabled{opacity:.35;cursor:not-allowed;filter:grayscale(.6)}
+  .btn.danger{background:linear-gradient(180deg,#b91c1c,#7f1d1d);border-color:#fca5a5;box-shadow:0 4px 0 #450a0a}
+  .btn.danger:active{box-shadow:0 2px 0 #450a0a}
+
+  .msg{position:absolute;top:32%;left:50%;transform:translateX(-50%);background:rgba(15,8,5,.92);border:2px solid #fbbf24;color:#fef3c7;padding:20px 32px;border-radius:8px;font-size:18px;text-align:center;min-width:340px;box-shadow:0 0 50px rgba(251,191,36,.5);backdrop-filter:blur(10px);font-family:Georgia,serif;letter-spacing:.04em;display:none;z-index:40;line-height:1.5;pointer-events:none}
+  .msg.on{display:block;animation:msgIn .25s ease-out}
+  @keyframes msgIn{from{opacity:0;transform:translate(-50%,-12px) scale(.95)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+
+  /* Roulette overlay */
+  .rou{position:fixed;inset:0;background:radial-gradient(circle,rgba(60,8,8,.92),#000 75%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:80;color:#fef3c7;font-family:Georgia,serif}
+  .rou.on{display:flex}
+  .rou h2{font-size:28px;color:#fbbf24;margin-bottom:8px;text-shadow:0 0 24px rgba(251,191,36,.7);letter-spacing:.1em}
+  .rou .sub{font-size:14px;color:#d6d3d1;margin-bottom:18px;letter-spacing:.05em}
+  .cylinder{position:relative;width:280px;height:280px;margin:0 0 18px 0;transition:transform 2s cubic-bezier(.2,.5,.1,1)}
+  .cyl-bg{position:absolute;inset:0;border:6px solid #6b7280;border-radius:50%;background:radial-gradient(circle at 30% 30%,#52525b,#27272a);box-shadow:0 0 50px rgba(220,38,38,.4),inset 0 0 30px rgba(0,0,0,.7)}
+  .cyl-c{position:absolute;width:46px;height:46px;left:50%;top:50%;background:#0a0a0a;border:3px solid #71717a;border-radius:50%;transform:translate(-50%,-50%)}
+  .ch-dot{position:absolute;width:36px;height:36px;border-radius:50%;background:#1a1a1a;border:3px solid #52525b;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .ch-dot.current{border-color:#fbbf24;box-shadow:0 0 14px #fbbf24}
+  .ch-dot.fired{background:#3f3f46}
+  .ch-dot.bullet-rev{background:#dc2626;box-shadow:0 0 16px #dc2626}
+  .rou .fire-btn{background:linear-gradient(180deg,#b91c1c,#7f1d1d);color:#fef3c7;border:2px solid #fca5a5;font-family:Georgia,serif;font-size:22px;padding:14px 50px;border-radius:8px;cursor:pointer;letter-spacing:.18em;box-shadow:0 6px 0 #450a0a,0 0 30px rgba(220,38,38,.6);transition:transform .1s}
+  .rou .fire-btn:active{transform:translateY(3px);box-shadow:0 3px 0 #450a0a}
+  .rou .fire-btn:disabled{opacity:.5;cursor:not-allowed}
+
+  /* End screen */
+  .endov{position:fixed;inset:0;background:radial-gradient(circle,rgba(120,53,15,.8),#0a0606 75%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:90;text-align:center;padding:24px}
+  .endov.on{display:flex}
+  .endov h2{font-size:60px;color:#fbbf24;margin-bottom:12px;text-shadow:0 0 40px rgba(251,191,36,.7);letter-spacing:.1em}
+  .endov h2.dead{color:#dc2626;text-shadow:0 0 40px rgba(220,38,38,.7)}
+  .endov p{font-size:16px;color:#d6d3d1;margin-bottom:24px;line-height:1.7;max-width:440px}
+  .endov .btn{font-size:18px;padding:13px 36px}
+
+  .log{position:absolute;bottom:14px;left:14px;color:#a8a29e;font-size:11px;font-family:system-ui;pointer-events:none;max-width:240px;line-height:1.5;text-shadow:0 1px 2px #000}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+
+<div class="title" id="title">
+  <h1>🍻 LIAR'S TAVERN<small>back-room cards · loaded revolver</small></h1>
+  <p>Each round a target card is announced (A, K, or Q).<br>
+  Play 1–3 cards face down, claiming they're all the target.<br>
+  Anyone can call LIAR — wrong cards or wrong call sends someone to spin the cylinder.</p>
+  <button onclick="startGame()">⚔️ TAKE A SEAT</button>
+  <div class="rules">
+    🎴 Deck: 6×A · 6×K · 6×Q · 2× Joker (wild)<br>
+    🔫 Revolver: 1 bullet, 6 chambers. Survived clicks build the tension.<br>
+    💀 Last one alive wins the tavern.
+  </div>
+</div>
+
+<canvas id="cv"></canvas>
+
+<div class="hud" id="hud">
+  <div class="topbar">
+    <span>Round <span id="round-num">1</span> · Target: <span class="target-card" id="target">?</span></span>
+    <span id="turn-info">Waiting…</span>
+  </div>
+  <div class="players" id="players"></div>
+  <div class="hand" id="hand"></div>
+  <div class="actions" id="actions">
+    <button class="btn" id="btn-play" disabled>PLAY 0</button>
+    <button class="btn danger" id="btn-liar" disabled>CALL LIAR!</button>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<div class="msg" id="msg"></div>
+
+<div class="rou" id="rou">
+  <h2 id="rou-name">You</h2>
+  <div class="sub">spin the cylinder…</div>
+  <div class="cylinder" id="cylinder"></div>
+  <button class="fire-btn" id="fire-btn">🔫 PULL THE TRIGGER</button>
+</div>
+
+<div class="endov" id="endov">
+  <h2 id="end-title">VICTORY</h2>
+  <p id="end-msg"></p>
+  <button class="btn" onclick="restart()">⚔️ NEW GAME</button>
+</div>
+
+<script type="module">
+import * as THREE from 'https://esm.sh/three@0.160';
+
+// ── Game state ───────────────────────────────────────────────
+const RANKS = ['A','K','Q'];
+const PLAYERS_DATA = [
+  { name:'YOU',     isHuman:true,  pos:0 },  // bottom (camera)
+  { name:'Cyrus',   isHuman:false, pos:1 },  // left
+  { name:'Vela',    isHuman:false, pos:2 },  // center
+  { name:'Mort',    isHuman:false, pos:3 },  // right
+];
+
+let G = null;
+let selected = new Set();
+
+function makeDeck(){
+  const deck = [];
+  for(const r of RANKS) for(let i=0;i<6;i++) deck.push(r);
+  deck.push('X','X');  // 2 jokers
+  for(let i=deck.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [deck[i],deck[j]] = [deck[j],deck[i]];
+  }
+  return deck;
+}
+
+function newGame(){
+  G = {
+    players: PLAYERS_DATA.map(p => ({
+      ...p,
+      hand: [],
+      alive: true,
+      bulletAt: Math.floor(Math.random()*6),
+      chamberIdx: 0,
+      shotsSurvived: 0,
+    })),
+    turn: 0,
+    target: 'A',
+    lastPlay: null,
+    round: 1,
+    phase: 'play',
+  };
+  startRound();
+}
+
+function startRound(){
+  const deck = makeDeck();
+  for(const p of G.players){
+    if(!p.alive){ p.hand = []; continue; }
+    p.hand = [];
+    const drawCount = Math.min(5, deck.length);
+    for(let i=0;i<drawCount && deck.length;i++) p.hand.push(deck.pop());
+  }
+  G.target = RANKS[Math.floor(Math.random()*RANKS.length)];
+  G.lastPlay = null;
+  selected.clear();
+  G.turn = nextAlive(-1);
+  G.phase = 'play';
+  log(`Round ${G.round} · Target ${G.target}`);
+  updateUI();
+  scheduleNpcIfNeeded();
+}
+
+function nextAlive(from){
+  for(let i=1;i<=4;i++){
+    const idx = (from+i)%4;
+    if(G.players[idx].alive) return idx;
+  }
+  return -1;
+}
+const aliveCount = () => G.players.filter(p=>p.alive).length;
+
+// ── Actions ──────────────────────────────────────────────────
+function selectCard(idx){
+  if(G.turn !== 0 || G.phase !== 'play') return;
+  if(selected.has(idx)) selected.delete(idx);
+  else if(selected.size < 3) selected.add(idx);
+  updateUI();
+}
+
+function play(){
+  if(G.turn !== 0 || selected.size === 0 || G.phase !== 'play') return;
+  const hand = G.players[0].hand;
+  const idxs = [...selected].sort((a,b)=>b-a);
+  const cards = idxs.map(i => hand.splice(i,1)[0]);
+  G.lastPlay = { playerIdx: 0, cards, count: cards.length };
+  selected.clear();
+  showMsg(`You play ${cards.length} card${cards.length>1?'s':''} as "${G.target}".`);
+  log(`You: play ${cards.length}`);
+  setTimeout(nextTurn, 1300);
+}
+
+function callLiar(){
+  if(!G.lastPlay || G.turn !== 0 || G.phase !== 'play') return;
+  resolveLiar(0);
+}
+
+function resolveLiar(accuserIdx){
+  G.phase = 'resolving';
+  const accusedIdx = G.lastPlay.playerIdx;
+  const cards = G.lastPlay.cards;
+  const isLying = cards.some(c => c !== G.target && c !== 'X');
+  const accuserName = G.players[accuserIdx].name;
+  const accusedName = G.players[accusedIdx].name;
+  const verb = accuserIdx === 0 ? 'You shout' : `${accuserName} shouts`;
+  showMsg(`${verb}: LIAR!\n${accusedName}'s cards: ${cardsStr(cards)}\n${isLying ? '— CAUGHT!' : '— honest play!'}`);
+  log(`${accuserName} → ${accusedName}: ${isLying?'CAUGHT':'wrong'}`);
+  setTimeout(() => {
+    const loserIdx = isLying ? accusedIdx : accuserIdx;
+    enterRoulette(loserIdx);
+  }, 2200);
+}
+
+const cardsStr = (cards) => cards.map(c => c === 'X' ? '🃏' : c).join(' ');
+
+function nextTurn(){
+  G.turn = nextAlive(G.turn);
+  if(aliveCount() <= 1){ endGame(); return; }
+  if(G.players[G.turn].hand.length === 0){
+    showMsg(`${G.players[G.turn].name} ran out of cards! New round.`);
+    G.round++;
+    setTimeout(startRound, 1800);
+    return;
+  }
+  updateUI();
+  scheduleNpcIfNeeded();
+}
+
+function scheduleNpcIfNeeded(){
+  if(G.phase !== 'play') return;
+  if(G.turn !== 0 && G.players[G.turn].isHuman === false){
+    setTimeout(npcTurn, 1400 + Math.random()*900);
+  }
+}
+
+// ── Roulette ────────────────────────────────────────────────
+let pendingShooter = null;
+
+function enterRoulette(playerIdx){
+  G.phase = 'roulette';
+  pendingShooter = playerIdx;
+  const p = G.players[playerIdx];
+  document.getElementById('rou-name').textContent = p.isHuman ? 'YOU' : p.name;
+  renderCylinder(p);
+  document.getElementById('rou').classList.add('on');
+  const btn = document.getElementById('fire-btn');
+  btn.disabled = false;
+  btn.textContent = p.isHuman ? '🔫 PULL THE TRIGGER' : '🔫 Watch them pull…';
+  // Spin animation
+  const cyl = document.getElementById('cylinder');
+  cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
+  // If NPC, auto-fire after delay
+  if(!p.isHuman){
+    setTimeout(fireTrigger, 2400);
+  }
+}
+
+function renderCylinder(p){
+  const cyl = document.getElementById('cylinder');
+  cyl.innerHTML = '<div class="cyl-bg"></div><div class="cyl-c"></div>';
+  for(let i=0;i<6;i++){
+    const angle = (i/6)*Math.PI*2 - Math.PI/2;
+    const r = 100;
+    const x = 140 + Math.cos(angle)*r - 18;
+    const y = 140 + Math.sin(angle)*r - 18;
+    const dot = document.createElement('div');
+    dot.className = 'ch-dot' + (i === p.chamberIdx ? ' current' : '') + (i < p.shotsSurvived ? ' fired' : '');
+    dot.style.left = x+'px';
+    dot.style.top = y+'px';
+    // After firing, if bullet revealed
+    if(!p.alive && i === p.bulletAt) dot.classList.add('bullet-rev');
+    cyl.appendChild(dot);
+  }
+}
+
+function fireTrigger(){
+  if(pendingShooter === null) return;
+  const idx = pendingShooter;
+  const p = G.players[idx];
+  const chamber = p.chamberIdx;
+  p.chamberIdx = (p.chamberIdx + 1) % 6;
+  const hit = chamber === p.bulletAt;
+  const btn = document.getElementById('fire-btn');
+  btn.disabled = true;
+  btn.textContent = hit ? '💥 BANG' : '🔫 *click*';
+  if(hit){
+    p.alive = false;
+    flashScreen('#7f1d1d');
+    renderCylinder(p);
+    log(`💀 ${p.name} eliminated`);
+    setTimeout(closeRoulette, 2000);
+  } else {
+    p.shotsSurvived++;
+    flashScreen('#fef3c7', 0.3);
+    renderCylinder(p);
+    log(`${p.name}: *click* (${6-p.shotsSurvived} chambers left)`);
+    setTimeout(closeRoulette, 1600);
+  }
+}
+
+function closeRoulette(){
+  document.getElementById('rou').classList.remove('on');
+  pendingShooter = null;
+  G.phase = 'play';
+  if(aliveCount() <= 1){ endGame(); return; }
+  G.lastPlay = null;
+  // Start new round after a shot
+  G.round++;
+  setTimeout(startRound, 800);
+}
+
+function flashScreen(color, alpha=0.6){
+  const f = document.createElement('div');
+  f.style.cssText = `position:fixed;inset:0;background:${color};opacity:${alpha};pointer-events:none;z-index:200;transition:opacity .5s`;
+  document.body.appendChild(f);
+  requestAnimationFrame(() => { f.style.opacity = '0'; });
+  setTimeout(() => f.remove(), 700);
+}
+
+function endGame(){
+  G.phase = 'end';
+  const winner = G.players.find(p => p.alive);
+  const youWon = winner && winner.isHuman;
+  const t = document.getElementById('end-title');
+  t.textContent = youWon ? '🏆 VICTORY' : '💀 YOU DIED';
+  t.className = youWon ? '' : 'dead';
+  document.getElementById('end-msg').textContent = youWon
+    ? `You're the last one breathing. The tavern is yours.\nRounds endured: ${G.round}`
+    : `${winner ? winner.name + ' walks away the only one alive.' : 'Nobody made it.'}\nRounds endured: ${G.round}`;
+  document.getElementById('endov').classList.add('on');
+}
+
+// ── NPC AI ──────────────────────────────────────────────────
+function npcTurn(){
+  if(G.phase !== 'play') return;
+  const p = G.players[G.turn];
+  if(!p.alive) { nextTurn(); return; }
+
+  // Decide: accuse or play
+  if(G.lastPlay && G.lastPlay.playerIdx !== G.turn){
+    const callP = npcAccuseProbability(p);
+    if(Math.random() < callP){
+      resolveLiar(G.turn);
+      return;
+    }
+  }
+  // Play 1-3 cards
+  const goods = [], bads = [];
+  p.hand.forEach((c,i) => {
+    if(c === G.target || c === 'X') goods.push(i);
+    else bads.push(i);
+  });
+  const maxPlay = Math.min(3, p.hand.length);
+  // Strategy: play more real cards when you have them; bluff modestly when you don't
+  let n;
+  if(goods.length >= 2) n = Math.min(maxPlay, 1 + Math.floor(Math.random()*2));
+  else if(goods.length === 1) n = 1;
+  else n = 1 + Math.floor(Math.random()*Math.min(2, p.hand.length));
+  const idxs = [];
+  while(idxs.length < n && goods.length) idxs.push(goods.pop());
+  while(idxs.length < n && bads.length) idxs.push(bads.pop());
+  idxs.sort((a,b)=>b-a);
+  const cards = idxs.map(i => p.hand.splice(i,1)[0]);
+  G.lastPlay = { playerIdx: G.turn, cards, count: cards.length };
+  showMsg(`${p.name} plays ${cards.length} card${cards.length>1?'s':''}.`);
+  log(`${p.name}: play ${cards.length}`);
+  setTimeout(nextTurn, 1300);
+}
+
+function npcAccuseProbability(p){
+  if(!G.lastPlay) return 0;
+  const claimed = G.lastPlay.count;
+  const seenTarget = p.hand.filter(c => c === G.target || c === 'X').length;
+  // total target cards in deck: 6 + 2 jokers (jokers may serve)
+  // assume 5 cards each player × 4 = 20 dealt of 20-card deck, so all visible somewhere
+  const totalTargets = 8;
+  const knownNonMineTargets = totalTargets - seenTarget;  // could be in other hands
+  // If claimed > what could possibly be true → definitely call
+  if(claimed > knownNonMineTargets) return 0.95;
+  // Higher tension if NPC is closer to bullet
+  const riskFactor = (p.shotsSurvived) / 5;
+  const base = 0.08 + (claimed === 3 ? 0.18 : claimed === 2 ? 0.10 : 0.04);
+  return base + riskFactor * 0.15;
+}
+
+// ── UI ───────────────────────────────────────────────────────
+function showMsg(text, persistent){
+  const m = document.getElementById('msg');
+  m.innerHTML = text.replace(/\n/g, '<br>');
+  m.classList.add('on');
+  if(!persistent){
+    clearTimeout(showMsg._t);
+    showMsg._t = setTimeout(() => m.classList.remove('on'), 2400);
+  }
+}
+
+const _logLines = [];
+function log(text){
+  _logLines.push(text);
+  if(_logLines.length > 6) _logLines.shift();
+  document.getElementById('log').innerHTML = _logLines.slice(-6).join('<br>');
+}
+
+function updateUI(){
+  const pdiv = document.getElementById('players');
+  pdiv.innerHTML = '';
+  // Order NPCs as left, center, right
+  const npcOrder = [1, 2, 3];
+  for(const i of npcOrder){
+    const p = G.players[i];
+    const div = document.createElement('div');
+    div.className = 'pcard' + (p.alive ? '' : ' dead') + (G.turn === i ? ' active' : '');
+    let chambers = '';
+    for(let c=0;c<6;c++){
+      let cls = 'b';
+      if(c < p.shotsSurvived) cls += ' fired';
+      if(!p.alive && c === p.bulletAt) cls += ' dead';
+      chambers += `<div class="${cls}"></div>`;
+    }
+    div.innerHTML = `
+      <div class="nm">${p.name}</div>
+      <div class="ch">${chambers}</div>
+      <div class="crd">${p.alive ? p.hand.length + ' cards' : 'DEAD'}</div>
+    `;
+    pdiv.appendChild(div);
+  }
+  document.getElementById('target').textContent = G.target === 'X' ? '🃏' : G.target;
+  document.getElementById('round-num').textContent = G.round;
+  const turnP = G.players[G.turn];
+  document.getElementById('turn-info').textContent = G.turn === 0 ? '🎯 YOUR TURN' : `${turnP.name}'s turn…`;
+
+  const hand = document.getElementById('hand');
+  hand.innerHTML = '';
+  const myHand = G.players[0].hand;
+  myHand.forEach((c,i) => {
+    const el = document.createElement('div');
+    const isJoker = c === 'X';
+    el.className = 'card' + (isJoker ? ' joker' : '') + (selected.has(i) ? ' selected' : '');
+    const sym = isJoker ? '🃏' : c;
+    el.innerHTML = `<div class="corner tl">${sym}</div>${sym}<div class="corner br">${sym}</div>`;
+    const baseRot = (i - (myHand.length-1)/2) * 5;
+    if(!selected.has(i)) el.style.transform = `rotate(${baseRot}deg)`;
+    el.onclick = () => selectCard(i);
+    hand.appendChild(el);
+  });
+
+  const btnPlay = document.getElementById('btn-play');
+  btnPlay.disabled = G.turn !== 0 || selected.size === 0 || G.phase !== 'play';
+  btnPlay.textContent = `PLAY ${selected.size || 0}`;
+  const btnLiar = document.getElementById('btn-liar');
+  btnLiar.disabled = G.turn !== 0 || !G.lastPlay || G.lastPlay.playerIdx === 0 || G.phase !== 'play';
+}
+
+// ── 3D Scene ─────────────────────────────────────────────────
+let scene, camera, renderer, candleLights = [];
+let npcMeshes = [];
+let mouseTarget = { x:0, y:0 };
+
+function init3D(){
+  const canvas = document.getElementById('cv');
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x140a08);
+  scene.fog = new THREE.Fog(0x140a08, 7, 22);
+
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(0, 1.5, 2.8);
+  camera.lookAt(0, 1.2, -1);
+
+  scene.add(new THREE.AmbientLight(0x4a2410, 0.45));
+
+  // Three candles in a row at the back of the table
+  for(let i=0;i<3;i++){
+    const x = (i-1)*1.6, y = 1.45, z = -1.7;
+    const c = new THREE.PointLight(0xff8a3a, 1.4, 8);
+    c.position.set(x, y, z);
+    scene.add(c);
+    candleLights.push(c);
+    const cyl = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.04,0.04,0.4,8),
+      new THREE.MeshLambertMaterial({color:0xfef3c7, emissive:0x1a1410})
+    );
+    cyl.position.set(x, 1.0, z);
+    scene.add(cyl);
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.07,0.18,6),
+      new THREE.MeshBasicMaterial({color:0xffbb55})
+    );
+    flame.position.set(x, 1.3, z);
+    scene.add(flame);
+  }
+
+  // Round wooden table
+  const tableTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.9, 1.9, 0.14, 28),
+    new THREE.MeshLambertMaterial({color:0x4a2911})
+  );
+  tableTop.position.set(0, 0.78, 0);
+  scene.add(tableTop);
+  // table grain (subtle)
+  const grain = new THREE.Mesh(
+    new THREE.CylinderGeometry(1.85, 1.85, 0.005, 28),
+    new THREE.MeshLambertMaterial({color:0x6b3a18})
+  );
+  grain.position.set(0, 0.856, 0);
+  scene.add(grain);
+
+  const leg = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.18, 0.30, 0.78, 8),
+    new THREE.MeshLambertMaterial({color:0x2a1409})
+  );
+  leg.position.set(0, 0.39, 0);
+  scene.add(leg);
+
+  // Floor — dark wood planks
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshLambertMaterial({color:0x1a0a04})
+  );
+  floor.rotation.x = -Math.PI/2;
+  scene.add(floor);
+
+  // Walls with sconces
+  const wallMat = new THREE.MeshLambertMaterial({color:0x2a1810});
+  const walls = [
+    [[0,2.2,-6], [0,0,0]],
+    [[-6,2.2,0], [0,Math.PI/2,0]],
+    [[6,2.2,0], [0,-Math.PI/2,0]],
+    [[0,2.2,6], [0,Math.PI,0]],
+  ];
+  for(const [pos, rot] of walls){
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(12, 4.4), wallMat);
+    w.position.set(...pos);
+    w.rotation.set(...rot);
+    scene.add(w);
+  }
+  // Ceiling beam
+  const beam = new THREE.Mesh(
+    new THREE.BoxGeometry(12, 0.25, 0.3),
+    new THREE.MeshLambertMaterial({color:0x1f1208})
+  );
+  beam.position.set(0, 3.7, 0);
+  scene.add(beam);
+
+  // Whiskey bottles on the table
+  for(const [x,z] of [[1.4,-0.6],[-1.3,-0.7]]){
+    const bottle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07,0.09,0.32,8),
+      new THREE.MeshLambertMaterial({color:0x4a2a10, transparent:true, opacity:0.85})
+    );
+    bottle.position.set(x, 1.0, z);
+    scene.add(bottle);
+    const neck = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.03,0.05,0.1,8),
+      new THREE.MeshLambertMaterial({color:0x2a1408})
+    );
+    neck.position.set(x, 1.21, z);
+    scene.add(neck);
+  }
+
+  // NPCs at left / center / right of the table
+  const NPC_POS = [
+    {x:-1.8, z:-1.0, name:'Cyrus', body:0x4a1010, hood:0x0a0a14},
+    {x: 0,   z:-2.0, name:'Vela',  body:0x14132e, hood:0x05050a},
+    {x: 1.8, z:-1.0, name:'Mort',  body:0x2e2010, hood:0x140805},
+  ];
+  for(const cfg of NPC_POS){
+    const npc = makeNPC(cfg);
+    scene.add(npc);
+    npcMeshes.push({ group: npc, baseY: npc.position.y, bobPhase: Math.random()*Math.PI*2 });
+  }
+
+  addEventListener('resize', () => {
+    renderer.setSize(innerWidth, innerHeight);
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  addEventListener('mousemove', e => {
+    const nx = (e.clientX / innerWidth - 0.5);
+    const ny = (e.clientY / innerHeight - 0.5);
+    mouseTarget.x = -nx * 0.18;
+    mouseTarget.y = -ny * 0.10;
+  });
+}
+
+function makeNPC(cfg){
+  const g = new THREE.Group();
+  g.position.set(cfg.x, 0, cfg.z);
+
+  // Lower body (sitting — short cone)
+  const lower = new THREE.Mesh(
+    new THREE.ConeGeometry(0.55, 0.85, 8),
+    new THREE.MeshLambertMaterial({color: cfg.body})
+  );
+  lower.position.y = 0.78;
+  lower.rotation.x = Math.PI;  // tip down
+  g.add(lower);
+  // Upper body / cloak
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.32, 0.42, 0.7, 8),
+    new THREE.MeshLambertMaterial({color: cfg.body})
+  );
+  body.position.y = 1.4;
+  g.add(body);
+  // Shoulders (slight)
+  const sh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.45, 10, 6, 0, Math.PI*2, 0, Math.PI/2),
+    new THREE.MeshLambertMaterial({color: cfg.body})
+  );
+  sh.position.y = 1.7;
+  g.add(sh);
+  // Head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.22, 14, 10),
+    new THREE.MeshLambertMaterial({color: 0xd6b48c})
+  );
+  head.position.y = 2.05;
+  g.add(head);
+  // Hood (cone over head)
+  const hood = new THREE.Mesh(
+    new THREE.ConeGeometry(0.34, 0.50, 10),
+    new THREE.MeshLambertMaterial({color: cfg.hood})
+  );
+  hood.position.y = 2.28;
+  g.add(hood);
+  // Eyes
+  for(const side of [-1, 1]){
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.028, 8, 8),
+      new THREE.MeshBasicMaterial({color: 0x111111})
+    );
+    eye.position.set(side * 0.08, 2.08, 0.20);
+    g.add(eye);
+  }
+  // Small mouth line
+  const mouth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.07, 0.012, 0.005),
+    new THREE.MeshBasicMaterial({color: 0x4a2010})
+  );
+  mouth.position.set(0, 2.00, 0.21);
+  g.add(mouth);
+
+  // Face camera approximately
+  g.lookAt(0, 1.5, 2.8);
+
+  return g;
+}
+
+function render(){
+  requestAnimationFrame(render);
+  if(!renderer) return;
+  const t = performance.now() * 0.001;
+
+  // Flickering candles
+  for(let i=0;i<candleLights.length;i++){
+    candleLights[i].intensity = 1.25 + Math.sin(t*5 + i*1.7)*0.35 + (Math.random()*0.2 - 0.1);
+  }
+
+  // NPC bob & idle
+  for(let i=0;i<npcMeshes.length;i++){
+    const m = npcMeshes[i];
+    const player = G ? G.players[i+1] : null;
+    if(player && !player.alive){
+      // Slumped over
+      m.group.position.y = m.baseY - 0.4;
+      m.group.rotation.z = Math.PI/2 * 0.4;
+    } else {
+      m.group.position.y = m.baseY + Math.sin(t*1.5 + m.bobPhase)*0.018;
+      m.group.rotation.z = 0;
+      // Highlight active NPC with slight forward lean
+      if(G && G.turn === i+1) m.group.position.z += (Math.sin(t*3 + i)*0.03);
+    }
+  }
+
+  // Smooth camera look toward mouse
+  camera.rotation.y += (mouseTarget.x - camera.rotation.y) * 0.06;
+  camera.rotation.x += (mouseTarget.y - 0.08 - camera.rotation.x) * 0.06;
+
+  renderer.render(scene, camera);
+}
+
+// ── Boot ─────────────────────────────────────────────────────
+window.startGame = () => {
+  document.getElementById('title').style.display = 'none';
+  document.getElementById('hud').classList.add('on');
+  if(!renderer){
+    init3D();
+    render();
+  }
+  newGame();
+};
+
+window.restart = () => {
+  document.getElementById('endov').classList.remove('on');
+  newGame();
+};
+
+document.getElementById('btn-play').onclick = play;
+document.getElementById('btn-liar').onclick = callLiar;
+document.getElementById('fire-btn').onclick = fireTrigger;
+
+// Hotkeys: 1-5 select hand cards, Space=play, L=liar
+addEventListener('keydown', e => {
+  if(G && G.phase === 'play'){
+    if(e.code === 'Space'){ e.preventDefault(); play(); }
+    if(e.code === 'KeyL'){ callLiar(); }
+    if(/Digit[1-5]/.test(e.code)){
+      const i = parseInt(e.code.slice(5))-1;
+      if(i < G.players[0].hand.length) selectCard(i);
+    }
+  }
+  if(G && G.phase === 'roulette' && pendingShooter !== null
+     && G.players[pendingShooter].isHuman && e.code === 'Space'){
+    e.preventDefault();
+    fireTrigger();
+  }
+});
+
+</script>
+</body>
+</html>

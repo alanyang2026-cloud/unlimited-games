@@ -112,6 +112,14 @@ export const GAMES: Game[] = [
     color: "from-pink-400 to-purple-500",
     controls: "Click to poke · Click & drag to squish · Try every material",
   },
+  {
+    id: "liars-tavern",
+    title: "Liar's Tavern",
+    emoji: "🍻",
+    description: "3D bluffing cards. Lie, accuse, spin the revolver — survive.",
+    color: "from-amber-900 to-stone-950",
+    controls: "Click cards · PLAY / CALL LIAR · Space to fire",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -128,6 +136,7 @@ const URL_MAP: Record<string, string> = {
   "downhill-brawl": "/games/downhill-brawl.html",
   "chess": "/games/chess.html",
   "squish": "/games/squish.html",
+  "liars-tavern": "/games/liars-tavern.html",
 };
 
 export function getGameUrl(id: string): string {
