@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Liar's Tavern</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;background:#000;color:#fef3c7;font-family:'Georgia','Times New Roman',serif;overflow:hidden;user-select:none}
@@ -121,11 +123,15 @@
   <p>Each round a target card is announced (A, K, or Q).<br>
   Play 1–3 cards face down, claiming they're all the target.<br>
   Anyone can call LIAR — wrong cards or wrong call sends someone to spin the cylinder.</p>
-  <button onclick="startGame()">⚔️ TAKE A SEAT</button>
+  <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
+    <button onclick="startGame('solo')">⚔️ SOLO (vs AI)</button>
+    <button onclick="startGame('mp')" style="background:linear-gradient(180deg,#7c2d12,#451a03);border-color:#fca5a5">🌐 LIVE PvP</button>
+  </div>
   <div class="rules">
     🎴 Deck: 6×A · 6×K · 6×Q · 2× Joker (wild)<br>
     🔫 Revolver: 1 bullet, 6 chambers. Survived clicks build the tension.<br>
-    💀 Last one alive wins the tavern.
+    💀 Last one alive wins the tavern.<br>
+    <span style="color:#fca5a5">🌐 PvP auto-matches with another live player. Empty seats are AI.</span>
   </div>
 </div>
 
@@ -209,14 +215,324 @@ import * as THREE from 'https://esm.sh/three@0.160';
 // ── Game state ───────────────────────────────────────────────
 const RANKS = ['A','K','Q'];
 const PLAYERS_DATA = [
-  { name:'YOU',     isHuman:true,  pos:0 },  // bottom (camera)
-  { name:'Cyrus',   isHuman:false, pos:1 },  // left
-  { name:'Vela',    isHuman:false, pos:2 },  // center
-  { name:'Mort',    isHuman:false, pos:3 },  // right
+  { name:'YOU',     isHuman:true,  pos:0 },  // south (camera POV)
+  { name:'Cyrus',   isHuman:false, pos:1 },  // west — the pig
+  { name:'Vela',    isHuman:false, pos:2 },  // north — the cow
+  { name:'Mort',    isHuman:false, pos:3 },  // east — the fox
 ];
 
 let G = null;
 let selected = new Set();
+
+// ── Multiplayer (Firebase) ───────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey:"AIzaSyAN1x_-_ayc63ZRM7fnU2sDHXqGCGaaCTQ",
+  authDomain:"unlimited-games-522cb.firebaseapp.com",
+  databaseURL:"https://unlimited-games-522cb-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"unlimited-games-522cb",
+  storageBucket:"unlimited-games-522cb.firebasestorage.app",
+  messagingSenderId:"336774802790",
+  appId:"1:336774802790:web:070b9dcb062542d1a82ca7"
+};
+const MP = {
+  ready:false, db:null,
+  playerId:null, playerName:'PLAYER',
+  mode:'solo',                  // 'solo' | 'mp'
+  inLobby:false, matched:false,
+  matchId:null, isHost:false,
+  mySlot:0,                     // 0 = host, 1 = remote
+  opponentId:null, opponentName:'',
+  lobbyRef:null, lobbyWatcher:null, inviteRef:null,
+  stateRef:null, actionsRef:null,
+  lastAppliedRev:-1,
+};
+try{
+  if(typeof firebase!=='undefined'){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    MP.db = firebase.database();
+    MP.ready = true;
+    let pid = sessionStorage.getItem('mp.pid');
+    if(!pid){
+      pid = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      sessionStorage.setItem('mp.pid', pid);
+    }
+    MP.playerId = pid;
+  }
+}catch(e){ console.warn('Multiplayer disabled:', e); }
+
+function mpShowToast(msg){
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.92);color:#fbbf24;padding:10px 18px;border-radius:10px;border:1px solid rgba(251,191,36,.4);font-weight:700;z-index:300;font-size:14px;backdrop-filter:blur(8px);font-family:system-ui;letter-spacing:.05em';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3500);
+}
+
+function mpUpdateIndicator(){
+  let el = document.getElementById('mpInd');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'mpInd';
+    el.style.cssText = 'position:fixed;top:12px;right:50%;transform:translateX(50%);background:rgba(0,0,0,.7);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;z-index:50;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);font-family:system-ui';
+    document.body.appendChild(el);
+  }
+  if(MP.mode !== 'mp'){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  if(MP.matched){
+    el.innerHTML = '🍻 PvP vs <span style="color:#ec4899">' + MP.opponentName + '</span>';
+  } else if(MP.inLobby){
+    el.innerHTML = '🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function mpEnterLobby(){
+  if(!MP.ready || MP.inLobby || MP.matched) return;
+  MP.inLobby = true;
+  console.log('[MP] Entering tavern lobby as', MP.playerId);
+  MP.lobbyRef = MP.db.ref('lobby/tavern/' + MP.playerId);
+  MP.lobbyRef.set({ name: MP.playerName, ts: firebase.database.ServerValue.TIMESTAMP });
+  MP.lobbyRef.onDisconnect().remove();
+
+  // Listen for invites (we may be the one being invited)
+  if(MP.inviteRef) MP.inviteRef.off();
+  MP.inviteRef = MP.db.ref('invitations/tavern/' + MP.playerId);
+  MP.inviteRef.onDisconnect().remove();
+  MP.inviteRef.on('value', snap => {
+    if(MP.matched) return;
+    const inv = snap.val();
+    if(!inv || !inv.fromId) return;
+    MP.inviteRef.remove();
+    mpAcceptMatch(inv.fromId, inv.fromName || 'Player', inv.matchId);
+  });
+
+  // Watch lobby — lower-ID player initiates
+  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
+  MP.lobbyWatcher = MP.db.ref('lobby/tavern');
+  MP.lobbyWatcher.on('value', snap => {
+    if(MP.matched) return;
+    const all = snap.val() || {};
+    const now = Date.now();
+    const others = Object.entries(all)
+      .filter(([id, v]) => id !== MP.playerId)
+      .filter(([id, v]) => v && (typeof v.ts !== 'number' || now - v.ts < 120000))
+      .sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
+    if(others.length === 0) return;
+    const [otherId, other] = others[0];
+    const ids = [MP.playerId, otherId].sort();
+    if(ids[0] !== MP.playerId) return;   // not the initiator
+    const matchId = ids.join('__');
+    console.log('[MP] Inviting', other.name);
+    MP.db.ref('invitations/tavern/' + otherId).set({
+      fromId: MP.playerId,
+      fromName: MP.playerName,
+      matchId: matchId,
+      ts: firebase.database.ServerValue.TIMESTAMP,
+    }).then(() => {
+      mpBecomeHost(otherId, other.name || 'Player', matchId);
+    });
+  });
+  mpUpdateIndicator();
+}
+
+function mpBecomeHost(otherId, otherName, matchId){
+  if(MP.matched) return;
+  MP.matched = true;
+  MP.inLobby = false;
+  MP.matchId = matchId;
+  MP.isHost = true;
+  MP.mySlot = 0;
+  MP.opponentId = otherId;
+  MP.opponentName = otherName;
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef = null; }
+
+  MP.stateRef   = MP.db.ref('matches/tavern/' + matchId + '/state');
+  MP.actionsRef = MP.db.ref('matches/tavern/' + matchId + '/actions');
+  MP.stateRef.onDisconnect().remove();
+  MP.actionsRef.onDisconnect().remove();
+
+  // Host listens for client's action submissions
+  MP.actionsRef.on('child_added', snap => {
+    const act = snap.val();
+    if(!act) return;
+    snap.ref.remove();
+    mpHostProcessAction(act);
+  });
+
+  mpShowToast('🎯 Matched with ' + otherName + ' — you are HOST');
+  console.log('[MP] Host, slot 0. Opponent', otherName, 'on slot 1');
+  setTimeout(() => beginGame(), 800);
+}
+
+function mpAcceptMatch(otherId, otherName, matchId){
+  if(MP.matched) return;
+  MP.matched = true;
+  MP.inLobby = false;
+  MP.matchId = matchId;
+  MP.isHost = false;
+  MP.mySlot = 1;       // client takes slot 1 (the pig)
+  MP.opponentId = otherId;
+  MP.opponentName = otherName;
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef = null; }
+  MP.db.ref('lobby/tavern/' + MP.playerId).remove();
+
+  MP.stateRef   = MP.db.ref('matches/tavern/' + matchId + '/state');
+  MP.actionsRef = MP.db.ref('matches/tavern/' + matchId + '/actions');
+  // Client just observes state — host will broadcast soon
+  MP.stateRef.on('value', snap => {
+    const state = snap.val();
+    if(state) mpClientApplyState(state);
+  });
+
+  mpShowToast('🎯 Matched with ' + otherName + ' — you are CLIENT');
+  console.log('[MP] Client, slot 1. Opponent', otherName, 'on slot 0');
+  // Begin game scaffolding so 3D scene is rendered — host's state will populate G
+  beginGameClient();
+}
+
+// Host: serialize G to firebase
+function mpBroadcastState(){
+  if(MP.mode !== 'mp' || !MP.isHost || !MP.stateRef || !G) return;
+  const slim = {
+    round: G.round,
+    target: G.target,
+    turn: G.turn,
+    phase: G.phase,
+    lastPlay: G.lastPlay,
+    pendingShooter: G.pendingShooter || null,
+    players: G.players.map(p => ({
+      name: p.name,
+      hand: p.hand.slice(),
+      alive: p.alive,
+      bulletAt: p.bulletAt,
+      chamberIdx: p.chamberIdx,
+      shotsSurvived: p.shotsSurvived,
+      pid: p.pid || null,
+    })),
+    rev: (G._rev = (G._rev || 0) + 1),
+    ts: Date.now(),
+  };
+  MP.stateRef.set(slim).catch(e => console.warn('[MP] broadcast failed', e));
+}
+
+// Client: apply received state to local G (reconstruct + trigger events)
+let _prevState = null;
+function mpClientApplyState(state){
+  if(!state) return;
+  if(state.rev != null && state.rev <= MP.lastAppliedRev) return;
+  MP.lastAppliedRev = state.rev || 0;
+  const wasPhase   = G ? G.phase : null;
+  const wasTarget  = G ? G.target : null;
+  const wasShooter = G ? G.pendingShooter : null;
+  const wasAliveByIdx = G ? G.players.map(p => p.alive) : null;
+  G = {
+    round: state.round,
+    target: state.target,
+    turn: state.turn,
+    phase: state.phase,
+    lastPlay: state.lastPlay || null,
+    pendingShooter: state.pendingShooter,
+    players: state.players.map((p, i) => Object.assign(
+      { isHuman: i === 0, pos: i },
+      p,
+      { hand: p.hand || [] }
+    )),
+    _rev: state.rev || 0,
+  };
+  // Round target changed → lift the target card
+  if(state.target !== wasTarget) showTargetCard(state.target);
+
+  // ── Roulette client-side reactions ───────────────────────
+  if(state.phase === 'roulette' && wasPhase !== 'roulette' && state.pendingShooter != null){
+    const idx = state.pendingShooter;
+    if(idx === MP.mySlot){
+      // It's MY turn to shoot — show the HTML overlay so I can click PULL TRIGGER
+      pendingShooter = idx;
+      const p = G.players[idx];
+      document.getElementById('rou-name').textContent = 'YOU';
+      document.getElementById('rou-sub').textContent = 'spin the cylinder…';
+      renderCylinder(p);
+      document.getElementById('rou').classList.add('on');
+      const btn = document.getElementById('fire-btn');
+      btn.disabled = false;
+      btn.textContent = '🔫 PULL THE TRIGGER';
+      const cyl = document.getElementById('cylinder');
+      cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
+      const rev = document.getElementById('rev-svg');
+      rev.classList.remove('show','fire'); void rev.offsetWidth;
+      rev.classList.add('show');
+    } else if(idx > 0 && npcMeshes[idx-1]){
+      // Someone ELSE is being shot — play their 3D animation locally.
+      const hit = !!state.pendingShootHit;
+      showMsg(`${G.players[idx].name} reaches for the revolver…`, true);
+      startNpcShoot(npcMeshes[idx-1], hit, null);
+    } else if(idx === 0){
+      // Host (slot 0) is shooting their own head; no character mesh at south
+      showMsg(`${G.players[0].name} pulls the trigger…`, true);
+    }
+  }
+
+  // Roulette resolved (phase moved away) → close my own overlay if it was open
+  if(state.phase !== 'roulette' && pendingShooter === MP.mySlot){
+    closeRoulette();
+    pendingShooter = null;
+  }
+
+  // Game over
+  if(state.phase === 'end' && wasPhase !== 'end'){
+    const winnerSlot = state.winnerSlot;
+    const won = winnerSlot === MP.mySlot;
+    const t = document.getElementById('end-title');
+    t.textContent = won ? '🏆 VICTORY' : '💀 YOU DIED';
+    t.className = won ? '' : 'dead';
+    const winnerName = winnerSlot >= 0 ? G.players[winnerSlot].name : 'Nobody';
+    document.getElementById('end-msg').textContent = won
+      ? `You're the last one breathing.\nRounds endured: ${G.round}`
+      : `${winnerName} walks away the only one alive.\nRounds endured: ${G.round}`;
+    document.getElementById('endov').classList.add('on');
+  }
+
+  updateUI();
+  mpUpdateIndicator();
+}
+
+// Host: act on an action received from the client
+function mpHostProcessAction(act){
+  if(!G) return;
+  if(act.type === 'play'){
+    if(G.turn !== act.slot || G.phase !== 'play') return;
+    playFromSlot(act.slot, act.cards || []);
+  } else if(act.type === 'callLiar'){
+    if(G.turn !== act.slot || G.phase !== 'play') return;
+    if(!G.lastPlay || G.lastPlay.playerIdx === act.slot) return;
+    resolveLiar(act.slot);
+  } else if(act.type === 'fireTrigger'){
+    if(G.phase !== 'roulette' || G.pendingShooter !== act.slot) return;
+    if(G.players[act.slot].isRemote) hostFireRemote(act.slot);
+  }
+}
+
+// Client: submit an action to firebase
+function mpSubmitAction(act){
+  if(!MP.actionsRef) return;
+  MP.actionsRef.push(act);
+}
+
+function mpLeaveAll(){
+  if(!MP.ready) return;
+  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
+  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef = null; }
+  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef = null; }
+  if(MP.stateRef){ MP.stateRef.off(); if(MP.isHost) MP.stateRef.remove().catch(()=>{}); MP.stateRef = null; }
+  if(MP.actionsRef){ MP.actionsRef.off(); if(MP.isHost) MP.actionsRef.remove().catch(()=>{}); MP.actionsRef = null; }
+  MP.matched = false; MP.inLobby = false;
+  MP.matchId = null; MP.opponentId = null; MP.opponentName = '';
+  MP.isHost = false; MP.mySlot = 0;
+  MP.lastAppliedRev = -1;
+}
 
 function makeDeck(){
   const deck = [];
@@ -229,25 +545,40 @@ function makeDeck(){
   return deck;
 }
 
+// Host-only: build a fresh game state. In MP, mark slot 1 as remote.
 function newGame(){
   G = {
-    players: PLAYERS_DATA.map(p => ({
+    players: PLAYERS_DATA.map((p, i) => ({
       ...p,
       hand: [],
       alive: true,
       bulletAt: Math.floor(Math.random()*6),
       chamberIdx: 0,
       shotsSurvived: 0,
+      isRemote: false,
+      pid: null,
     })),
     turn: 0,
     target: 'A',
     lastPlay: null,
+    pendingShooter: null,
     round: 1,
     phase: 'play',
   };
+  if(MP.mode === 'mp' && MP.matched){
+    // Slot 0 = host (us), slot 1 = remote (opponent). Slots 2-3 stay AI.
+    G.players[0].name   = MP.playerName;
+    G.players[0].pid    = MP.playerId;
+    G.players[1].isRemote = true;
+    G.players[1].name   = MP.opponentName;
+    G.players[1].pid    = MP.opponentId;
+    // Clear stale actions from any previous game
+    if(MP.actionsRef) MP.actionsRef.remove().catch(()=>{});
+  }
   startRound();
 }
 
+// Host-only entry: deal a fresh hand and pick a new target.
 function startRound(){
   const deck = makeDeck();
   for(const p of G.players){
@@ -258,12 +589,14 @@ function startRound(){
   }
   G.target = RANKS[Math.floor(Math.random()*RANKS.length)];
   G.lastPlay = null;
+  G.pendingShooter = null;
   selected.clear();
   G.turn = nextAlive(-1);
   G.phase = 'play';
   log(`Round ${G.round} · Target ${G.target}`);
   updateUI();
-  showTargetCard(G.target);   // lift the round's target card out of the pile
+  showTargetCard(G.target);   // local 3D effect
+  mpBroadcastState();
   scheduleNpcIfNeeded();
 }
 
@@ -278,29 +611,53 @@ const aliveCount = () => G.players.filter(p=>p.alive).length;
 
 // ── Actions ──────────────────────────────────────────────────
 function selectCard(idx){
-  if(G.turn !== 0 || G.phase !== 'play') return;
+  if(G.turn !== MP.mySlot || G.phase !== 'play') return;
   if(selected.has(idx)) selected.delete(idx);
   else if(selected.size < 3) selected.add(idx);
   updateUI();
 }
 
+// Button handler — local player wants to play their selected cards.
 function play(){
-  if(G.turn !== 0 || selected.size === 0 || G.phase !== 'play') return;
-  const hand = G.players[0].hand;
-  const idxs = [...selected].sort((a,b)=>b-a);
-  const cards = idxs.map(i => hand.splice(i,1)[0]);
-  G.lastPlay = { playerIdx: 0, cards, count: cards.length };
+  if(G.turn !== MP.mySlot || selected.size === 0 || G.phase !== 'play') return;
+  const cards = [...selected];
   selected.clear();
-  showMsg(`You play ${cards.length} card${cards.length>1?'s':''} as "${G.target}".`);
-  log(`You: play ${cards.length}`);
+  if(MP.mode === 'mp' && !MP.isHost){
+    mpSubmitAction({type:'play', slot: MP.mySlot, cards});
+    updateUI();
+    return;
+  }
+  playFromSlot(MP.mySlot, cards);
+}
+
+// Host-only: actually mutate G to play these cards as the given slot.
+function playFromSlot(slot, indices){
+  if(G.turn !== slot || G.phase !== 'play') return;
+  if(!indices || indices.length === 0) return;
+  const hand = G.players[slot].hand;
+  const idxs = [...indices].sort((a,b)=>b-a);
+  const cards = idxs.map(i => hand.splice(i,1)[0]);
+  G.lastPlay = { playerIdx: slot, cards, count: cards.length };
+  const name = G.players[slot].name;
+  const verb = slot === MP.mySlot ? 'You play' : `${name} plays`;
+  showMsg(`${verb} ${cards.length} card${cards.length>1?'s':''} as "${G.target}".`);
+  log(`${name}: play ${cards.length}`);
+  mpBroadcastState();
   setTimeout(nextTurn, 1300);
 }
 
+// Button handler — local player accuses the previous player.
 function callLiar(){
-  if(!G.lastPlay || G.turn !== 0 || G.phase !== 'play') return;
-  resolveLiar(0);
+  if(!G.lastPlay || G.turn !== MP.mySlot || G.phase !== 'play') return;
+  if(G.lastPlay.playerIdx === MP.mySlot) return;
+  if(MP.mode === 'mp' && !MP.isHost){
+    mpSubmitAction({type:'callLiar', slot: MP.mySlot});
+    return;
+  }
+  resolveLiar(MP.mySlot);
 }
 
+// Host-only.
 function resolveLiar(accuserIdx){
   G.phase = 'resolving';
   const accusedIdx = G.lastPlay.playerIdx;
@@ -308,9 +665,12 @@ function resolveLiar(accuserIdx){
   const isLying = cards.some(c => c !== G.target && c !== 'X');
   const accuserName = G.players[accuserIdx].name;
   const accusedName = G.players[accusedIdx].name;
-  const verb = accuserIdx === 0 ? 'You shout' : `${accuserName} shouts`;
+  const verb = accuserIdx === MP.mySlot ? 'You shout' : `${accuserName} shouts`;
   showMsg(`${verb}: LIAR!\n${accusedName}'s cards: ${cardsStr(cards)}\n${isLying ? '— CAUGHT!' : '— honest play!'}`);
   log(`${accuserName} → ${accusedName}: ${isLying?'CAUGHT':'wrong'}`);
+  // Stash the reveal in state so client also sees the cards
+  G.reveal = { accuserIdx, accusedIdx, cards: cards.slice(), isLying };
+  mpBroadcastState();
   setTimeout(() => {
     const loserIdx = isLying ? accusedIdx : accuserIdx;
     enterRoulette(loserIdx);
@@ -319,36 +679,56 @@ function resolveLiar(accuserIdx){
 
 const cardsStr = (cards) => cards.map(c => c === 'X' ? '🃏' : c).join(' ');
 
+// Host-only.
 function nextTurn(){
   G.turn = nextAlive(G.turn);
   if(aliveCount() <= 1){ endGame(); return; }
   if(G.players[G.turn].hand.length === 0){
     showMsg(`${G.players[G.turn].name} ran out of cards! New round.`);
     G.round++;
+    mpBroadcastState();
     setTimeout(startRound, 1800);
     return;
   }
   updateUI();
+  mpBroadcastState();
   scheduleNpcIfNeeded();
 }
 
 function scheduleNpcIfNeeded(){
   if(G.phase !== 'play') return;
-  if(G.turn !== 0 && G.players[G.turn].isHuman === false){
-    setTimeout(npcTurn, 1400 + Math.random()*900);
-  }
+  // Client never runs AI — host owns the simulation
+  if(MP.mode === 'mp' && !MP.isHost) return;
+  const p = G.players[G.turn];
+  if(!p) return;
+  // Skip if it's the local player or a remote-human-controlled slot
+  if(G.turn === MP.mySlot) return;
+  if(p.isRemote) return;
+  if(p.isHuman) return;
+  setTimeout(npcTurn, 1400 + Math.random()*900);
 }
 
 // ── Roulette ────────────────────────────────────────────────
 let pendingShooter = null;
 
+// Host-only entry point — decides whether to show the HTML overlay
+// (for the local human at MP.mySlot) or play a 3D self-shoot animation.
 function enterRoulette(playerIdx){
   G.phase = 'roulette';
+  G.pendingShooter = playerIdx;
   pendingShooter = playerIdx;
   const p = G.players[playerIdx];
 
-  if(p.isHuman){
-    // ── PLAYER turn: keep the HTML overlay so they can click ────
+  // Pre-roll the chamber so animation can show the correct outcome and
+  // so all clients agree on hit/miss before they see the result.
+  const chamber = p.chamberIdx;
+  p.chamberIdx = (p.chamberIdx + 1) % 6;
+  const hit = chamber === p.bulletAt;
+  G.pendingShootHit = hit;
+  mpBroadcastState();
+
+  if(playerIdx === MP.mySlot){
+    // ── LOCAL PLAYER (host) → HTML overlay so they can click ────
     document.getElementById('rou-name').textContent = 'YOU';
     document.getElementById('rou-sub').textContent = 'spin the cylinder…';
     renderCylinder(p);
@@ -359,34 +739,44 @@ function enterRoulette(playerIdx){
     const cyl = document.getElementById('cylinder');
     cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
     const rev = document.getElementById('rev-svg');
-    rev.classList.remove('show','fire');
-    void rev.offsetWidth;
+    rev.classList.remove('show','fire'); void rev.offsetWidth;
     rev.classList.add('show');
+    // Stash hit for the host's fireTrigger to use (it expects to compute it)
+    G._pendingHit = hit;
+    // Don't advance chamber again in fireTrigger
     return;
   }
 
-  // ── NPC turn: NO HTML overlay. Play a 3D self-shoot in scene. ──
-  // Pre-roll the chamber so the animation can show the correct outcome.
-  const chamber = p.chamberIdx;
-  p.chamberIdx = (p.chamberIdx + 1) % 6;
-  const hit = chamber === p.bulletAt;
+  if(p.isRemote){
+    // ── REMOTE PLAYER (the pig) → wait for their fireTrigger action.
+    //    They have their own HTML overlay on their client; we just
+    //    play the 3D animation when their action arrives.
+    showMsg(`${p.name} reaches for the revolver…`, true);
+    return;
+  }
 
+  // ── AI → animate immediately in 3D, then apply result.
   showMsg(`${p.name} reaches for the revolver…`, true);
-
-  const meshObj = npcMeshes[playerIdx - 1];   // player indices 1..3 → mesh 0..2
-  if(!meshObj){
-    // Safety net — if we somehow can't find the mesh, fall back to
-    // the old overlay logic so the game doesn't lock up.
-    applyShotResult(playerIdx, hit);
-    return;
-  }
+  const meshObj = npcMeshes[playerIdx - 1];
+  if(!meshObj){ applyShotResult(playerIdx, hit); return; }
   startNpcShoot(meshObj, hit, () => {
     document.getElementById('msg').classList.remove('on');
     applyShotResult(playerIdx, hit);
   });
 }
 
-// Shared post-shot logic — used by both human (via fireTrigger) and NPC paths
+// Host: client (remote slot) pulled the trigger. Animate + apply.
+function hostFireRemote(slot){
+  const p = G.players[slot];
+  if(!p || !p.isRemote) return;
+  const hit = !!G.pendingShootHit;
+  const meshObj = npcMeshes[slot - 1];
+  if(!meshObj){ applyShotResult(slot, hit); return; }
+  document.getElementById('msg').classList.remove('on');
+  startNpcShoot(meshObj, hit, () => applyShotResult(slot, hit));
+}
+
+// Shared post-shot logic — host-only.
 function applyShotResult(playerIdx, hit){
   const p = G.players[playerIdx];
   if(hit){
@@ -399,7 +789,11 @@ function applyShotResult(playerIdx, hit){
     showMsg(`🔫 *click* — ${p.name} survives`);
   }
   pendingShooter = null;
+  G.pendingShooter = null;
+  G.pendingShootHit = null;
+  G.reveal = null;
   G.phase = 'play';
+  mpBroadcastState();
   if(aliveCount() <= 1){ setTimeout(endGame, 1200); return; }
   G.lastPlay = null;
   G.round++;
@@ -424,20 +818,29 @@ function renderCylinder(p){
   }
 }
 
-// Player-only: triggered by clicking the PULL THE TRIGGER button.
-// NPCs go through startNpcShoot + applyShotResult and never use this.
+// Button handler — local player at MP.mySlot pulled their own trigger.
+// In MP-client mode, this submits an action and the HOST performs the
+// actual fire + state mutation.
 function fireTrigger(){
-  if(pendingShooter === null) return;
+  if(pendingShooter !== MP.mySlot) return;
+  if(MP.mode === 'mp' && !MP.isHost){
+    // Lock the button so we don't double-submit
+    const btn = document.getElementById('fire-btn');
+    btn.disabled = true;
+    btn.textContent = '🔫 …';
+    mpSubmitAction({type:'fireTrigger', slot: MP.mySlot});
+    // Host will broadcast result and our state listener will close the overlay
+    return;
+  }
+  // Solo or host — execute locally.
   const idx = pendingShooter;
   const p = G.players[idx];
-  if(!p.isHuman) return;          // safety — NPC path shouldn't reach here
-  const chamber = p.chamberIdx;
-  p.chamberIdx = (p.chamberIdx + 1) % 6;
-  const hit = chamber === p.bulletAt;
+  // Use the pre-rolled hit from enterRoulette (chamber was already advanced)
+  const hit = G._pendingHit ?? (((p.chamberIdx - 1 + 6) % 6) === p.bulletAt);
+  G._pendingHit = null;
   const btn = document.getElementById('fire-btn');
   btn.disabled = true;
   btn.textContent = hit ? '💥 BANG' : '🔫 *click*';
-  // SVG recoil + flash on the player's overlay
   const rev = document.getElementById('rev-svg');
   const flash = document.getElementById('muzzleflash');
   const spark = document.getElementById('muzzlespark');
@@ -479,7 +882,9 @@ function flashScreen(color, alpha=0.6){
 function endGame(){
   G.phase = 'end';
   const winner = G.players.find(p => p.alive);
-  const youWon = winner && winner.isHuman;
+  const youWon = winner && (winner.pos === MP.mySlot);
+  G.winnerSlot = winner ? winner.pos : -1;
+  mpBroadcastState();
   const t = document.getElementById('end-title');
   t.textContent = youWon ? '🏆 VICTORY' : '💀 YOU DIED';
   t.className = youWon ? '' : 'dead';
@@ -523,6 +928,7 @@ function npcTurn(){
   G.lastPlay = { playerIdx: G.turn, cards, count: cards.length };
   showMsg(`${p.name} plays ${cards.length} card${cards.length>1?'s':''}.`);
   log(`${p.name}: play ${cards.length}`);
+  mpBroadcastState();
   setTimeout(nextTurn, 1300);
 }
 
@@ -561,11 +967,12 @@ function log(text){
 }
 
 function updateUI(){
+  if(!G) return;
   const pdiv = document.getElementById('players');
   pdiv.innerHTML = '';
-  // Order NPCs as left, center, right
-  const npcOrder = [1, 2, 3];
-  for(const i of npcOrder){
+  // Show every player OTHER than the local one across the top
+  for(let i=0; i<G.players.length; i++){
+    if(i === MP.mySlot) continue;
     const p = G.players[i];
     const div = document.createElement('div');
     div.className = 'pcard' + (p.alive ? '' : ' dead') + (G.turn === i ? ' active' : '');
@@ -576,21 +983,23 @@ function updateUI(){
       if(!p.alive && c === p.bulletAt) cls += ' dead';
       chambers += `<div class="${cls}"></div>`;
     }
+    const tag = p.isRemote ? ' <span style="color:#ec4899;font-size:9px">LIVE</span>' : '';
     div.innerHTML = `
-      <div class="nm">${p.name}</div>
+      <div class="nm">${p.name}${tag}</div>
       <div class="ch">${chambers}</div>
-      <div class="crd">${p.alive ? p.hand.length + ' cards' : 'DEAD'}</div>
+      <div class="crd">${p.alive ? (p.hand ? p.hand.length : 0) + ' cards' : 'DEAD'}</div>
     `;
     pdiv.appendChild(div);
   }
   document.getElementById('target').textContent = G.target === 'X' ? '🃏' : G.target;
   document.getElementById('round-num').textContent = G.round;
   const turnP = G.players[G.turn];
-  document.getElementById('turn-info').textContent = G.turn === 0 ? '🎯 YOUR TURN' : `${turnP.name}'s turn…`;
+  document.getElementById('turn-info').textContent =
+    G.turn === MP.mySlot ? '🎯 YOUR TURN' : `${turnP ? turnP.name : '?'}'s turn…`;
 
   const hand = document.getElementById('hand');
   hand.innerHTML = '';
-  const myHand = G.players[0].hand;
+  const myHand = (G.players[MP.mySlot] && G.players[MP.mySlot].hand) || [];
   myHand.forEach((c,i) => {
     const el = document.createElement('div');
     const isJoker = c === 'X';
@@ -604,10 +1013,11 @@ function updateUI(){
   });
 
   const btnPlay = document.getElementById('btn-play');
-  btnPlay.disabled = G.turn !== 0 || selected.size === 0 || G.phase !== 'play';
+  btnPlay.disabled = G.turn !== MP.mySlot || selected.size === 0 || G.phase !== 'play';
   btnPlay.textContent = `PLAY ${selected.size || 0}`;
   const btnLiar = document.getElementById('btn-liar');
-  btnLiar.disabled = G.turn !== 0 || !G.lastPlay || G.lastPlay.playerIdx === 0 || G.phase !== 'play';
+  btnLiar.disabled = G.turn !== MP.mySlot || !G.lastPlay
+                  || G.lastPlay.playerIdx === MP.mySlot || G.phase !== 'play';
 }
 
 // ── 3D Scene ─────────────────────────────────────────────────
@@ -1840,18 +2250,58 @@ function render(){
 }
 
 // ── Boot ─────────────────────────────────────────────────────
-window.startGame = () => {
+window.startGame = (mode) => {
+  mode = mode || 'solo';
+  MP.mode = mode;
+  MP.mySlot = 0;
   document.getElementById('title').style.display = 'none';
   document.getElementById('hud').classList.add('on');
   if(!renderer){
     init3D();
     render();
   }
-  newGame();
+  if(mode === 'mp'){
+    if(!MP.ready){
+      mpShowToast('⚠ Multiplayer unavailable — starting solo');
+      newGame();
+      return;
+    }
+    // Read player name from a prompt (small UX touch — could be a textbox later)
+    MP.playerName = (sessionStorage.getItem('mp.name')
+                    || (prompt('Your name?', 'Player') || 'Player')).slice(0, 12);
+    sessionStorage.setItem('mp.name', MP.playerName);
+    mpEnterLobby();
+    showMsg('Looking for an opponent…', true);
+  } else {
+    newGame();
+  }
 };
+
+// Host beginGame: called after lobby matches.
+function beginGame(){
+  if(MP.mode !== 'mp') return;
+  document.getElementById('msg').classList.remove('on');
+  newGame();
+}
+
+// Client beginGame: 3D scene is set up; G will populate from first state broadcast.
+function beginGameClient(){
+  if(MP.mode !== 'mp' || MP.isHost) return;
+  document.getElementById('msg').classList.remove('on');
+  showMsg('Connected — waiting for host to deal…', true);
+}
 
 window.restart = () => {
   document.getElementById('endov').classList.remove('on');
+  if(MP.mode === 'mp'){
+    // For MP, just bail back to title — re-matching is cleaner than recycling
+    mpLeaveAll();
+    MP.mode = 'solo';
+    MP.mySlot = 0;
+    document.getElementById('hud').classList.remove('on');
+    document.getElementById('title').style.display = 'flex';
+    return;
+  }
   newGame();
 };
 
