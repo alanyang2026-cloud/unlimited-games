@@ -346,28 +346,64 @@ function enterRoulette(playerIdx){
   G.phase = 'roulette';
   pendingShooter = playerIdx;
   const p = G.players[playerIdx];
-  document.getElementById('rou-name').textContent = p.isHuman ? 'YOU' : p.name.toUpperCase();
-  document.getElementById('rou-sub').textContent = p.isHuman
-    ? 'spin the cylinder…'
-    : `${p.name} raises the revolver…`;
-  renderCylinder(p);
-  document.getElementById('rou').classList.add('on');
-  const btn = document.getElementById('fire-btn');
-  btn.disabled = false;
-  btn.textContent = p.isHuman ? '🔫 PULL THE TRIGGER' : '🔫 Watching…';
-  // Cylinder spin animation
-  const cyl = document.getElementById('cylinder');
-  cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
-  // Raise the revolver SVG (animates via CSS transition)
-  const rev = document.getElementById('rev-svg');
-  rev.classList.remove('show','fire');
-  // Force reflow so the .show transition replays
-  void rev.offsetWidth;
-  rev.classList.add('show');
-  // If NPC, auto-fire after a beat
-  if(!p.isHuman){
-    setTimeout(fireTrigger, 2400);
+
+  if(p.isHuman){
+    // ── PLAYER turn: keep the HTML overlay so they can click ────
+    document.getElementById('rou-name').textContent = 'YOU';
+    document.getElementById('rou-sub').textContent = 'spin the cylinder…';
+    renderCylinder(p);
+    document.getElementById('rou').classList.add('on');
+    const btn = document.getElementById('fire-btn');
+    btn.disabled = false;
+    btn.textContent = '🔫 PULL THE TRIGGER';
+    const cyl = document.getElementById('cylinder');
+    cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
+    const rev = document.getElementById('rev-svg');
+    rev.classList.remove('show','fire');
+    void rev.offsetWidth;
+    rev.classList.add('show');
+    return;
   }
+
+  // ── NPC turn: NO HTML overlay. Play a 3D self-shoot in scene. ──
+  // Pre-roll the chamber so the animation can show the correct outcome.
+  const chamber = p.chamberIdx;
+  p.chamberIdx = (p.chamberIdx + 1) % 6;
+  const hit = chamber === p.bulletAt;
+
+  showMsg(`${p.name} reaches for the revolver…`, true);
+
+  const meshObj = npcMeshes[playerIdx - 1];   // player indices 1..3 → mesh 0..2
+  if(!meshObj){
+    // Safety net — if we somehow can't find the mesh, fall back to
+    // the old overlay logic so the game doesn't lock up.
+    applyShotResult(playerIdx, hit);
+    return;
+  }
+  startNpcShoot(meshObj, hit, () => {
+    document.getElementById('msg').classList.remove('on');
+    applyShotResult(playerIdx, hit);
+  });
+}
+
+// Shared post-shot logic — used by both human (via fireTrigger) and NPC paths
+function applyShotResult(playerIdx, hit){
+  const p = G.players[playerIdx];
+  if(hit){
+    p.alive = false;
+    log(`💀 ${p.name} eliminated`);
+    showMsg(`💥 BANG — ${p.name} is dead!`);
+  } else {
+    p.shotsSurvived++;
+    log(`${p.name}: *click* (${6-p.shotsSurvived} chambers left)`);
+    showMsg(`🔫 *click* — ${p.name} survives`);
+  }
+  pendingShooter = null;
+  G.phase = 'play';
+  if(aliveCount() <= 1){ setTimeout(endGame, 1200); return; }
+  G.lastPlay = null;
+  G.round++;
+  setTimeout(startRound, 1400);
 }
 
 function renderCylinder(p){
@@ -388,18 +424,20 @@ function renderCylinder(p){
   }
 }
 
+// Player-only: triggered by clicking the PULL THE TRIGGER button.
+// NPCs go through startNpcShoot + applyShotResult and never use this.
 function fireTrigger(){
   if(pendingShooter === null) return;
   const idx = pendingShooter;
   const p = G.players[idx];
+  if(!p.isHuman) return;          // safety — NPC path shouldn't reach here
   const chamber = p.chamberIdx;
   p.chamberIdx = (p.chamberIdx + 1) % 6;
   const hit = chamber === p.bulletAt;
   const btn = document.getElementById('fire-btn');
   btn.disabled = true;
   btn.textContent = hit ? '💥 BANG' : '🔫 *click*';
-  // Trigger the revolver recoil + muzzle effects on EVERY pull,
-  // and the flash only on a real shot (hit)
+  // SVG recoil + flash on the player's overlay
   const rev = document.getElementById('rev-svg');
   const flash = document.getElementById('muzzleflash');
   const spark = document.getElementById('muzzlespark');
@@ -408,35 +446,26 @@ function fireTrigger(){
   if(hit){
     flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
     spark.classList.remove('on'); void spark.offsetWidth; spark.classList.add('on');
-  }
-  if(hit){
-    p.alive = false;
     flashScreen('#7f1d1d');
-    renderCylinder(p);
-    log(`💀 ${p.name} eliminated`);
-    setTimeout(closeRoulette, 2000);
   } else {
-    p.shotsSurvived++;
     flashScreen('#fef3c7', 0.3);
-    renderCylinder(p);
-    log(`${p.name}: *click* (${6-p.shotsSurvived} chambers left)`);
-    setTimeout(closeRoulette, 1600);
   }
+  renderCylinder(p);
+  const wait = hit ? 1800 : 1500;
+  setTimeout(() => {
+    closeRoulette();
+    applyShotResult(idx, hit);
+  }, wait);
 }
 
+// Visual cleanup of the player's HTML overlay only.  State advancement
+// happens in applyShotResult() (which is called from both the human
+// fireTrigger and the NPC self-shoot completion callback).
 function closeRoulette(){
   document.getElementById('rou').classList.remove('on');
-  // Reset the revolver so it can rise again next time
   document.getElementById('rev-svg').classList.remove('show','fire');
   document.getElementById('muzzleflash').classList.remove('on');
   document.getElementById('muzzlespark').classList.remove('on');
-  pendingShooter = null;
-  G.phase = 'play';
-  if(aliveCount() <= 1){ endGame(); return; }
-  G.lastPlay = null;
-  // Start new round after a shot
-  G.round++;
-  setTimeout(startRound, 800);
 }
 
 function flashScreen(color, alpha=0.6){
@@ -588,6 +617,9 @@ let mouseTarget = { x:0, y:0 };
 let targetCardMesh = null;       // the round's target card that rises out of the pile
 let targetCardRiseT = 0;         // 0→1 rise animation progress
 let TABLE_TOP_Y_GLOBAL = 1.04;   // mirror of the in-init local; used for card y
+// Per-NPC self-shoot animation queue.  Each entry:
+//   { meshObj, gun, t0, fired, flash, hit, onDone }
+let activeShoots = [];
 
 // ─ Procedural wood-plank texture ─────────────────────────────
 // Draws N vertical planks with grain lines and dark seams between them.
@@ -705,6 +737,160 @@ function showTargetCard(rank){
   scene.add(card);
   targetCardMesh = card;
   targetCardRiseT = 0;
+}
+
+// ─ Tiny 3D revolver model that an NPC can hold ────────────────
+// Built so the muzzle is at local +x (length ~0.10), the grip
+// hangs at -y. The NPC starts holding it pointing forward (+z)
+// and rotates it to point at their temple (-x).
+function makeMiniRevolver(){
+  const g = new THREE.Group();
+  const metalMat = new THREE.MeshStandardMaterial({color:0x2a2a2e, roughness:0.4, metalness:0.7});
+  const drumMat  = new THREE.MeshStandardMaterial({color:0x3a3a3e, roughness:0.3, metalness:0.8});
+  // Grip
+  const grip = new THREE.Mesh(
+    new THREE.BoxGeometry(0.025, 0.075, 0.022),
+    new THREE.MeshStandardMaterial({color:0x4a2a10, roughness:0.85})
+  );
+  grip.position.set(-0.025, -0.05, 0);
+  grip.rotation.z = 0.25;
+  g.add(grip);
+  // Frame
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(0.045, 0.035, 0.025), metalMat
+  );
+  frame.position.set(0, 0, 0);
+  g.add(frame);
+  // Cylinder drum
+  const drum = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022, 0.022, 0.030, 12), drumMat
+  );
+  drum.rotation.x = Math.PI/2;
+  drum.position.set(0.005, 0, 0);
+  g.add(drum);
+  // Barrel
+  const barrel = new THREE.Mesh(
+    new THREE.BoxGeometry(0.085, 0.020, 0.018), metalMat
+  );
+  barrel.position.set(0.06, 0.005, 0);
+  g.add(barrel);
+  // Front sight
+  const sight = new THREE.Mesh(
+    new THREE.BoxGeometry(0.005, 0.008, 0.005), metalMat
+  );
+  sight.position.set(0.100, 0.02, 0);
+  g.add(sight);
+  return g;
+}
+
+// Start a self-shoot animation on a given NPC mesh.  Plays in render loop.
+function startNpcShoot(meshObj, hit, onDone){
+  const gun = makeMiniRevolver();
+  // Start at "hand level" in front of chest, barrel pointing forward
+  gun.position.set(0, 1.25, 0.34);
+  gun.rotation.set(0, 0, 0);
+  meshObj.group.add(gun);
+  activeShoots.push({
+    meshObj, gun,
+    t0: performance.now(),
+    fired: false,
+    flash: null,
+    hit, onDone,
+  });
+}
+
+function tickShoots(){
+  if(activeShoots.length === 0) return;
+  const now = performance.now();
+  for(let i = activeShoots.length - 1; i >= 0; i--){
+    const s = activeShoots[i];
+    const t = (now - s.t0) / 1000;          // seconds
+    const RAISE = 1.2;                       // raise duration
+    const FIRE_AT = 1.45;                    // when trigger pulls
+    const DONE_AT = s.hit ? 2.4 : 2.6;       // total duration
+
+    if(t < RAISE){
+      // Smoothly bring the gun up to the right temple, rotating so the
+      // barrel points -x (toward the head).
+      const u = t / RAISE;
+      const e = 1 - Math.pow(1 - u, 3);
+      // Start (0, 1.25, 0.34) → End (0.20, 2.04, 0.02)
+      s.gun.position.x = 0    + 0.20 * e;
+      s.gun.position.y = 1.25 + (2.04 - 1.25) * e;
+      s.gun.position.z = 0.34 + (0.02 - 0.34) * e;
+      // Rotate so barrel turns from +z (forward) to -x (toward head)
+      s.gun.rotation.y = -Math.PI/2 * e;
+      // Slight wrist tilt as it raises
+      s.gun.rotation.z = e * 0.15;
+    } else if(t < FIRE_AT){
+      // Held against the temple — small nervous shake
+      const shake = (Math.random()-0.5) * 0.003;
+      s.gun.position.x = 0.20 + shake;
+      s.gun.position.y = 2.04 + shake;
+      s.gun.rotation.y = -Math.PI/2;
+    }
+
+    // Fire moment
+    if(!s.fired && t >= FIRE_AT){
+      s.fired = true;
+      // Recoil — gun jolts away from head briefly
+      s.gun.position.x += 0.06;
+      s.gun.rotation.z += 0.5;
+      // Muzzle flash (only on a real shot)
+      if(s.hit){
+        const flash = new THREE.Mesh(
+          new THREE.SphereGeometry(0.04, 10, 8),
+          new THREE.MeshBasicMaterial({color:0xffd86a, transparent:true, opacity:0.95})
+        );
+        flash.scale.set(2.5, 2.0, 0.6);
+        // Muzzle is at the END of the barrel, which after the -π/2 y-rotation
+        // sits at local (gunX - 0.10, gunY + 0.005, gunZ)
+        flash.position.set(s.gun.position.x - 0.10, s.gun.position.y + 0.005, s.gun.position.z);
+        s.meshObj.group.add(flash);
+        s.flash = flash;
+        // Brief room-shake feel: screen flash
+        flashScreen('#7f1d1d', 0.55);
+      } else {
+        // *click* — only a tiny ember puff
+        flashScreen('#fef3c7', 0.18);
+      }
+    }
+
+    // Fade out flash
+    if(s.flash){
+      const fadeT = (t - FIRE_AT) / 0.25;
+      if(fadeT >= 1){
+        s.meshObj.group.remove(s.flash);
+        s.flash.geometry.dispose();
+        s.flash.material.dispose();
+        s.flash = null;
+      } else {
+        s.flash.material.opacity = 0.95 * (1 - fadeT);
+        s.flash.scale.set(2.5 + fadeT*2, 2.0 + fadeT*2, 0.6);
+      }
+    }
+
+    // After fire, slowly drop the gun back down (for misses) or just hold
+    if(t > FIRE_AT + 0.4 && !s.hit){
+      const dropT = Math.min(1, (t - FIRE_AT - 0.4) / 0.6);
+      s.gun.position.y = 2.04 - (2.04 - 1.30) * dropT;
+      s.gun.position.x = 0.26 - 0.26 * dropT;
+      s.gun.rotation.y = -Math.PI/2 + (Math.PI/2) * dropT;
+      s.gun.rotation.z = 0.65 * (1 - dropT);
+    }
+
+    if(t >= DONE_AT){
+      // Clean up
+      if(s.flash) s.meshObj.group.remove(s.flash);
+      s.meshObj.group.remove(s.gun);
+      s.gun.traverse(o => {
+        if(o.geometry) o.geometry.dispose();
+        if(o.material) o.material.dispose();
+      });
+      activeShoots.splice(i, 1);
+      if(s.onDone) s.onDone();
+    }
+  }
 }
 
 function init3D(){
@@ -1540,6 +1726,9 @@ function render(){
   for(let i=0;i<candleLights.length;i++){
     candleLights[i].intensity = 4.1 + Math.sin(t*5 + i*1.7)*0.6 + (Math.random()*0.35 - 0.17);
   }
+
+  // NPC self-shoot animations
+  tickShoots();
 
   // Target card: rise smoothly out of the pile and slowly rotate so
   // every NPC at the table gets to see the face.
