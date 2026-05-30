@@ -826,6 +826,14 @@ function makeBangSprite(text, color='#fbbf24'){
 function tickShoots(){
   if(activeShoots.length === 0) return;
   const now = performance.now();
+  // Target pose: gun held at the RIGHT TEMPLE, just OUTSIDE the head
+  // sphere (radius ~0.30 at NPC-local x), barrel pointing -x toward
+  // the head center. Muzzle is at gun-local (+0.115,0,0), so with
+  // rotation.y = π the muzzle sits at NPC-local x = TPL_X - 0.115·scale.
+  // We want the muzzle a hair outside the head edge (x≈0.32).
+  const TPL_X = 0.46;   // gun position x at temple (head edge ~0.30)
+  const TPL_Y = 2.05;
+  const TPL_Z = 0.05;
   for(let i = activeShoots.length - 1; i >= 0; i--){
     const s = activeShoots[i];
     const t = (now - s.t0) / 1000;          // seconds
@@ -834,30 +842,33 @@ function tickShoots(){
     const DONE_AT = s.hit ? 3.2 : 3.4;
 
     if(t < RAISE){
-      // Smoothly bring the gun up to the right temple, rotating so its
-      // muzzle (gun-local +x) points at the NPC's head (NPC-local -x→
-      // achieved by rotating the gun -π/2 around y).
+      // Bring the gun up to the right temple. End pose: gun beside the
+      // head with rotation.y = π so the muzzle (+x) points TOWARD the
+      // head center, just touching the temple from OUTSIDE.
       const u = t / RAISE;
       const e = 1 - Math.pow(1 - u, 3);
-      s.gun.position.x = 0    + 0.22 * e;
-      s.gun.position.y = 1.25 + (2.04 - 1.25) * e;
-      s.gun.position.z = 0.34 + (0.02 - 0.34) * e;
-      s.gun.rotation.y = -Math.PI/2 * e;
+      s.gun.position.x = 0    + TPL_X * e;
+      s.gun.position.y = 1.25 + (TPL_Y - 1.25) * e;
+      s.gun.position.z = 0.34 + (TPL_Z - 0.34) * e;
+      // Rotate from 0 (barrel forward) to π (barrel pointing -x at head)
+      s.gun.rotation.y = Math.PI * e;
+      // Slight wrist tilt as it raises
       s.gun.rotation.z = e * 0.18;
     } else if(t < FIRE_AT){
-      // Held against the temple — tiny nervous tremor so it feels alive
+      // Held against the temple — tiny nervous tremor
       const shake = (Math.random()-0.5) * 0.004;
-      s.gun.position.x = 0.22 + shake;
-      s.gun.position.y = 2.04 + shake;
-      s.gun.rotation.y = -Math.PI/2;
+      s.gun.position.x = TPL_X + shake;
+      s.gun.position.y = TPL_Y + shake;
+      s.gun.position.z = TPL_Z;
+      s.gun.rotation.y = Math.PI;
     }
 
     // ── FIRE moment ────────────────────────────────────────
     if(!s.fired && t >= FIRE_AT){
       s.fired = true;
-      // Recoil — gun jolts away from head briefly
+      // Recoil — gun jolts further AWAY from the head (+x direction)
       s.gun.position.x += 0.10;
-      s.gun.rotation.z += 0.6;
+      s.gun.rotation.z += 0.5;
       if(s.hit){
         // Big yellow muzzle flash, parented to the GUN so it sits at
         // the muzzle no matter where the gun is or how it's rotated.
@@ -930,10 +941,12 @@ function tickShoots(){
     // their weapon. On a hit we leave the gun in place — they collapse.
     if(t > FIRE_AT + 0.5 && !s.hit){
       const dropT = Math.min(1, (t - FIRE_AT - 0.5) / 0.8);
-      s.gun.position.y = 2.04 - (2.04 - 1.30) * dropT;
-      s.gun.position.x = 0.32 - 0.32 * dropT;
-      s.gun.rotation.y = -Math.PI/2 + (Math.PI/2) * dropT;
-      s.gun.rotation.z = 0.78 * (1 - dropT);
+      // From (TPL_X+0.10, TPL_Y, TPL_Z) back to (0, 1.30, 0.34)
+      s.gun.position.x = (TPL_X + 0.10) + (0    - (TPL_X + 0.10)) * dropT;
+      s.gun.position.y = TPL_Y          + (1.30 - TPL_Y) * dropT;
+      s.gun.position.z = TPL_Z          + (0.34 - TPL_Z) * dropT;
+      s.gun.rotation.y = Math.PI * (1 - dropT);
+      s.gun.rotation.z = (0.5 + 0.18) * (1 - dropT);
     }
 
     if(t >= DONE_AT){
