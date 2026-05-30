@@ -786,6 +786,8 @@ function makeMiniRevolver(){
 // Start a self-shoot animation on a given NPC mesh.  Plays in render loop.
 function startNpcShoot(meshObj, hit, onDone){
   const gun = makeMiniRevolver();
+  // BIGGER so it's clearly visible from across the table
+  gun.scale.set(2.4, 2.4, 2.4);
   // Start at "hand level" in front of chest, barrel pointing forward
   gun.position.set(0, 1.25, 0.34);
   gun.rotation.set(0, 0, 0);
@@ -795,8 +797,30 @@ function startNpcShoot(meshObj, hit, onDone){
     t0: performance.now(),
     fired: false,
     flash: null,
+    bangSprite: null,
     hit, onDone,
   });
+}
+
+// Big yellow "BANG!" sprite that pops above the NPC when fired
+function makeBangSprite(text, color='#fbbf24'){
+  const cv = document.createElement('canvas');
+  cv.width = 320; cv.height = 160;
+  const g = cv.getContext('2d');
+  g.font = 'bold 96px Impact, "Arial Black", sans-serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.lineWidth = 9;
+  g.strokeStyle = '#1a0606';
+  g.strokeText(text, 160, 80);
+  g.fillStyle = color;
+  g.fillText(text, 160, 80);
+  const tex = new THREE.CanvasTexture(cv);
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({map: tex, transparent: true, depthTest: false})
+  );
+  sprite.scale.set(1.4, 0.7, 1);
+  return sprite;
 }
 
 function tickShoots(){
@@ -805,83 +829,116 @@ function tickShoots(){
   for(let i = activeShoots.length - 1; i >= 0; i--){
     const s = activeShoots[i];
     const t = (now - s.t0) / 1000;          // seconds
-    const RAISE = 1.2;                       // raise duration
-    const FIRE_AT = 1.45;                    // when trigger pulls
-    const DONE_AT = s.hit ? 2.4 : 2.6;       // total duration
+    const RAISE   = 1.2;
+    const FIRE_AT = 2.0;                     // longer pause at the temple for drama
+    const DONE_AT = s.hit ? 3.2 : 3.4;
 
     if(t < RAISE){
-      // Smoothly bring the gun up to the right temple, rotating so the
-      // barrel points -x (toward the head).
+      // Smoothly bring the gun up to the right temple, rotating so its
+      // muzzle (gun-local +x) points at the NPC's head (NPC-local -x→
+      // achieved by rotating the gun -π/2 around y).
       const u = t / RAISE;
       const e = 1 - Math.pow(1 - u, 3);
-      // Start (0, 1.25, 0.34) → End (0.20, 2.04, 0.02)
-      s.gun.position.x = 0    + 0.20 * e;
+      s.gun.position.x = 0    + 0.22 * e;
       s.gun.position.y = 1.25 + (2.04 - 1.25) * e;
       s.gun.position.z = 0.34 + (0.02 - 0.34) * e;
-      // Rotate so barrel turns from +z (forward) to -x (toward head)
       s.gun.rotation.y = -Math.PI/2 * e;
-      // Slight wrist tilt as it raises
-      s.gun.rotation.z = e * 0.15;
+      s.gun.rotation.z = e * 0.18;
     } else if(t < FIRE_AT){
-      // Held against the temple — small nervous shake
-      const shake = (Math.random()-0.5) * 0.003;
-      s.gun.position.x = 0.20 + shake;
+      // Held against the temple — tiny nervous tremor so it feels alive
+      const shake = (Math.random()-0.5) * 0.004;
+      s.gun.position.x = 0.22 + shake;
       s.gun.position.y = 2.04 + shake;
       s.gun.rotation.y = -Math.PI/2;
     }
 
-    // Fire moment
+    // ── FIRE moment ────────────────────────────────────────
     if(!s.fired && t >= FIRE_AT){
       s.fired = true;
       // Recoil — gun jolts away from head briefly
-      s.gun.position.x += 0.06;
-      s.gun.rotation.z += 0.5;
-      // Muzzle flash (only on a real shot)
+      s.gun.position.x += 0.10;
+      s.gun.rotation.z += 0.6;
       if(s.hit){
+        // Big yellow muzzle flash, parented to the GUN so it sits at
+        // the muzzle no matter where the gun is or how it's rotated.
         const flash = new THREE.Mesh(
-          new THREE.SphereGeometry(0.04, 10, 8),
-          new THREE.MeshBasicMaterial({color:0xffd86a, transparent:true, opacity:0.95})
+          new THREE.SphereGeometry(0.05, 12, 10),
+          new THREE.MeshBasicMaterial({color:0xffe278, transparent:true, opacity:1.0})
         );
-        flash.scale.set(2.5, 2.0, 0.6);
-        // Muzzle is at the END of the barrel, which after the -π/2 y-rotation
-        // sits at local (gunX - 0.10, gunY + 0.005, gunZ)
-        flash.position.set(s.gun.position.x - 0.10, s.gun.position.y + 0.005, s.gun.position.z);
-        s.meshObj.group.add(flash);
+        flash.scale.set(2.0, 2.0, 2.0);
+        // Gun-local: muzzle is at +x edge of the barrel (built that way
+        // in makeMiniRevolver). Place flash a hair past it.
+        flash.position.set(0.115, 0.005, 0);
+        s.gun.add(flash);
         s.flash = flash;
-        // Brief room-shake feel: screen flash
+
+        // Floating "BANG!" sprite right above the NPC's head
+        const bang = makeBangSprite('BANG!', '#fbbf24');
+        bang.position.set(0, 2.55, 0);
+        bang.scale.set(1.6, 0.8, 1);
+        s.meshObj.group.add(bang);
+        s.bangSprite = bang;
+        s.bangT0 = performance.now();
+
         flashScreen('#7f1d1d', 0.55);
       } else {
-        // *click* — only a tiny ember puff
+        // Tiny *click* sprite
+        const click = makeBangSprite('*click*', '#fef3c7');
+        click.position.set(0, 2.55, 0);
+        click.scale.set(1.0, 0.5, 1);
+        s.meshObj.group.add(click);
+        s.bangSprite = click;
+        s.bangT0 = performance.now();
         flashScreen('#fef3c7', 0.18);
       }
     }
 
-    // Fade out flash
+    // Fade + grow the muzzle flash
     if(s.flash){
-      const fadeT = (t - FIRE_AT) / 0.25;
+      const fadeT = (t - FIRE_AT) / 0.30;
       if(fadeT >= 1){
-        s.meshObj.group.remove(s.flash);
+        s.gun.remove(s.flash);
         s.flash.geometry.dispose();
         s.flash.material.dispose();
         s.flash = null;
       } else {
-        s.flash.material.opacity = 0.95 * (1 - fadeT);
-        s.flash.scale.set(2.5 + fadeT*2, 2.0 + fadeT*2, 0.6);
+        s.flash.material.opacity = 1 - fadeT;
+        const sc = 2.0 + fadeT*2.5;
+        s.flash.scale.set(sc, sc, sc);
       }
     }
 
-    // After fire, slowly drop the gun back down (for misses) or just hold
-    if(t > FIRE_AT + 0.4 && !s.hit){
-      const dropT = Math.min(1, (t - FIRE_AT - 0.4) / 0.6);
+    // Float + fade the BANG / *click* sprite
+    if(s.bangSprite){
+      const bt = (performance.now() - s.bangT0) / 1000;
+      const bd = 1.0;
+      if(bt >= bd){
+        s.meshObj.group.remove(s.bangSprite);
+        if(s.bangSprite.material.map) s.bangSprite.material.map.dispose();
+        s.bangSprite.material.dispose();
+        s.bangSprite = null;
+      } else {
+        const u = bt / bd;
+        s.bangSprite.position.y = 2.55 + u * 0.5;       // floats up
+        s.bangSprite.material.opacity = 1 - Math.max(0, (u - 0.6) / 0.4);
+        const ss = 1 + u * 0.4;
+        s.bangSprite.scale.set(1.6 * ss, 0.8 * ss, 1);
+      }
+    }
+
+    // On a miss, slowly drop the gun back down so the survivor "lowers"
+    // their weapon. On a hit we leave the gun in place — they collapse.
+    if(t > FIRE_AT + 0.5 && !s.hit){
+      const dropT = Math.min(1, (t - FIRE_AT - 0.5) / 0.8);
       s.gun.position.y = 2.04 - (2.04 - 1.30) * dropT;
-      s.gun.position.x = 0.26 - 0.26 * dropT;
+      s.gun.position.x = 0.32 - 0.32 * dropT;
       s.gun.rotation.y = -Math.PI/2 + (Math.PI/2) * dropT;
-      s.gun.rotation.z = 0.65 * (1 - dropT);
+      s.gun.rotation.z = 0.78 * (1 - dropT);
     }
 
     if(t >= DONE_AT){
-      // Clean up
-      if(s.flash) s.meshObj.group.remove(s.flash);
+      if(s.flash) s.gun.remove(s.flash);
+      if(s.bangSprite) s.meshObj.group.remove(s.bangSprite);
       s.meshObj.group.remove(s.gun);
       s.gun.traverse(o => {
         if(o.geometry) o.geometry.dispose();
