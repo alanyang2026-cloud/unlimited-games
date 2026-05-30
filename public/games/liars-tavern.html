@@ -740,21 +740,7 @@ function init3D(){
   beam.position.set(0, 3.8, 0);
   scene.add(beam);
 
-  // Whiskey bottles on the table — sit on the new taller top
-  for(const [x,z] of [[1.4,-0.6],[-1.3,-0.7]]){
-    const bottle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.07,0.09,0.32,10),
-      new THREE.MeshStandardMaterial({color:0x4a2a10, transparent:true, opacity:0.88, roughness:0.4})
-    );
-    bottle.position.set(x, TABLE_TOP_Y + 0.16, z);
-    scene.add(bottle);
-    const neck = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.03,0.05,0.1,8),
-      new THREE.MeshStandardMaterial({color:0x2a1408, roughness:0.6})
-    );
-    neck.position.set(x, TABLE_TOP_Y + 0.37, z);
-    scene.add(neck);
-  }
+  // (Whiskey bottles removed — table top is now clear except the card pile.)
 
   // Four seats around the round table, all the same distance from
   // center (90° apart). You're south (camera). The three NPCs take
@@ -765,12 +751,13 @@ function init3D(){
     {x:-SEAT_R, z: 0,      name:'Cyrus', kind:'pig'},
     // North seat — Vela the Cow (white shirt, brown horns)
     {x: 0,      z:-SEAT_R, name:'Vela',  kind:'cow'},
-    // East seat — Mort (hooded for now)
-    {x: SEAT_R, z: 0,      name:'Mort',  kind:'hooded', body:0x2e2010, hood:0x140805},
+    // East seat — Mort the Fox (black jacket, pointy snout)
+    {x: SEAT_R, z: 0,      name:'Mort',  kind:'fox'},
   ];
   for(const cfg of NPC_POS){
     const make = cfg.kind === 'pig' ? makePigNPC
                : cfg.kind === 'cow' ? makeCowNPC
+               : cfg.kind === 'fox' ? makeFoxNPC
                : makeNPC;
     const npc = make(cfg);
     scene.add(npc);
@@ -1146,6 +1133,172 @@ function makeCowNPC(cfg){
   tuft.scale.set(1.4, 0.7, 0.8);
   tuft.position.set(0, 2.36, -0.02);
   g.add(tuft);
+
+  // Pure y-axis spin toward the table center
+  g.rotation.y = Math.atan2(-cfg.x, -cfg.z);
+  return g;
+}
+
+// ─ Fox NPC: russet fox in a black leather jacket ──────────────
+function makeFoxNPC(cfg){
+  const g = new THREE.Group();
+  g.position.set(cfg.x, 0, cfg.z);
+  const fur       = 0xd0521a;   // russet orange
+  const furLight  = 0xf0a45c;   // belly / muzzle cream
+  const furDark   = 0x6b2a08;   // ears / paws / nose
+  const jacketC   = 0x141416;   // black leather jacket
+  const jacketHi  = 0x2a2a2e;   // jacket highlight (lapel sheen)
+  const collarC   = 0x0a0a0c;   // darker collar
+  const zipperC   = 0xc9c9d0;   // silver zipper
+  const pantsC    = 0x1a1a1f;   // black trousers
+
+  // Lap / lower body — black trousers
+  const lower = new THREE.Mesh(
+    new THREE.ConeGeometry(0.58, 0.85, 10),
+    new THREE.MeshStandardMaterial({color: pantsC, roughness: 0.85})
+  );
+  lower.position.y = 0.78;
+  lower.rotation.x = Math.PI;
+  g.add(lower);
+
+  // Black leather jacket torso
+  const torso = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.40, 0.50, 0.80, 14),
+    new THREE.MeshStandardMaterial({color: jacketC, roughness: 0.45, metalness: 0.18})
+  );
+  torso.position.y = 1.10;
+  g.add(torso);
+
+  // Cream V of belly fur showing through the open jacket
+  const bellyV = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.18, 0.45),
+    new THREE.MeshStandardMaterial({color: furLight, roughness: 0.7, side: THREE.DoubleSide})
+  );
+  bellyV.position.set(0, 1.18, 0.41);
+  g.add(bellyV);
+
+  // Silver zipper down the front of the jacket
+  const zipper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.012, 0.55, 0.008),
+    new THREE.MeshStandardMaterial({color: zipperC, roughness: 0.35, metalness: 0.85})
+  );
+  zipper.position.set(0, 1.18, 0.42);
+  g.add(zipper);
+
+  // Shoulder dome — same black leather
+  const sh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.42, 14, 6, 0, Math.PI*2, 0, Math.PI/2.4),
+    new THREE.MeshStandardMaterial({color: jacketC, roughness: 0.45, metalness: 0.18})
+  );
+  sh.position.y = 1.42;
+  g.add(sh);
+
+  // Jacket COLLAR — wide popped-up collar (the leather-jacket look)
+  const collarBand = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.05, 8, 22),
+    new THREE.MeshStandardMaterial({color: collarC, roughness: 0.5, metalness: 0.1})
+  );
+  collarBand.rotation.x = Math.PI/2;
+  collarBand.position.y = 1.62;
+  g.add(collarBand);
+  // Popped collar wing (looks like the collar standing up at the back of neck)
+  const collarWing = new THREE.Mesh(
+    new THREE.RingGeometry(0.17, 0.30, 18, 1, Math.PI*0.15, Math.PI*0.7),
+    new THREE.MeshStandardMaterial({color: jacketHi, roughness: 0.4, metalness: 0.2, side: THREE.DoubleSide})
+  );
+  collarWing.rotation.x = -Math.PI/2 + 0.45;   // stand it up more steeply
+  collarWing.rotation.z = Math.PI;
+  collarWing.position.y = 1.66;
+  g.add(collarWing);
+
+  // Short russet NECK
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.10, 0.12, 0.18, 12),
+    new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+  );
+  neck.position.y = 1.72;
+  g.add(neck);
+
+  // FOX HEAD — sphere, slightly tapered toward the snout
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.29, 18, 14),
+    new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+  );
+  head.scale.set(1.0, 0.95, 1.05);
+  head.position.set(0, 2.06, 0.02);
+  g.add(head);
+
+  // POINTY snout — a slim long cone projecting forward
+  const snout = new THREE.Mesh(
+    new THREE.ConeGeometry(0.14, 0.40, 14),
+    new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+  );
+  snout.rotation.x = Math.PI/2;       // point along +z
+  snout.position.set(0, 1.98, 0.38);
+  g.add(snout);
+  // Cream underside of the snout
+  const snoutUnder = new THREE.Mesh(
+    new THREE.ConeGeometry(0.10, 0.34, 14, 1, false, 0, Math.PI),
+    new THREE.MeshStandardMaterial({color: furLight, roughness: 0.7})
+  );
+  snoutUnder.rotation.x = Math.PI/2;
+  snoutUnder.rotation.z = Math.PI;   // open-side faces down
+  snoutUnder.position.set(0, 1.93, 0.40);
+  g.add(snoutUnder);
+
+  // Tiny dark NOSE at the very tip of the snout
+  const nose = new THREE.Mesh(
+    new THREE.SphereGeometry(0.038, 12, 10),
+    new THREE.MeshStandardMaterial({color: 0x0a0a0a, roughness: 0.35, metalness: 0.15})
+  );
+  nose.position.set(0, 1.99, 0.58);
+  g.add(nose);
+
+  // Black eyes with white catchlight
+  for(const side of [-1, 1]){
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.038, 12, 10),
+      new THREE.MeshBasicMaterial({color: 0x0a0a0a})
+    );
+    eye.position.set(side * 0.13, 2.13, 0.24);
+    g.add(eye);
+    const shine = new THREE.Mesh(
+      new THREE.SphereGeometry(0.012, 6, 6),
+      new THREE.MeshBasicMaterial({color: 0xffffff})
+    );
+    shine.position.set(side * 0.138, 2.142, 0.272);
+    g.add(shine);
+  }
+
+  // Cream cheek patches (gives fox the classic "mask" look)
+  for(const side of [-1, 1]){
+    const cheek = new THREE.Mesh(
+      new THREE.SphereGeometry(0.10, 10, 8),
+      new THREE.MeshStandardMaterial({color: furLight, roughness: 0.7})
+    );
+    cheek.scale.set(0.6, 0.6, 0.5);
+    cheek.position.set(side * 0.18, 2.00, 0.22);
+    g.add(cheek);
+  }
+
+  // POINTY upright EARS with darker tips
+  for(const side of [-1, 1]){
+    const ear = new THREE.Mesh(
+      new THREE.ConeGeometry(0.10, 0.28, 6),
+      new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+    );
+    ear.position.set(side * 0.18, 2.36, -0.02);
+    ear.rotation.z = side * 0.18;     // tilt slightly outward
+    g.add(ear);
+    // Dark inner ear tip
+    const inner = new THREE.Mesh(
+      new THREE.ConeGeometry(0.055, 0.18, 6),
+      new THREE.MeshStandardMaterial({color: furDark, roughness: 0.7})
+    );
+    inner.position.set(side * 0.18, 2.34, 0.01);
+    inner.rotation.z = side * 0.18;
+    g.add(inner);
+  }
 
   // Pure y-axis spin toward the table center
   g.rotation.y = Math.atan2(-cfg.x, -cfg.z);
