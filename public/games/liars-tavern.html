@@ -104,6 +104,25 @@
   .rou .fire-btn:active{transform:translateY(3px);box-shadow:0 3px 0 #450a0a}
   .rou .fire-btn:disabled{opacity:.5;cursor:not-allowed}
 
+  /* Lobby overlay — shown while the countdown is running */
+  .lobby{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(15,8,5,.92);border:2px solid #fbbf24;color:#fef3c7;padding:22px 34px;border-radius:12px;font-family:Georgia,serif;text-align:center;backdrop-filter:blur(8px);box-shadow:0 0 50px rgba(251,191,36,.45);z-index:65;letter-spacing:.04em;display:none;min-width:340px}
+  .lobby.on{display:block}
+  .lobby h2{color:#fbbf24;font-size:22px;margin-bottom:6px;letter-spacing:.1em;text-shadow:0 0 20px rgba(251,191,36,.5)}
+  .lobby .lobby-sub{font-size:12px;color:#d6d3d1;margin-bottom:12px}
+  .lobby .lobby-count{font-size:56px;font-weight:900;color:#fbbf24;letter-spacing:.06em;line-height:1;margin:6px 0;text-shadow:0 0 28px rgba(251,191,36,.55);font-family:Georgia,serif}
+  .lobby .lobby-count.urgent{color:#fca5a5;text-shadow:0 0 28px rgba(252,165,165,.7);animation:pulseCount .4s ease-in-out infinite alternate}
+  @keyframes pulseCount{from{transform:scale(1)}to{transform:scale(1.08)}}
+  .lobby .lobby-players{display:flex;gap:8px;justify-content:center;margin:14px 0 12px;flex-wrap:wrap}
+  .lobby .lobby-slot{background:rgba(0,0,0,.45);border:1px solid rgba(251,191,36,.25);border-radius:8px;padding:8px 12px;min-width:84px;font-size:12px}
+  .lobby .lobby-slot .who{font-weight:bold;font-size:13px;color:#fef3c7}
+  .lobby .lobby-slot .seat{font-size:10px;color:#94a3b8;letter-spacing:.06em;margin-top:2px}
+  .lobby .lobby-slot.me{border-color:#fbbf24;box-shadow:0 0 12px rgba(251,191,36,.4)}
+  .lobby .lobby-slot.me .who{color:#fbbf24}
+  .lobby .lobby-slot.empty{opacity:.55;font-style:italic}
+  .lobby .lobby-slot.empty .who{color:#9ca3af}
+  .lobby button.cancel{background:rgba(60,8,8,.7);color:#fca5a5;border:1px solid rgba(252,165,165,.4);font-family:Georgia,serif;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;letter-spacing:.05em;margin-top:6px}
+  .lobby button.cancel:hover{background:rgba(127,29,29,.7)}
+
   /* End screen */
   .endov{position:fixed;inset:0;background:radial-gradient(circle,rgba(120,53,15,.8),#0a0606 75%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:90;text-align:center;padding:24px}
   .endov.on{display:flex}
@@ -152,6 +171,14 @@
 </div>
 
 <div class="msg" id="msg"></div>
+
+<div class="lobby" id="lobby">
+  <h2>🍻 TAVERN LOBBY</h2>
+  <div class="lobby-sub" id="lobby-sub">Waiting for players to join…</div>
+  <div class="lobby-count" id="lobby-count">15</div>
+  <div class="lobby-players" id="lobby-players"></div>
+  <button class="cancel" onclick="lobbyCancel()">← Leave</button>
+</div>
 
 <div class="rou" id="rou">
   <h2 id="rou-name">You</h2>
@@ -240,12 +267,18 @@ const MP = {
   mode:'solo',                  // 'solo' | 'mp'
   inLobby:false, matched:false,
   matchId:null, isHost:false,
-  mySlot:0,                     // 0 = host, 1 = remote
-  opponentId:null, opponentName:'',
-  lobbyRef:null, lobbyWatcher:null, inviteRef:null,
+  mySlot:0,                     // 0..3 — slot you took in the room
+  hostId:null,
+  roomPlayers:{},               // pid → { name, slot, joinedAt }
+  startsAt:0,                   // ms timestamp when countdown ends
+  roomRef:null, roomWatcher:null,
+  countdownTimer:null,
   stateRef:null, actionsRef:null,
   lastAppliedRev:-1,
 };
+
+const LOBBY_COUNTDOWN_MS = 15000;
+const SLOT_LABELS = ['SOUTH (camera)', 'WEST · 🐷 Cyrus', 'NORTH · 🐄 Vela', 'EAST · 🦊 Mort'];
 try{
   if(typeof firebase!=='undefined'){
     firebase.initializeApp(FIREBASE_CONFIG);
@@ -279,119 +312,235 @@ function mpUpdateIndicator(){
   if(MP.mode !== 'mp'){ el.style.display = 'none'; return; }
   el.style.display = 'block';
   if(MP.matched){
-    el.innerHTML = '🍻 PvP vs <span style="color:#ec4899">' + MP.opponentName + '</span>';
+    const others = Object.values(MP.roomPlayers || {})
+      .filter(p => p.slot !== MP.mySlot)
+      .map(p => '<span style="color:#ec4899">' + p.name + '</span>')
+      .join(', ');
+    el.innerHTML = others ? '🍻 PvP vs ' + others : '🍻 PvP (waiting)';
   } else if(MP.inLobby){
-    el.innerHTML = '🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
+    el.innerHTML = '🔍 <span style="color:#94a3b8">In lobby…</span>';
   } else {
     el.style.display = 'none';
   }
 }
 
+// ── Open-room lobby with 15s countdown ────────────────────
+// Anyone clicking LIVE PvP either CREATES a fresh open room or JOINS
+// an existing one that hasn't started yet. After 15s (or when 4
+// humans are present), the host marks the room as started, fills any
+// empty seats with AI, and begins the game.
 function mpEnterLobby(){
   if(!MP.ready || MP.inLobby || MP.matched) return;
   MP.inLobby = true;
-  console.log('[MP] Entering tavern lobby as', MP.playerId);
-  MP.lobbyRef = MP.db.ref('lobby/tavern/' + MP.playerId);
-  MP.lobbyRef.set({ name: MP.playerName, ts: firebase.database.ServerValue.TIMESTAMP });
-  MP.lobbyRef.onDisconnect().remove();
+  MP.roomRef = MP.db.ref('tavern/openRoom');
+  console.log('[MP] Joining tavern open-room as', MP.playerId);
 
-  // Listen for invites (we may be the one being invited)
-  if(MP.inviteRef) MP.inviteRef.off();
-  MP.inviteRef = MP.db.ref('invitations/tavern/' + MP.playerId);
-  MP.inviteRef.onDisconnect().remove();
-  MP.inviteRef.on('value', snap => {
-    if(MP.matched) return;
-    const inv = snap.val();
-    if(!inv || !inv.fromId) return;
-    MP.inviteRef.remove();
-    mpAcceptMatch(inv.fromId, inv.fromName || 'Player', inv.matchId);
-  });
-
-  // Watch lobby — lower-ID player initiates
-  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
-  MP.lobbyWatcher = MP.db.ref('lobby/tavern');
-  MP.lobbyWatcher.on('value', snap => {
-    if(MP.matched) return;
-    const all = snap.val() || {};
+  MP.roomRef.transaction(current => {
     const now = Date.now();
-    const others = Object.entries(all)
-      .filter(([id, v]) => id !== MP.playerId)
-      .filter(([id, v]) => v && (typeof v.ts !== 'number' || now - v.ts < 120000))
-      .sort((a, b) => (a[1].ts || 0) - (b[1].ts || 0));
-    if(others.length === 0) return;
-    const [otherId, other] = others[0];
-    const ids = [MP.playerId, otherId].sort();
-    if(ids[0] !== MP.playerId) return;   // not the initiator
-    const matchId = ids.join('__');
-    console.log('[MP] Inviting', other.name);
-    MP.db.ref('invitations/tavern/' + otherId).set({
-      fromId: MP.playerId,
-      fromName: MP.playerName,
-      matchId: matchId,
-      ts: firebase.database.ServerValue.TIMESTAMP,
-    }).then(() => {
-      mpBecomeHost(otherId, other.name || 'Player', matchId);
-    });
+    const stale = current && current.startsAt && (now > current.startsAt + 6000);
+    if(!current || current.started || stale){
+      // Create a brand-new pending room
+      return {
+        matchId: 'tav_' + now.toString(36) + Math.random().toString(36).slice(2,6),
+        hostId: MP.playerId,
+        createdAt: now,
+        startsAt: now + LOBBY_COUNTDOWN_MS,
+        started: false,
+        players: {
+          [MP.playerId]: { name: MP.playerName, slot: 0, joinedAt: now },
+        },
+      };
+    }
+    // Join existing room — claim next free slot
+    const players = current.players || {};
+    if(players[MP.playerId]) return;                 // already in
+    if(Object.keys(players).length >= 4) return;     // full → abort txn
+    const used = new Set(Object.values(players).map(p => p.slot));
+    let slot = -1;
+    for(let i=0; i<4; i++) if(!used.has(i)){ slot = i; break; }
+    if(slot < 0) return;
+    players[MP.playerId] = { name: MP.playerName, slot, joinedAt: now };
+    current.players = players;
+    return current;
+  }, (err, committed, snap) => {
+    if(err || !committed){
+      console.warn('[MP] Failed to enter open room', err);
+      mpShowToast('⚠ Could not join lobby — try again');
+      MP.inLobby = false;
+      // Bounce back to title
+      document.getElementById('hud').classList.remove('on');
+      document.getElementById('title').style.display = 'flex';
+      return;
+    }
+    const room = snap.val();
+    MP.matchId = room.matchId;
+    MP.hostId = room.hostId;
+    MP.isHost = (room.hostId === MP.playerId);
+    MP.mySlot = (room.players[MP.playerId] || {}).slot ?? 0;
+    MP.startsAt = room.startsAt;
+    MP.roomPlayers = room.players;
+
+    // Clean up our entry on disconnect (so abandoned rooms don't stick)
+    MP.db.ref('tavern/openRoom/players/' + MP.playerId).onDisconnect().remove();
+
+    // Watch room for joins/leaves/start
+    if(MP.roomWatcher) MP.roomWatcher();
+    const handler = snapR => mpOnRoomChange(snapR.val());
+    MP.roomRef.on('value', handler);
+    MP.roomWatcher = () => MP.roomRef.off('value', handler);
+
+    mpShowLobbyOverlay();
+    mpTickCountdown();
   });
   mpUpdateIndicator();
 }
 
-function mpBecomeHost(otherId, otherName, matchId){
-  if(MP.matched) return;
+function mpOnRoomChange(room){
+  if(!room){
+    if(MP.matched) return;   // already moved to match, room cleanup is fine
+    mpShowToast('⚠ Lobby closed');
+    lobbyCancel();
+    return;
+  }
+  MP.roomPlayers = room.players || {};
+  MP.startsAt = room.startsAt;
+  MP.hostId = room.hostId;
+  MP.isHost = (room.hostId === MP.playerId);
+  // If the host bailed before starting, the room is dead for everyone
+  if(!MP.matched && room.hostId && !MP.roomPlayers[room.hostId]){
+    mpShowToast('⚠ Host left — lobby cancelled');
+    lobbyCancel();
+    return;
+  }
+  mpRenderLobbyPlayers();
+  if(room.started && !MP.matched){
+    mpEnterMatch();
+  }
+}
+
+function mpTickCountdown(){
+  if(MP.matched || !MP.inLobby) return;
+  const remaining = Math.max(0, Math.ceil((MP.startsAt - Date.now()) / 1000));
+  const el = document.getElementById('lobby-count');
+  if(el){
+    el.textContent = remaining + '';
+    el.classList.toggle('urgent', remaining <= 5);
+  }
+  const subEl = document.getElementById('lobby-sub');
+  if(subEl){
+    const n = Object.keys(MP.roomPlayers).length;
+    subEl.textContent = n >= 4
+      ? 'Room full!'
+      : n === 1
+        ? 'Waiting for more players… (' + n + '/4)'
+        : (n + '/4 players · empty seats will fill with AI');
+  }
+  if(remaining <= 0){
+    // Host triggers start; others wait for room.started=true to mirror it
+    if(MP.isHost && !MP.matched) mpHostStartMatch();
+    return;
+  }
+  // Also auto-start if room is full of humans (host only)
+  if(MP.isHost && Object.keys(MP.roomPlayers).length >= 4 && !MP.matched){
+    mpHostStartMatch();
+    return;
+  }
+  clearTimeout(MP.countdownTimer);
+  MP.countdownTimer = setTimeout(mpTickCountdown, 200);
+}
+
+function mpHostStartMatch(){
+  if(!MP.isHost || MP.matched) return;
+  MP.matched = true;
+  console.log('[MP] Host starting match with', Object.keys(MP.roomPlayers).length, 'humans');
+  // Mark the open room as started, then nuke it shortly after so others see it
+  MP.roomRef.update({ started: true }).then(() => {
+    setTimeout(() => MP.roomRef.remove().catch(()=>{}), 1500);
+  });
+  mpEnterMatch();
+}
+
+function mpEnterMatch(){
+  if(MP.matched && MP.stateRef) return;     // already set up
   MP.matched = true;
   MP.inLobby = false;
-  MP.matchId = matchId;
-  MP.isHost = true;
+  if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
+  mpHideLobbyOverlay();
+
+  MP.stateRef   = MP.db.ref('matches/tavern/' + MP.matchId + '/state');
+  MP.actionsRef = MP.db.ref('matches/tavern/' + MP.matchId + '/actions');
+
+  if(MP.isHost){
+    MP.stateRef.onDisconnect().remove();
+    MP.actionsRef.onDisconnect().remove();
+    MP.actionsRef.on('child_added', snap => {
+      const act = snap.val();
+      if(!act) return;
+      snap.ref.remove();
+      mpHostProcessAction(act);
+    });
+    mpShowToast('🎯 Game starting — you are HOST');
+    setTimeout(() => beginGame(), 600);
+  } else {
+    MP.stateRef.on('value', snap => {
+      const state = snap.val();
+      if(state) mpClientApplyState(state);
+    });
+    mpShowToast('🎯 Game starting — slot ' + (MP.mySlot+1));
+    beginGameClient();
+  }
+}
+
+function mpShowLobbyOverlay(){
+  document.getElementById('lobby').classList.add('on');
+  mpRenderLobbyPlayers();
+}
+function mpHideLobbyOverlay(){
+  document.getElementById('lobby').classList.remove('on');
+}
+
+function mpRenderLobbyPlayers(){
+  const root = document.getElementById('lobby-players');
+  if(!root) return;
+  const playerBySlot = {};
+  for(const pid in MP.roomPlayers){
+    const p = MP.roomPlayers[pid];
+    playerBySlot[p.slot] = { pid, name: p.name };
+  }
+  root.innerHTML = '';
+  for(let i=0; i<4; i++){
+    const div = document.createElement('div');
+    div.className = 'lobby-slot';
+    const p = playerBySlot[i];
+    if(p){
+      const isMe = p.pid === MP.playerId;
+      if(isMe) div.classList.add('me');
+      div.innerHTML = `<div class="who">${p.name}${isMe?' (you)':''}</div><div class="seat">${SLOT_LABELS[i]}</div>`;
+    } else {
+      div.classList.add('empty');
+      div.innerHTML = `<div class="who">AI (waiting)</div><div class="seat">${SLOT_LABELS[i]}</div>`;
+    }
+    root.appendChild(div);
+  }
+}
+
+window.lobbyCancel = function(){
+  if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
+  if(MP.roomWatcher){ MP.roomWatcher(); MP.roomWatcher = null; }
+  if(MP.roomRef){
+    // Remove myself from players; if I was last, remove whole room
+    MP.db.ref('tavern/openRoom/players/' + MP.playerId).remove().catch(()=>{});
+  }
+  MP.inLobby = false;
+  MP.matched = false;
+  MP.matchId = null;
   MP.mySlot = 0;
-  MP.opponentId = otherId;
-  MP.opponentName = otherName;
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef = null; }
-
-  MP.stateRef   = MP.db.ref('matches/tavern/' + matchId + '/state');
-  MP.actionsRef = MP.db.ref('matches/tavern/' + matchId + '/actions');
-  MP.stateRef.onDisconnect().remove();
-  MP.actionsRef.onDisconnect().remove();
-
-  // Host listens for client's action submissions
-  MP.actionsRef.on('child_added', snap => {
-    const act = snap.val();
-    if(!act) return;
-    snap.ref.remove();
-    mpHostProcessAction(act);
-  });
-
-  mpShowToast('🎯 Matched with ' + otherName + ' — you are HOST');
-  console.log('[MP] Host, slot 0. Opponent', otherName, 'on slot 1');
-  setTimeout(() => beginGame(), 800);
-}
-
-function mpAcceptMatch(otherId, otherName, matchId){
-  if(MP.matched) return;
-  MP.matched = true;
-  MP.inLobby = false;
-  MP.matchId = matchId;
-  MP.isHost = false;
-  MP.mySlot = 1;       // client takes slot 1 (the pig)
-  MP.opponentId = otherId;
-  MP.opponentName = otherName;
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove(); MP.lobbyRef = null; }
-  MP.db.ref('lobby/tavern/' + MP.playerId).remove();
-
-  MP.stateRef   = MP.db.ref('matches/tavern/' + matchId + '/state');
-  MP.actionsRef = MP.db.ref('matches/tavern/' + matchId + '/actions');
-  // Client just observes state — host will broadcast soon
-  MP.stateRef.on('value', snap => {
-    const state = snap.val();
-    if(state) mpClientApplyState(state);
-  });
-
-  mpShowToast('🎯 Matched with ' + otherName + ' — you are CLIENT');
-  console.log('[MP] Client, slot 1. Opponent', otherName, 'on slot 0');
-  // Begin game scaffolding so 3D scene is rendered — host's state will populate G
-  beginGameClient();
-}
+  MP.mode = 'solo';
+  mpHideLobbyOverlay();
+  document.getElementById('hud').classList.remove('on');
+  document.getElementById('title').style.display = 'flex';
+  mpUpdateIndicator();
+};
 
 // Host: serialize G to firebase
 function mpBroadcastState(){
@@ -523,14 +672,18 @@ function mpSubmitAction(act){
 
 function mpLeaveAll(){
   if(!MP.ready) return;
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher = null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef = null; }
-  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef = null; }
+  if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
+  if(MP.roomWatcher){ MP.roomWatcher(); MP.roomWatcher = null; }
+  if(MP.roomRef){
+    MP.db.ref('tavern/openRoom/players/' + MP.playerId).remove().catch(()=>{});
+    MP.roomRef = null;
+  }
   if(MP.stateRef){ MP.stateRef.off(); if(MP.isHost) MP.stateRef.remove().catch(()=>{}); MP.stateRef = null; }
   if(MP.actionsRef){ MP.actionsRef.off(); if(MP.isHost) MP.actionsRef.remove().catch(()=>{}); MP.actionsRef = null; }
   MP.matched = false; MP.inLobby = false;
-  MP.matchId = null; MP.opponentId = null; MP.opponentName = '';
+  MP.matchId = null; MP.hostId = null;
   MP.isHost = false; MP.mySlot = 0;
+  MP.roomPlayers = {};
   MP.lastAppliedRev = -1;
 }
 
@@ -566,13 +719,18 @@ function newGame(){
     phase: 'play',
   };
   if(MP.mode === 'mp' && MP.matched){
-    // Slot 0 = host (us), slot 1 = remote (opponent). Slots 2-3 stay AI.
-    G.players[0].name   = MP.playerName;
-    G.players[0].pid    = MP.playerId;
-    G.players[1].isRemote = true;
-    G.players[1].name   = MP.opponentName;
-    G.players[1].pid    = MP.opponentId;
-    // Clear stale actions from any previous game
+    // Map each room player onto their slot; remaining slots stay AI.
+    for(const pid in MP.roomPlayers){
+      const rp = MP.roomPlayers[pid];
+      const seat = G.players[rp.slot];
+      if(!seat) continue;
+      seat.name = rp.name;
+      seat.pid = pid;
+      seat.isRemote = (pid !== MP.playerId);
+    }
+    // Make sure my own slot is named after me (in case I'm not slot 0)
+    const me = G.players[MP.mySlot];
+    if(me){ me.name = MP.playerName; me.pid = MP.playerId; me.isRemote = false; }
     if(MP.actionsRef) MP.actionsRef.remove().catch(()=>{});
   }
   startRound();
@@ -2271,7 +2429,6 @@ window.startGame = (mode) => {
                     || (prompt('Your name?', 'Player') || 'Player')).slice(0, 12);
     sessionStorage.setItem('mp.name', MP.playerName);
     mpEnterLobby();
-    showMsg('Looking for an opponent…', true);
   } else {
     newGame();
   }
