@@ -1127,13 +1127,6 @@ function makeCowNPC(cfg){
     horn.rotation.z = side * -0.50;   // tip outward
     horn.rotation.x = -0.25;          // tip slightly back
     g.add(horn);
-    // Dark horn tip
-    const tip = new THREE.Mesh(
-      new THREE.SphereGeometry(0.04, 10, 8),
-      new THREE.MeshStandardMaterial({color: hornTip, roughness: 0.3, metalness: 0.2})
-    );
-    tip.position.set(side * 0.36, 2.60, -0.10);
-    g.add(tip);
     // Horn base ring (where horn meets head)
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.062, 0.012, 6, 12),
