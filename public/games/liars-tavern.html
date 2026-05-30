@@ -63,12 +63,38 @@
   /* Roulette overlay */
   .rou{position:fixed;inset:0;background:radial-gradient(circle,rgba(60,8,8,.92),#000 75%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:80;color:#fef3c7;font-family:Georgia,serif}
   .rou.on{display:flex}
-  .rou h2{font-size:28px;color:#fbbf24;margin-bottom:8px;text-shadow:0 0 24px rgba(251,191,36,.7);letter-spacing:.1em}
-  .rou .sub{font-size:14px;color:#d6d3d1;margin-bottom:18px;letter-spacing:.05em}
-  .cylinder{position:relative;width:280px;height:280px;margin:0 0 18px 0;transition:transform 2s cubic-bezier(.2,.5,.1,1)}
-  .cyl-bg{position:absolute;inset:0;border:6px solid #6b7280;border-radius:50%;background:radial-gradient(circle at 30% 30%,#52525b,#27272a);box-shadow:0 0 50px rgba(220,38,38,.4),inset 0 0 30px rgba(0,0,0,.7)}
-  .cyl-c{position:absolute;width:46px;height:46px;left:50%;top:50%;background:#0a0a0a;border:3px solid #71717a;border-radius:50%;transform:translate(-50%,-50%)}
-  .ch-dot{position:absolute;width:36px;height:36px;border-radius:50%;background:#1a1a1a;border:3px solid #52525b;display:flex;align-items:center;justify-content:center;font-size:18px}
+  .rou h2{font-size:30px;color:#fbbf24;margin-bottom:6px;text-shadow:0 0 24px rgba(251,191,36,.7);letter-spacing:.1em}
+  .rou .sub{font-size:14px;color:#d6d3d1;margin-bottom:14px;letter-spacing:.05em}
+
+  /* SVG revolver stage */
+  .revstage{position:relative;width:420px;height:240px;margin:6px 0 4px 0;display:flex;align-items:center;justify-content:center}
+  .revolver{transform:translateY(60px) rotate(-6deg);opacity:0;transition:transform .55s cubic-bezier(.2,.7,.2,1.1), opacity .35s;filter:drop-shadow(0 6px 16px rgba(0,0,0,.7))}
+  .revolver.show{transform:translateY(0) rotate(0);opacity:1}
+  .revolver.fire{animation:recoil .35s ease-out}
+  @keyframes recoil{
+    0%{transform:translateY(0) rotate(0)}
+    15%{transform:translateY(-14px) translateX(-22px) rotate(-12deg)}
+    100%{transform:translateY(0) rotate(0)}
+  }
+  .muzzleflash{position:absolute;top:50%;right:18px;width:80px;height:80px;background:radial-gradient(circle,#fffac0 0%,#fbbf24 30%,#dc2626 65%,transparent 80%);border-radius:50%;transform:translateY(-50%) scale(0);opacity:0;pointer-events:none;mix-blend-mode:screen}
+  .muzzleflash.on{animation:flash .35s ease-out}
+  @keyframes flash{
+    0%{transform:translateY(-50%) scale(0);opacity:0}
+    18%{transform:translateY(-50%) scale(1.3);opacity:1}
+    100%{transform:translateY(-50%) scale(1.6);opacity:0}
+  }
+  .spark{position:absolute;top:50%;right:90px;color:#fbbf24;font-size:38px;opacity:0;pointer-events:none}
+  .spark.on{animation:sparkOut .5s ease-out}
+  @keyframes sparkOut{
+    0%{opacity:0;transform:translateY(-50%) scale(.5)}
+    25%{opacity:1;transform:translateY(-50%) scale(1.1)}
+    100%{opacity:0;transform:translateY(-50%) translateX(60px) scale(1.4)}
+  }
+
+  .cylinder{position:relative;width:200px;height:200px;margin:0 0 14px 0;transition:transform 2s cubic-bezier(.2,.5,.1,1)}
+  .cyl-bg{position:absolute;inset:0;border:5px solid #6b7280;border-radius:50%;background:radial-gradient(circle at 30% 30%,#52525b,#27272a);box-shadow:0 0 40px rgba(220,38,38,.35),inset 0 0 24px rgba(0,0,0,.7)}
+  .cyl-c{position:absolute;width:34px;height:34px;left:50%;top:50%;background:#0a0a0a;border:3px solid #71717a;border-radius:50%;transform:translate(-50%,-50%)}
+  .ch-dot{position:absolute;width:26px;height:26px;border-radius:50%;background:#1a1a1a;border:2px solid #52525b}
   .ch-dot.current{border-color:#fbbf24;box-shadow:0 0 14px #fbbf24}
   .ch-dot.fired{background:#3f3f46}
   .ch-dot.bullet-rev{background:#dc2626;box-shadow:0 0 16px #dc2626}
@@ -123,7 +149,50 @@
 
 <div class="rou" id="rou">
   <h2 id="rou-name">You</h2>
-  <div class="sub">spin the cylinder…</div>
+  <div class="sub" id="rou-sub">spin the cylinder…</div>
+  <div class="revstage">
+    <svg class="revolver" id="rev-svg" viewBox="0 0 420 220" width="420" height="220">
+      <!-- Grip -->
+      <path d="M 100 95 L 158 95 L 175 215 L 108 215 Z" fill="#5a2f12" stroke="#1a0a04" stroke-width="3"/>
+      <!-- Grip checkering -->
+      <g stroke="#1a0a04" stroke-width="1.2" opacity=".8">
+        <line x1="118" y1="125" x2="166" y2="125"/>
+        <line x1="121" y1="145" x2="168" y2="145"/>
+        <line x1="124" y1="165" x2="170" y2="165"/>
+        <line x1="127" y1="185" x2="172" y2="185"/>
+      </g>
+      <!-- Trigger guard -->
+      <path d="M 108 95 Q 92 105 92 135 Q 92 142 100 142 Q 108 135 108 110 Z" fill="none" stroke="#101012" stroke-width="4"/>
+      <!-- Trigger -->
+      <path d="M 100 105 Q 96 118 100 132" stroke="#101012" stroke-width="4" fill="none" stroke-linecap="round"/>
+      <!-- Frame body -->
+      <rect x="138" y="58" width="92" height="58" rx="5" fill="#3a3a3e" stroke="#0a0a0a" stroke-width="2"/>
+      <!-- Hammer -->
+      <path d="M 215 58 L 232 42 L 232 58 Z" fill="#101012"/>
+      <!-- Cylinder drum -->
+      <circle cx="184" cy="86" r="34" fill="#4a4a4e" stroke="#0a0a0a" stroke-width="3"/>
+      <circle cx="184" cy="86" r="9" fill="#101012"/>
+      <g fill="#0c0c0e" stroke="#2a2a2e" stroke-width="1.5">
+        <circle cx="184" cy="62" r="5.5"/>
+        <circle cx="205" cy="74" r="5.5"/>
+        <circle cx="205" cy="98" r="5.5"/>
+        <circle cx="184" cy="110" r="5.5"/>
+        <circle cx="163" cy="98" r="5.5"/>
+        <circle cx="163" cy="74" r="5.5"/>
+      </g>
+      <!-- Barrel -->
+      <rect x="230" y="70" width="160" height="34" rx="3" fill="#3a3a3e" stroke="#0a0a0a" stroke-width="2"/>
+      <rect x="230" y="70" width="160" height="7" fill="#202024"/>
+      <!-- Front sight -->
+      <rect x="382" y="60" width="7" height="12" fill="#101012"/>
+      <!-- Muzzle hole -->
+      <circle cx="385" cy="87" r="7" fill="#000"/>
+      <!-- Highlights -->
+      <rect x="240" y="78" width="138" height="2" fill="#6a6a70" opacity=".7"/>
+    </svg>
+    <div class="muzzleflash" id="muzzleflash"></div>
+    <div class="spark" id="muzzlespark">✦</div>
+  </div>
   <div class="cylinder" id="cylinder"></div>
   <button class="fire-btn" id="fire-btn">🔫 PULL THE TRIGGER</button>
 </div>
@@ -277,34 +346,43 @@ function enterRoulette(playerIdx){
   G.phase = 'roulette';
   pendingShooter = playerIdx;
   const p = G.players[playerIdx];
-  document.getElementById('rou-name').textContent = p.isHuman ? 'YOU' : p.name;
+  document.getElementById('rou-name').textContent = p.isHuman ? 'YOU' : p.name.toUpperCase();
+  document.getElementById('rou-sub').textContent = p.isHuman
+    ? 'spin the cylinder…'
+    : `${p.name} raises the revolver…`;
   renderCylinder(p);
   document.getElementById('rou').classList.add('on');
   const btn = document.getElementById('fire-btn');
   btn.disabled = false;
-  btn.textContent = p.isHuman ? '🔫 PULL THE TRIGGER' : '🔫 Watch them pull…';
-  // Spin animation
+  btn.textContent = p.isHuman ? '🔫 PULL THE TRIGGER' : '🔫 Watching…';
+  // Cylinder spin animation
   const cyl = document.getElementById('cylinder');
   cyl.style.transform = `rotate(${360 + Math.random()*720}deg)`;
-  // If NPC, auto-fire after delay
+  // Raise the revolver SVG (animates via CSS transition)
+  const rev = document.getElementById('rev-svg');
+  rev.classList.remove('show','fire');
+  // Force reflow so the .show transition replays
+  void rev.offsetWidth;
+  rev.classList.add('show');
+  // If NPC, auto-fire after a beat
   if(!p.isHuman){
     setTimeout(fireTrigger, 2400);
   }
 }
 
 function renderCylinder(p){
+  // The cylinder div is 200×200 now → centered at (100,100). Dot is 26px → offset 13.
   const cyl = document.getElementById('cylinder');
   cyl.innerHTML = '<div class="cyl-bg"></div><div class="cyl-c"></div>';
+  const CENTER = 100, RADIUS = 68, HALF = 13;
   for(let i=0;i<6;i++){
     const angle = (i/6)*Math.PI*2 - Math.PI/2;
-    const r = 100;
-    const x = 140 + Math.cos(angle)*r - 18;
-    const y = 140 + Math.sin(angle)*r - 18;
+    const x = CENTER + Math.cos(angle)*RADIUS - HALF;
+    const y = CENTER + Math.sin(angle)*RADIUS - HALF;
     const dot = document.createElement('div');
     dot.className = 'ch-dot' + (i === p.chamberIdx ? ' current' : '') + (i < p.shotsSurvived ? ' fired' : '');
     dot.style.left = x+'px';
     dot.style.top = y+'px';
-    // After firing, if bullet revealed
     if(!p.alive && i === p.bulletAt) dot.classList.add('bullet-rev');
     cyl.appendChild(dot);
   }
@@ -320,6 +398,17 @@ function fireTrigger(){
   const btn = document.getElementById('fire-btn');
   btn.disabled = true;
   btn.textContent = hit ? '💥 BANG' : '🔫 *click*';
+  // Trigger the revolver recoil + muzzle effects on EVERY pull,
+  // and the flash only on a real shot (hit)
+  const rev = document.getElementById('rev-svg');
+  const flash = document.getElementById('muzzleflash');
+  const spark = document.getElementById('muzzlespark');
+  rev.classList.remove('fire'); void rev.offsetWidth;
+  rev.classList.add('fire');
+  if(hit){
+    flash.classList.remove('on'); void flash.offsetWidth; flash.classList.add('on');
+    spark.classList.remove('on'); void spark.offsetWidth; spark.classList.add('on');
+  }
   if(hit){
     p.alive = false;
     flashScreen('#7f1d1d');
@@ -337,6 +426,10 @@ function fireTrigger(){
 
 function closeRoulette(){
   document.getElementById('rou').classList.remove('on');
+  // Reset the revolver so it can rise again next time
+  document.getElementById('rev-svg').classList.remove('show','fire');
+  document.getElementById('muzzleflash').classList.remove('on');
+  document.getElementById('muzzlespark').classList.remove('on');
   pendingShooter = null;
   G.phase = 'play';
   if(aliveCount() <= 1){ endGame(); return; }
