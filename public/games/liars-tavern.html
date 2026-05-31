@@ -123,6 +123,20 @@
   .lobby button.cancel{background:rgba(60,8,8,.7);color:#fca5a5;border:1px solid rgba(252,165,165,.4);font-family:Georgia,serif;padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;letter-spacing:.05em;margin-top:6px}
   .lobby button.cancel:hover{background:rgba(127,29,29,.7)}
 
+  /* Chat panel — shown in lobby + match for MP */
+  .chat{position:fixed;right:14px;bottom:90px;width:260px;background:rgba(0,0,0,.78);border:1px solid rgba(251,191,36,.3);border-radius:10px;padding:8px;backdrop-filter:blur(8px);z-index:55;display:none;flex-direction:column;gap:6px;font-family:system-ui;box-shadow:0 8px 28px rgba(0,0,0,.55)}
+  .chat.on{display:flex}
+  .chat-title{font-size:11px;color:#fbbf24;letter-spacing:.08em;text-align:center;padding-bottom:4px;border-bottom:1px solid rgba(251,191,36,.18);font-family:Georgia,serif}
+  .chat-msgs{max-height:200px;min-height:80px;overflow-y:auto;font-size:12px;color:#d6d3d1;line-height:1.45;padding:2px 4px}
+  .chat-msgs::-webkit-scrollbar{width:6px}
+  .chat-msgs::-webkit-scrollbar-thumb{background:rgba(251,191,36,.3);border-radius:3px}
+  .chat-msg{margin-bottom:3px;word-wrap:break-word}
+  .chat-msg .name{font-weight:bold;margin-right:4px}
+  .chat-msg.sys{color:#94a3b8;font-style:italic;font-size:11px}
+  .chat-input{background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.15);color:#fef3c7;font-family:system-ui;font-size:12px;padding:6px 10px;border-radius:6px;outline:none}
+  .chat-input:focus{border-color:#fbbf24;background:rgba(0,0,0,.7)}
+  .chat-input::placeholder{color:rgba(255,255,255,.35)}
+
   /* End screen */
   .endov{position:fixed;inset:0;background:radial-gradient(circle,rgba(120,53,15,.8),#0a0606 75%);display:none;align-items:center;justify-content:center;flex-direction:column;z-index:90;text-align:center;padding:24px}
   .endov.on{display:flex}
@@ -171,6 +185,12 @@
 </div>
 
 <div class="msg" id="msg"></div>
+
+<div class="chat" id="chat">
+  <div class="chat-title">💬 TAVERN CHAT</div>
+  <div class="chat-msgs" id="chat-msgs"></div>
+  <input class="chat-input" id="chat-input" placeholder="Say something… (Enter)" maxlength="80">
+</div>
 
 <div class="lobby" id="lobby">
   <h2>🍻 TAVERN LOBBY</h2>
@@ -391,6 +411,8 @@ function mpEnterLobby(){
 
     mpShowLobbyOverlay();
     mpTickCountdown();
+    // Chat lives at the match path — works during lobby too
+    mpOpenChat();
   });
   mpUpdateIndicator();
 }
@@ -680,11 +702,76 @@ function mpLeaveAll(){
   }
   if(MP.stateRef){ MP.stateRef.off(); if(MP.isHost) MP.stateRef.remove().catch(()=>{}); MP.stateRef = null; }
   if(MP.actionsRef){ MP.actionsRef.off(); if(MP.isHost) MP.actionsRef.remove().catch(()=>{}); MP.actionsRef = null; }
+  mpCloseChat();
   MP.matched = false; MP.inLobby = false;
   MP.matchId = null; MP.hostId = null;
   MP.isHost = false; MP.mySlot = 0;
   MP.roomPlayers = {};
   MP.lastAppliedRev = -1;
+}
+
+// ── Chat ──────────────────────────────────────────────────
+function escapeHTML(s){
+  const div = document.createElement('div');
+  div.textContent = s == null ? '' : String(s);
+  return div.innerHTML;
+}
+
+function mpOpenChat(){
+  if(!MP.ready || !MP.matchId) return;
+  document.getElementById('chat').classList.add('on');
+  document.getElementById('chat-msgs').innerHTML = '';
+  if(MP.chatRef) MP.chatRef.off();
+  MP.chatRef = MP.db.ref('matches/tavern/' + MP.matchId + '/chat').limitToLast(40);
+  MP.chatRef.on('child_added', snap => {
+    const m = snap.val();
+    if(!m) return;
+    appendChatMessage(m);
+  });
+  appendChatMessage({ sys:true, text:'Welcome — type and press Enter to chat.' });
+}
+
+function mpCloseChat(){
+  if(MP.chatRef){ MP.chatRef.off(); MP.chatRef = null; }
+  document.getElementById('chat').classList.remove('on');
+  document.getElementById('chat-msgs').innerHTML = '';
+  const input = document.getElementById('chat-input');
+  if(input) input.value = '';
+}
+
+function mpSendChat(){
+  const input = document.getElementById('chat-input');
+  if(!input || !MP.chatRef) return;
+  const text = input.value.trim();
+  if(!text) return;
+  // Stable per-player color from a small palette
+  const palette = ['#fbbf24','#ec4899','#22d3ee','#34d399','#a855f7','#fb923c','#fde047','#fda4af'];
+  const seed = (MP.playerId || 'x').split('').reduce((a,c)=>a + c.charCodeAt(0), 0);
+  const color = palette[seed % palette.length];
+  MP.db.ref('matches/tavern/' + MP.matchId + '/chat').push({
+    from: MP.playerName.slice(0, 12),
+    text: text.slice(0, 80),
+    color, ts: Date.now(),
+  }).catch(()=>{});
+  input.value = '';
+}
+
+function appendChatMessage(m){
+  const root = document.getElementById('chat-msgs');
+  if(!root) return;
+  const div = document.createElement('div');
+  if(m.sys){
+    div.className = 'chat-msg sys';
+    div.textContent = m.text;
+  } else {
+    div.className = 'chat-msg';
+    div.innerHTML = '<span class="name" style="color:' + (m.color || '#fbbf24') + '">'
+                  + escapeHTML(m.from) + ':</span> '
+                  + escapeHTML(m.text);
+  }
+  root.appendChild(div);
+  while(root.children.length > 60) root.removeChild(root.firstChild);
+  root.scrollTop = root.scrollHeight;
 }
 
 function makeDeck(){
@@ -2466,18 +2553,30 @@ document.getElementById('btn-play').onclick = play;
 document.getElementById('btn-liar').onclick = callLiar;
 document.getElementById('fire-btn').onclick = fireTrigger;
 
+// Chat: Enter sends, Escape blurs.  Stop game hotkeys from firing while
+// the chat field has focus.
+const chatInput = document.getElementById('chat-input');
+chatInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if(e.key === 'Enter'){ e.preventDefault(); mpSendChat(); }
+  else if(e.key === 'Escape'){ e.preventDefault(); chatInput.blur(); }
+});
+
 // Hotkeys: 1-5 select hand cards, Space=play, L=liar
 addEventListener('keydown', e => {
+  // If the chat box is focused, let it own all keyboard input
+  if(document.activeElement === chatInput) return;
   if(G && G.phase === 'play'){
     if(e.code === 'Space'){ e.preventDefault(); play(); }
     if(e.code === 'KeyL'){ callLiar(); }
     if(/Digit[1-5]/.test(e.code)){
       const i = parseInt(e.code.slice(5))-1;
-      if(i < G.players[0].hand.length) selectCard(i);
+      const myHand = (G.players[MP.mySlot] && G.players[MP.mySlot].hand) || [];
+      if(i < myHand.length) selectCard(i);
     }
   }
   if(G && G.phase === 'roulette' && pendingShooter !== null
-     && G.players[pendingShooter].isHuman && e.code === 'Space'){
+     && pendingShooter === MP.mySlot && e.code === 'Space'){
     e.preventDefault();
     fireTrigger();
   }
