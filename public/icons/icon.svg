@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="55%" stop-color="#581c87"/>
+      <stop offset="100%" stop-color="#1e1b4b"/>
+    </radialGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="100%" stop-color="#fbbf24"/>
+    </linearGradient>
+    <filter id="shine" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+  <!-- App background -->
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- Inner glow ring -->
+  <circle cx="256" cy="256" r="170" fill="none" stroke="#a855f7" stroke-width="3" opacity="0.55"/>
+  <circle cx="256" cy="256" r="170" fill="none" stroke="url(#glow)" stroke-width="1.5" opacity="0.9"/>
+  <!-- Big "U" mark — for Unlimited -->
+  <path d="M 156 168
+           L 156 296
+           C 156 354 200 388 256 388
+           C 312 388 356 354 356 296
+           L 356 168"
+        fill="none" stroke="url(#glow)" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Star spark above -->
+  <g transform="translate(380 132)" fill="#fef3c7">
+    <path d="M 0 -22 L 6 -6 L 22 0 L 6 6 L 0 22 L -6 6 L -22 0 L -6 -6 Z"/>
+  </g>
+  <g transform="translate(132 380)" fill="#fef3c7" opacity="0.85">
+    <path d="M 0 -14 L 4 -4 L 14 0 L 4 4 L 0 14 L -4 4 L -14 0 L -4 -4 Z"/>
+  </g>
+  <!-- Subtle bottom shine -->
+  <ellipse cx="256" cy="430" rx="180" ry="14" fill="#000" opacity="0.35"/>
+</svg>

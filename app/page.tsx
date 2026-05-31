@@ -47,7 +47,10 @@ export default function HomePage() {
         ))}
       </div>
 
-      <p className="text-slate-700 text-xs mt-12">🇳🇿 Built in New Zealand · {GAMES.length} games</p>
+      <p className="text-slate-700 text-xs mt-12">
+        🇳🇿 Built in New Zealand · {GAMES.length} games · {" "}
+        <a href="/privacy" className="hover:text-slate-500 underline underline-offset-2">Privacy</a>
+      </p>
     </div>
   );
 }

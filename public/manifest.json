@@ -1,0 +1,40 @@
+{
+  "name": "Unlimited Games",
+  "short_name": "UG Games",
+  "description": "A growing collection of free browser games — snake, chess, fishing, fighting, a 3D tavern bluffer, and more. No downloads, no logins. Just play.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07070d",
+  "theme_color": "#a855f7",
+  "lang": "en-NZ",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    { "name": "Snake Battle",    "short_name": "Snake",   "url": "/games/snake-battle.html" },
+    { "name": "Rated Chess",     "short_name": "Chess",   "url": "/games/chess.html" },
+    { "name": "Liar's Tavern",   "short_name": "Tavern",  "url": "/games/liars-tavern.html" }
+  ]
+}
