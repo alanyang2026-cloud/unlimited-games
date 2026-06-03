@@ -488,6 +488,13 @@ function mpEnterMatch(){
   MP.inLobby = false;
   if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
   mpHideLobbyOverlay();
+  // Move the camera to MY seat and reveal/hide character meshes accordingly
+  if(scene){
+    for(let i = 0; i < 4; i++){
+      if(slotMeshes[i]) slotMeshes[i].group.visible = (i !== MP.mySlot);
+    }
+    placeCameraAtSlot(MP.mySlot);
+  }
 
   MP.stateRef   = MP.db.ref('matches/tavern/' + MP.matchId + '/state');
   MP.actionsRef = MP.db.ref('matches/tavern/' + MP.matchId + '/actions');
@@ -635,14 +642,12 @@ function mpClientApplyState(state){
       const rev = document.getElementById('rev-svg');
       rev.classList.remove('show','fire'); void rev.offsetWidth;
       rev.classList.add('show');
-    } else if(idx > 0 && npcMeshes[idx-1]){
-      // Someone ELSE is being shot — play their 3D animation locally.
+    } else if(slotMeshes[idx]){
+      // Someone ELSE is being shot — play their 3D animation locally
+      // on the character at THAT seat.
       const hit = !!state.pendingShootHit;
       showMsg(`${G.players[idx].name} reaches for the revolver…`, true);
-      startNpcShoot(npcMeshes[idx-1], hit, null);
-    } else if(idx === 0){
-      // Host (slot 0) is shooting their own head; no character mesh at south
-      showMsg(`${G.players[0].name} pulls the trigger…`, true);
+      startNpcShoot(slotMeshes[idx], hit, null);
     }
   }
 
@@ -1002,7 +1007,7 @@ function enterRoulette(playerIdx){
 
   // ── AI → animate immediately in 3D, then apply result.
   showMsg(`${p.name} reaches for the revolver…`, true);
-  const meshObj = npcMeshes[playerIdx - 1];
+  const meshObj = slotMeshes[playerIdx];
   if(!meshObj){ applyShotResult(playerIdx, hit); return; }
   startNpcShoot(meshObj, hit, () => {
     document.getElementById('msg').classList.remove('on');
@@ -1015,7 +1020,7 @@ function hostFireRemote(slot){
   const p = G.players[slot];
   if(!p || !p.isRemote) return;
   const hit = !!G.pendingShootHit;
-  const meshObj = npcMeshes[slot - 1];
+  const meshObj = slotMeshes[slot];
   if(!meshObj){ applyShotResult(slot, hit); return; }
   document.getElementById('msg').classList.remove('on');
   startNpcShoot(meshObj, hit, () => applyShotResult(slot, hit));
@@ -1267,8 +1272,14 @@ function updateUI(){
 
 // ── 3D Scene ─────────────────────────────────────────────────
 let scene, camera, renderer, candleLights = [];
+// 4-slot mesh table — slotMeshes[i] is the character sitting at seat i
+// (0=south, 1=west, 2=north, 3=east).  The one at MP.mySlot is hidden
+// because that's where the camera is.
+let slotMeshes = [null, null, null, null];
+// Back-compat alias for any legacy code that still indexes npcMeshes[i-1]
 let npcMeshes = [];
 let mouseTarget = { x:0, y:0 };
+let cameraBaseRot = { x: 0, y: 0 };       // rest rotation per slot (added to mouse offset)
 let targetCardMesh = null;       // the round's target card that rises out of the pile
 let targetCardRiseT = 0;         // 0→1 rise animation progress
 let TABLE_TOP_Y_GLOBAL = 1.04;   // mirror of the in-init local; used for card y
@@ -1618,6 +1629,155 @@ function tickShoots(){
   }
 }
 
+// ─ Bear NPC: round brown bear in a green shirt — slot-0 default ─
+function makeBearNPC(cfg){
+  const g = new THREE.Group();
+  g.position.set(cfg.x, 0, cfg.z);
+  const fur      = 0x6b4226;
+  const muzzleC  = 0xc4a378;
+  const innerEar = 0xa67c52;
+  const shirtC   = 0x3a5311;
+  const shirtHi  = 0x5f7e2a;
+  const collarC  = 0x1a2410;
+  const pantsC   = 0x1f1208;
+
+  // Lap / lower body
+  const lower = new THREE.Mesh(
+    new THREE.ConeGeometry(0.60, 0.85, 10),
+    new THREE.MeshStandardMaterial({color: pantsC, roughness: 0.9})
+  );
+  lower.position.y = 0.78;
+  lower.rotation.x = Math.PI;
+  g.add(lower);
+
+  // Forest-green shirt torso
+  const torso = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.42, 0.52, 0.80, 14),
+    new THREE.MeshStandardMaterial({color: shirtC, roughness: 0.85})
+  );
+  torso.position.y = 1.10;
+  g.add(torso);
+  // Shoulder dome
+  const sh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.44, 14, 6, 0, Math.PI*2, 0, Math.PI/2.4),
+    new THREE.MeshStandardMaterial({color: shirtC, roughness: 0.85})
+  );
+  sh.position.y = 1.42;
+  g.add(sh);
+  // Collar
+  const collarBand = new THREE.Mesh(
+    new THREE.TorusGeometry(0.18, 0.05, 8, 22),
+    new THREE.MeshStandardMaterial({color: collarC, roughness: 0.7})
+  );
+  collarBand.rotation.x = Math.PI/2;
+  collarBand.position.y = 1.62;
+  g.add(collarBand);
+  const collarLapel = new THREE.Mesh(
+    new THREE.RingGeometry(0.17, 0.27, 18, 1, 0, Math.PI*1.4),
+    new THREE.MeshStandardMaterial({color: shirtHi, roughness: 0.7, side: THREE.DoubleSide})
+  );
+  collarLapel.rotation.x = -Math.PI/2 + 0.18;
+  collarLapel.rotation.z = Math.PI;
+  collarLapel.position.y = 1.60;
+  g.add(collarLapel);
+
+  // Short brown neck
+  const neck = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.12, 0.14, 0.18, 12),
+    new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+  );
+  neck.position.y = 1.72;
+  g.add(neck);
+
+  // Round bear head
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.34, 18, 14),
+    new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+  );
+  head.position.y = 2.07;
+  g.add(head);
+
+  // Tan muzzle bump
+  const muzzle = new THREE.Mesh(
+    new THREE.SphereGeometry(0.19, 16, 12),
+    new THREE.MeshStandardMaterial({color: muzzleC, roughness: 0.6})
+  );
+  muzzle.scale.set(1.0, 0.7, 0.7);
+  muzzle.position.set(0, 1.97, 0.27);
+  g.add(muzzle);
+
+  // Black nose
+  const nose = new THREE.Mesh(
+    new THREE.SphereGeometry(0.045, 12, 10),
+    new THREE.MeshStandardMaterial({color: 0x0a0a0a, roughness: 0.35, metalness: 0.1})
+  );
+  nose.position.set(0, 2.04, 0.40);
+  g.add(nose);
+
+  // Mouth
+  const mouth = new THREE.Mesh(
+    new THREE.BoxGeometry(0.10, 0.012, 0.005),
+    new THREE.MeshBasicMaterial({color: 0x2a1010})
+  );
+  mouth.position.set(0, 1.91, 0.40);
+  g.add(mouth);
+
+  // Eyes
+  for(const side of [-1, 1]){
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.042, 12, 10),
+      new THREE.MeshBasicMaterial({color: 0x0a0a0a})
+    );
+    eye.position.set(side * 0.15, 2.18, 0.24);
+    g.add(eye);
+    const shine = new THREE.Mesh(
+      new THREE.SphereGeometry(0.014, 6, 6),
+      new THREE.MeshBasicMaterial({color: 0xffffff})
+    );
+    shine.position.set(side * 0.158, 2.198, 0.278);
+    g.add(shine);
+  }
+
+  // Round bear ears on top of head
+  for(const side of [-1, 1]){
+    const ear = new THREE.Mesh(
+      new THREE.SphereGeometry(0.11, 14, 12),
+      new THREE.MeshStandardMaterial({color: fur, roughness: 0.7})
+    );
+    ear.position.set(side * 0.22, 2.36, -0.04);
+    g.add(ear);
+    const inner = new THREE.Mesh(
+      new THREE.SphereGeometry(0.065, 12, 8),
+      new THREE.MeshStandardMaterial({color: innerEar, roughness: 0.6})
+    );
+    inner.position.set(side * 0.24, 2.35, -0.01);
+    g.add(inner);
+  }
+
+  g.rotation.y = Math.atan2(-cfg.x, -cfg.z);
+  return g;
+}
+
+// Place the camera at a given seat looking at the table center
+function placeCameraAtSlot(slot){
+  if(!camera) return;
+  const SEAT_R = 2.2;
+  const seatPos = [
+    { x: 0,       z: SEAT_R  },   // 0 south
+    { x:-SEAT_R,  z: 0       },   // 1 west
+    { x: 0,       z:-SEAT_R  },   // 2 north
+    { x: SEAT_R,  z: 0       },   // 3 east
+  ][slot];
+  // Pull camera slightly back from the seat so you see the table
+  const back = 1.36;
+  camera.position.set(seatPos.x * back, 1.72, seatPos.z * back);
+  // Look at a point just past the table center, lower so view is downward
+  const fwd = -0.18;
+  camera.lookAt(seatPos.x * fwd, 1.35, seatPos.z * fwd);
+  cameraBaseRot.x = camera.rotation.x;
+  cameraBaseRot.y = camera.rotation.y;
+}
+
 function init3D(){
   const canvas = document.getElementById('cv');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -1633,6 +1793,8 @@ function init3D(){
   camera = new THREE.PerspectiveCamera(82, innerWidth/innerHeight, 0.1, 100);
   camera.position.set(0, 1.72, 3.0);
   camera.lookAt(0, 1.35, -0.4);
+  cameraBaseRot.x = camera.rotation.x;
+  cameraBaseRot.y = camera.rotation.y;
 
   // ── Lighting: brighter, cozier, with a fill hemisphere ────
   scene.add(new THREE.AmbientLight(0xffe0b0, 0.55));
@@ -1819,24 +1981,34 @@ function init3D(){
   // Four seats around the round table, all the same distance from
   // center (90° apart). You're south (camera). The three NPCs take
   // west / north / east.
+  // All four seats around the round table — each player ID maps to a
+  // fixed character + seat. The local player's mesh is hidden later
+  // (after MP.mySlot is known) because their camera is at that seat.
   const SEAT_R = 2.2;
-  const NPC_POS = [
-    // West seat — Cyrus the Pig (plaid shirt)
-    {x:-SEAT_R, z: 0,      name:'Cyrus', kind:'pig'},
-    // North seat — Vela the Cow (white shirt, brown horns)
-    {x: 0,      z:-SEAT_R, name:'Vela',  kind:'cow'},
-    // East seat — Mort the Fox (black jacket, pointy snout)
-    {x: SEAT_R, z: 0,      name:'Mort',  kind:'fox'},
+  const SEAT_CFG = [
+    {x: 0,       z: SEAT_R,  name:'Bruin',  kind:'bear'},   // 0 south — Bear
+    {x:-SEAT_R,  z: 0,       name:'Cyrus',  kind:'pig'},    // 1 west  — Pig
+    {x: 0,       z:-SEAT_R,  name:'Vela',   kind:'cow'},    // 2 north — Cow
+    {x: SEAT_R,  z: 0,       name:'Mort',   kind:'fox'},    // 3 east  — Fox
   ];
-  for(const cfg of NPC_POS){
-    const make = cfg.kind === 'pig' ? makePigNPC
-               : cfg.kind === 'cow' ? makeCowNPC
-               : cfg.kind === 'fox' ? makeFoxNPC
+  for(let i = 0; i < 4; i++){
+    const cfg = SEAT_CFG[i];
+    const make = cfg.kind === 'bear' ? makeBearNPC
+               : cfg.kind === 'pig'  ? makePigNPC
+               : cfg.kind === 'cow'  ? makeCowNPC
+               : cfg.kind === 'fox'  ? makeFoxNPC
                : makeNPC;
-    const npc = make(cfg);
-    scene.add(npc);
-    npcMeshes.push({ group: npc, baseY: npc.position.y, baseZ: npc.position.z });
+    const mesh = make(cfg);
+    scene.add(mesh);
+    slotMeshes[i] = { group: mesh, baseY: mesh.position.y, baseZ: mesh.position.z };
   }
+  // Hide the local player's own seat (camera is there). Default to slot 0.
+  if(slotMeshes[MP.mySlot || 0]){
+    slotMeshes[MP.mySlot || 0].group.visible = false;
+  }
+  // Back-compat: legacy code paths that read npcMeshes[playerIdx-1]
+  // (where playerIdx 1..3 → npc index 0..2) now point at slots 1..3
+  npcMeshes = [slotMeshes[1], slotMeshes[2], slotMeshes[3]];
 
   addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
@@ -2471,13 +2643,13 @@ function render(){
     }
   }
 
-  // NPC pose — everyone sits PERFECTLY STILL. Only the slumped pose
-  // on death is animated.
-  for(let i=0;i<npcMeshes.length;i++){
-    const m = npcMeshes[i];
-    const player = G ? G.players[i+1] : null;
+  // Slot poses — every character sits still. Only the slumped pose on
+  // death is animated. Iterate ALL 4 slots now (slot 0 has the bear).
+  for(let i = 0; i < 4; i++){
+    const m = slotMeshes[i];
+    if(!m) continue;
+    const player = G ? G.players[i] : null;
     if(player && !player.alive){
-      // Slumped over the table
       m.group.position.y = m.baseY - 0.4;
       m.group.rotation.z = Math.PI/2 * 0.4;
     } else {
@@ -2488,8 +2660,12 @@ function render(){
   }
 
   // Smooth camera look toward mouse
-  camera.rotation.y += (mouseTarget.x - camera.rotation.y) * 0.06;
-  camera.rotation.x += (mouseTarget.y - 0.08 - camera.rotation.x) * 0.06;
+  // Mouse-look is an OFFSET on top of the slot's rest rotation (so the
+  // base camera orientation is preserved when you move per-slot).
+  const targetY = cameraBaseRot.y + mouseTarget.x;
+  const targetX = cameraBaseRot.x + mouseTarget.y - 0.08;
+  camera.rotation.y += (targetY - camera.rotation.y) * 0.06;
+  camera.rotation.x += (targetX - camera.rotation.x) * 0.06;
 
   renderer.render(scene, camera);
 }
