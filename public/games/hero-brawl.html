@@ -11,24 +11,81 @@
   .hbtn{position:fixed;top:10px;left:10px;z-index:99;background:rgba(0,0,0,.6);color:#fff;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;border:1px solid rgba(255,255,255,.15);backdrop-filter:blur(8px)}
   canvas{display:block;background:#1a3920;border-radius:8px;cursor:crosshair;touch-action:none;max-width:100vw;max-height:100vh}
 
-  /* Title / hero pick screen */
-  .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 30%,#1a4a2a,#040b06 80%);z-index:50;padding:14px}
+  /* ── Lobby / Brawl Stars-style main menu ───────────────── */
+  .ov{position:fixed;inset:0;display:flex;background:linear-gradient(180deg,#1ea7e9 0%,#0d6cb8 55%,#062f5d 100%);z-index:50;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
   .ov.off{display:none}
-  .ov h1{font-size:48px;font-weight:900;letter-spacing:1px;color:#fbbf24;text-shadow:0 0 30px rgba(251,191,36,.5),0 4px 0 rgba(0,0,0,.6);margin-bottom:6px}
-  .ov h1 .b{color:#fff}
-  .ov .sub{color:#86efac;font-size:14px;letter-spacing:3px;margin-bottom:24px;text-transform:uppercase;font-weight:700}
-  .heroes{display:flex;gap:18px;margin-bottom:24px;flex-wrap:wrap;justify-content:center}
-  .hero{background:rgba(0,0,0,.5);border:3px solid rgba(255,255,255,.1);border-radius:14px;padding:18px 22px;width:180px;cursor:pointer;transition:all .15s;text-align:center}
+  /* sky decoration */
+  .ov::before{content:'';position:absolute;inset:0;background:
+    radial-gradient(circle at 18% 22%,rgba(255,255,255,.12) 0,transparent 24%),
+    radial-gradient(circle at 82% 30%,rgba(255,255,255,.10) 0,transparent 28%),
+    radial-gradient(ellipse at 50% 110%,rgba(8,30,60,.95) 0,transparent 60%);
+    pointer-events:none}
+
+  /* Top bar — profile + currencies */
+  .topbar{position:absolute;top:10px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start;z-index:2}
+  .profile{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.35);border:2px solid rgba(255,255,255,.15);padding:4px 14px 4px 4px;border-radius:30px;backdrop-filter:blur(6px)}
+  .avatar{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#dc2626);display:flex;align-items:center;justify-content:center;font-size:22px;border:2px solid #fff;box-shadow:0 2px 0 rgba(0,0,0,.3)}
+  .pinfo{display:flex;flex-direction:column;line-height:1.1}
+  .pname{color:#fff;font-weight:900;font-size:13px;letter-spacing:.5px}
+  .ptro{color:#fbbf24;font-size:11px;font-weight:800;margin-top:2px}
+  .topcur{display:flex;gap:8px;align-items:center}
+  .cur{background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.18);color:#fff;padding:5px 12px 5px 6px;border-radius:18px;font-weight:900;font-size:13px;display:flex;align-items:center;gap:5px;backdrop-filter:blur(6px)}
+  .cur .ci{font-size:16px}
+  .cur.tro .ci{filter:drop-shadow(0 0 4px #fbbf24)}
+
+  /* Side docks (left / right column buttons) */
+  .dock{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;z-index:2}
+  .dock-left{left:14px}
+  .dock-right{right:14px}
+  .dbtn{background:linear-gradient(180deg,#2dd4ff,#0284c7);border:3px solid #fff;color:#fff;border-radius:14px;width:64px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;box-shadow:0 5px 0 #075985,0 8px 14px rgba(0,0,0,.35);transition:transform .08s;font-weight:900;padding:0;position:relative}
+  .dbtn:active{transform:translateY(3px);box-shadow:0 2px 0 #075985}
+  .dbtn .di{font-size:26px;line-height:1}
+  .dbtn .dl{font-size:10px;letter-spacing:1px;margin-top:3px}
+  .dbtn.acc{background:linear-gradient(180deg,#fbbf24,#d97706);box-shadow:0 5px 0 #92400e,0 8px 14px rgba(0,0,0,.35)}
+  .dbtn.acc:active{box-shadow:0 2px 0 #92400e}
+  .dbtn .badge{position:absolute;top:-5px;right:-5px;background:#dc2626;border:2px solid #fff;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:900;line-height:1.2}
+
+  /* Center showcase — featured brawler */
+  .showcase{position:absolute;top:0;bottom:120px;left:90px;right:90px;display:flex;align-items:center;justify-content:center;z-index:1;pointer-events:none}
+  .showcard{position:relative;text-align:center;animation:bob 3s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+  .showcard .hbig{width:220px;height:220px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:130px;margin:0 auto;background:radial-gradient(circle at 35% 30%,var(--hc,#06b6d4),rgba(0,0,0,.4));box-shadow:0 18px 0 rgba(0,0,0,.35),0 30px 60px rgba(0,0,0,.5),inset -10px -10px 30px rgba(0,0,0,.35),inset 8px 8px 24px rgba(255,255,255,.3);border:6px solid #fff}
+  .showcard .plate{margin-top:14px;display:inline-block;background:linear-gradient(180deg,rgba(0,0,0,.7),rgba(0,0,0,.45));border:2px solid rgba(255,255,255,.3);padding:6px 22px;border-radius:30px;color:#fff;font-weight:900;letter-spacing:2px;font-size:18px;backdrop-filter:blur(6px)}
+  .showcard .rolep{color:#fbbf24;font-size:11px;letter-spacing:3px;margin-top:6px;font-weight:800}
+  .showcard .statrow{display:flex;gap:14px;justify-content:center;margin-top:10px}
+  .showcard .stp{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:4px 10px;color:#fff;font-size:11px;font-weight:800;letter-spacing:.5px}
+  .showcard .stp .sv{color:#fbbf24}
+
+  /* Bottom bar — mode pill + BATTLE */
+  .bottombar{position:absolute;left:0;right:0;bottom:14px;display:flex;align-items:flex-end;justify-content:center;gap:16px;padding:0 14px;z-index:2}
+  .modepill{flex:0 1 360px;background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.7));border:2px solid rgba(255,255,255,.22);border-radius:16px;padding:10px 14px;display:flex;align-items:center;gap:12px;backdrop-filter:blur(8px);max-width:360px}
+  .micon{width:46px;height:46px;border-radius:10px;background:linear-gradient(135deg,#a855f7,#6d28d9);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;border:2px solid #fff;box-shadow:0 3px 0 rgba(0,0,0,.4)}
+  .minfo{flex:1;min-width:0}
+  .mname{color:#fff;font-weight:900;font-size:15px;letter-spacing:1.2px}
+  .msub{color:#cbd5e1;font-size:11px;margin-top:2px;letter-spacing:.5px}
+  .mtimer{color:#fbbf24;font-size:11px;font-weight:800;margin-top:2px}
+  .bigbtn{background:linear-gradient(180deg,#fde047,#facc15 40%,#eab308);border:3px solid #fff;color:#7c2d12;font-family:inherit;font-size:32px;font-weight:900;padding:18px 46px;border-radius:18px;cursor:pointer;letter-spacing:3px;box-shadow:0 7px 0 #a16207,0 10px 22px rgba(0,0,0,.4);text-transform:uppercase;transition:transform .08s;text-shadow:0 2px 0 rgba(255,255,255,.4)}
+  .bigbtn:active{transform:translateY(4px);box-shadow:0 3px 0 #a16207}
+
+  /* Hero picker modal */
+  .modal{position:fixed;inset:0;background:rgba(0,8,20,.85);backdrop-filter:blur(10px);z-index:80;display:none;align-items:center;justify-content:center;padding:14px}
+  .modal.on{display:flex}
+  .mcard{background:linear-gradient(180deg,#1e3a8a,#0c1e44);border:3px solid #fbbf24;border-radius:20px;padding:24px;max-width:780px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .mtitle{color:#fbbf24;font-weight:900;font-size:22px;letter-spacing:3px;text-align:center;margin-bottom:18px;text-transform:uppercase;text-shadow:0 2px 0 rgba(0,0,0,.5)}
+  .heroes{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;margin-bottom:18px}
+  .hero{background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(0,0,0,.4));border:3px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 18px;width:170px;cursor:pointer;transition:all .15s;text-align:center}
   .hero:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.4);box-shadow:0 12px 30px rgba(0,0,0,.5)}
   .hero.selected{border-color:var(--c);box-shadow:0 0 32px var(--g)}
-  .hero .icon{width:84px;height:84px;border-radius:50%;background:var(--c);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:48px;box-shadow:inset -6px -6px 10px rgba(0,0,0,.25),inset 4px 4px 10px rgba(255,255,255,.35)}
-  .hero .nm{font-size:18px;font-weight:900;letter-spacing:1px;color:#fff;margin-bottom:6px}
-  .hero .role{color:#fbbf24;font-size:11px;font-weight:700;letter-spacing:2px;margin-bottom:8px}
-  .stat{display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:3px;letter-spacing:.5px}
+  .hero .icon{width:76px;height:76px;border-radius:50%;background:var(--c);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-size:42px;box-shadow:inset -6px -6px 10px rgba(0,0,0,.25),inset 4px 4px 10px rgba(255,255,255,.35);border:3px solid #fff}
+  .hero .nm{font-size:16px;font-weight:900;letter-spacing:1px;color:#fff;margin-bottom:4px}
+  .hero .role{color:#fbbf24;font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px}
+  .stat{display:flex;justify-content:space-between;font-size:11px;color:#cbd5e1;margin-top:2px;letter-spacing:.5px}
   .stat .v{color:#fff;font-weight:700}
+  .mclose{background:linear-gradient(180deg,#22c55e,#15803d);border:3px solid #fff;color:#fff;font-family:inherit;font-size:16px;font-weight:900;padding:12px 36px;border-radius:14px;cursor:pointer;letter-spacing:2px;box-shadow:0 5px 0 #14532d,0 8px 16px rgba(0,0,0,.4);display:block;margin:0 auto}
+  .mclose:active{transform:translateY(3px);box-shadow:0 2px 0 #14532d}
+  .rules{color:#94a3b8;font-size:11px;margin-top:14px;text-align:center;line-height:1.7;letter-spacing:.4px}
   .btn{background:linear-gradient(180deg,#22c55e,#15803d);border:none;color:#fff;font-family:inherit;font-size:18px;font-weight:900;padding:14px 38px;border-radius:10px;cursor:pointer;letter-spacing:2px;box-shadow:0 5px 0 #14532d,0 8px 18px rgba(0,0,0,.4);text-transform:uppercase;transition:transform .1s}
   .btn:active{transform:translateY(3px);box-shadow:0 2px 0 #14532d}
-  .rules{color:#94a3b8;font-size:11px;margin-top:18px;max-width:520px;text-align:center;line-height:1.7;letter-spacing:.6px}
 
   /* HUD */
   .hud{position:fixed;inset:0;pointer-events:none;z-index:20;display:none}
@@ -62,18 +119,84 @@
 <a href="/" class="hbtn">← Games</a>
 <canvas id="cv"></canvas>
 
-<!-- Title + hero picker -->
+<!-- Lobby / main menu -->
 <div class="ov" id="title">
-  <h1>HERO <span class="b">BRAWL</span></h1>
-  <div class="sub">Pick · Brawl · Survive</div>
-  <div class="heroes" id="heroes"></div>
-  <button class="btn" id="play-btn">▶ BRAWL!</button>
-  <p class="rules">
-    <b>WASD</b> move · <b>Mouse</b> aim<br>
-    <b>Hold Right-Mouse</b> to aim / fire · <b>Ctrl</b> = quick fire<br>
-    <b>R</b> super auto-aim · <b>E</b> super manual aim (hold→release) · <b>F</b> gadget · <b>V/T</b> charge super<br>
-    Last brawler standing wins · Hide in 🌳 bushes · Zone closes after 30s
-  </p>
+  <!-- Top bar: profile + currencies -->
+  <div class="topbar">
+    <div class="profile">
+      <div class="avatar">🦸</div>
+      <div class="pinfo">
+        <div class="pname">Brawler</div>
+        <div class="ptro">🏆 6,400</div>
+      </div>
+    </div>
+    <div class="topcur">
+      <div class="cur tro"><span class="ci">🏆</span><span>6400</span></div>
+      <div class="cur"><span class="ci">💎</span><span>92</span></div>
+      <div class="cur"><span class="ci">🪙</span><span>1784</span></div>
+    </div>
+  </div>
+
+  <!-- Left dock -->
+  <div class="dock dock-left">
+    <button class="dbtn" id="btn-shop" title="商店"><span class="di">🛒</span><span class="dl">商店</span></button>
+    <button class="dbtn acc" id="btn-heroes" title="选择英雄"><span class="di">🦸</span><span class="dl">英雄</span><span class="badge" id="hero-badge">!</span></button>
+    <button class="dbtn" id="btn-settings" title="设置"><span class="di">⚙️</span><span class="dl">设置</span></button>
+  </div>
+
+  <!-- Right dock -->
+  <div class="dock dock-right">
+    <button class="dbtn" id="btn-friends" title="好友"><span class="di">👥</span><span class="dl">好友</span></button>
+    <button class="dbtn" id="btn-mail" title="邮箱"><span class="di">📨</span><span class="dl">邮箱</span></button>
+    <button class="dbtn" id="btn-news" title="资讯"><span class="di">📰</span><span class="dl">资讯</span></button>
+  </div>
+
+  <!-- Center showcase -->
+  <div class="showcase">
+    <div class="showcard" id="showcard">
+      <div class="hbig" id="show-icon">🎯</div>
+      <div class="plate" id="show-name">SCOUT</div>
+      <div class="rolep" id="show-role">SHARPSHOOTER</div>
+      <div class="statrow" id="show-stats"></div>
+    </div>
+  </div>
+
+  <!-- Bottom: mode + battle -->
+  <div class="bottombar">
+    <div class="modepill">
+      <div class="micon">💎</div>
+      <div class="minfo">
+        <div class="mname">BRAWL ROYALE</div>
+        <div class="msub">4 brawlers · last hero standing wins</div>
+        <div class="mtimer" id="mtimer">arena ready</div>
+      </div>
+    </div>
+    <button class="bigbtn" id="play-btn">对战</button>
+  </div>
+</div>
+
+<!-- Hero picker modal -->
+<div class="modal" id="hero-modal">
+  <div class="mcard">
+    <div class="mtitle">选择英雄 · PICK A BRAWLER</div>
+    <div class="heroes" id="heroes"></div>
+    <button class="mclose" id="hero-close">确认</button>
+    <p class="rules">
+      <b>WASD</b> move · <b>Mouse</b> aim · <b>Hold RMB / Ctrl</b> fire<br>
+      <b>R</b> super auto-aim · <b>E</b> super manual aim (hold→release)<br>
+      <b>F</b> gadget (heal) · <b>V/T</b> charge super<br>
+      Last brawler standing wins · Hide in 🌳 bushes · Zone closes after 30s
+    </p>
+  </div>
+</div>
+
+<!-- Generic info toast (used by shop/friends/etc placeholder buttons) -->
+<div class="modal" id="info-modal">
+  <div class="mcard" style="max-width:380px;text-align:center">
+    <div class="mtitle" id="info-title">SOON</div>
+    <p style="color:#cbd5e1;font-size:13px;line-height:1.6;margin-bottom:18px" id="info-msg">Coming in a future update.</p>
+    <button class="mclose" onclick="document.getElementById('info-modal').classList.remove('on')">关闭</button>
+  </div>
 </div>
 
 <!-- HUD -->
@@ -1060,6 +1183,8 @@ window.restart = () => {
   document.getElementById('end').classList.remove('on');
   document.getElementById('title').classList.remove('off');
   document.getElementById('hud').classList.remove('on');
+  heroModal.classList.remove('on');
+  infoModal.classList.remove('on');
   state = null;
 };
 
@@ -1125,7 +1250,11 @@ cv.addEventListener('touchend', e => {
   keys.a = keys.d = keys.w = keys.s = false;
 }, {passive:false});
 
-// ── Hero picker UI ────────────────────────────────────────
+// ── Hero icons + lobby UI ─────────────────────────────────
+function heroEmoji(id){
+  return id==='scout'?'🎯':id==='bash'?'👊':id==='boom'?'💣':'🔥';
+}
+
 const heroesEl = document.getElementById('heroes');
 function buildHeroPicker(){
   heroesEl.innerHTML = '';
@@ -1135,21 +1264,64 @@ function buildHeroPicker(){
     div.style.setProperty('--c', h.color);
     div.style.setProperty('--g', h.glow);
     div.innerHTML =
-      '<div class="icon">' + (h.id==='scout'?'🎯':h.id==='bash'?'👊':h.id==='boom'?'💣':'🔥') + '</div>' +
+      '<div class="icon">' + heroEmoji(h.id) + '</div>' +
       '<div class="nm">' + h.name + '</div>' +
       '<div class="role">' + h.role + '</div>' +
       '<div class="stat"><span>HP</span><span class="v">' + h.hp + '</span></div>' +
       '<div class="stat"><span>SPD</span><span class="v">' + h.speed.toFixed(1) + '</span></div>' +
       '<div class="stat"><span>RNG</span><span class="v">' + Math.round(h.ammoRange/10) + '</span></div>' +
       '<div class="stat" style="margin-top:6px;color:#fbbf24;font-size:10px;justify-content:center">' + h.desc + '</div>';
-    div.onclick = () => { selectedHero = h; buildHeroPicker(); };
+    div.onclick = () => { selectedHero = h; buildHeroPicker(); updateShowcase(); };
     heroesEl.appendChild(div);
   }
 }
+
+function updateShowcase(){
+  const h = selectedHero;
+  const card = document.getElementById('showcard');
+  card.style.setProperty('--hc', h.color);
+  document.getElementById('show-icon').textContent = heroEmoji(h.id);
+  document.getElementById('show-name').textContent = h.name;
+  document.getElementById('show-role').textContent = h.role;
+  document.getElementById('show-stats').innerHTML =
+    '<div class="stp">HP <span class="sv">' + h.hp + '</span></div>' +
+    '<div class="stp">SPD <span class="sv">' + h.speed.toFixed(1) + '</span></div>' +
+    '<div class="stp">RNG <span class="sv">' + Math.round(h.ammoRange/10) + '</span></div>';
+}
+
 buildHeroPicker();
+updateShowcase();
+
+// Open hero modal on 英雄 click
+const heroModal = document.getElementById('hero-modal');
+const infoModal = document.getElementById('info-modal');
+document.getElementById('btn-heroes').onclick = () => {
+  heroModal.classList.add('on');
+  document.getElementById('hero-badge').style.display = 'none';
+};
+document.getElementById('hero-close').onclick = () => heroModal.classList.remove('on');
+heroModal.addEventListener('click', e => {
+  if(e.target === heroModal) heroModal.classList.remove('on');
+});
+
+// Placeholder side buttons → info modal
+function showInfo(title, msg){
+  document.getElementById('info-title').textContent = title;
+  document.getElementById('info-msg').textContent = msg;
+  infoModal.classList.add('on');
+}
+document.getElementById('btn-shop').onclick     = () => showInfo('商店 · SHOP', '皮肤、宝石、礼包后续上线。先来一局乱斗 →');
+document.getElementById('btn-settings').onclick = () => showInfo('设置 · SETTINGS', 'WASD 移动 · 鼠标右键 / Ctrl 射击 · R 大招（自动）· E 大招（手动）· F 妙具 · V/T 充能');
+document.getElementById('btn-friends').onclick  = () => showInfo('好友 · FRIENDS', '4 名英雄（含 AI Bot）已自动匹配。');
+document.getElementById('btn-mail').onclick     = () => showInfo('邮箱 · MAIL', '没有新邮件。');
+document.getElementById('btn-news').onclick     = () => showInfo('资讯 · NEWS', '新版本：增加 Brawl Stars 风格主菜单与按键映射。');
+infoModal.addEventListener('click', e => {
+  if(e.target === infoModal) infoModal.classList.remove('on');
+});
 
 document.getElementById('play-btn').onclick = () => {
   document.getElementById('title').classList.add('off');
+  heroModal.classList.remove('on');
   document.getElementById('hud').classList.add('on');
   newGame();
 };
