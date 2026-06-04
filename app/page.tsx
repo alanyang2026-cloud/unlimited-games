@@ -15,6 +15,7 @@ const GAME_PATHS: Record<string, string> = {
   "chess":         "/games/chess.html",
   "squish":        "/games/squish.html",
   "liars-tavern":  "/games/liars-tavern.html",
+  "hero-brawl":    "/games/hero-brawl.html",
 };
 
 export default function HomePage() {

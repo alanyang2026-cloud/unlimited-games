@@ -17,6 +17,7 @@ const GAMES = [
   { id:'chess',         title:'Rated Chess',   emoji:'♔', url:'/games/chess.html',           c1:'#d97706', c2:'#292524', w:880,  h:780 },
   { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',          c1:'#f472b6', c2:'#a855f7', w:600,  h:640 },
   { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',   c1:'#78350f', c2:'#0c0a09', w:1080, h:740, live:true },
+  { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',     c1:'#059669', c2:'#b45309', w:1100, h:720 },
 ];
 
 // ─ Injected into the page: builds the floating game window ─────
