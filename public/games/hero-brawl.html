@@ -43,6 +43,10 @@
   .skill .fill{position:absolute;left:0;right:0;bottom:0;background:rgba(251,191,36,.5);transition:height .12s}
   .skill.ready{border-color:#fbbf24;box-shadow:0 0 14px rgba(251,191,36,.6)}
   .skill .label{position:absolute;bottom:-18px;font-size:9px;color:#94a3b8;letter-spacing:1px;font-weight:700;text-align:center;width:100%}
+  .skill .kbd{position:absolute;bottom:2px;right:4px;font-size:9px;color:#fbbf24;letter-spacing:.5px;font-weight:900;background:rgba(0,0,0,.55);padding:1px 4px;border-radius:3px;line-height:1}
+  .skill .count{position:absolute;top:2px;left:4px;font-size:10px;color:#fff;font-weight:900;background:#16a34a;padding:1px 5px;border-radius:8px;line-height:1.2;min-width:14px;text-align:center}
+  .skill.empty{opacity:.35}
+  .skill.aiming{border-color:#ec4899;box-shadow:0 0 14px rgba(236,72,153,.7)}
   .toast{position:absolute;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);padding:14px 28px;border-radius:10px;font-size:20px;font-weight:900;border:2px solid #fbbf24;color:#fbbf24;letter-spacing:2px;text-shadow:0 2px 4px #000;backdrop-filter:blur(8px);animation:tin .25s ease-out}
   @keyframes tin{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
 
@@ -65,7 +69,9 @@
   <div class="heroes" id="heroes"></div>
   <button class="btn" id="play-btn">▶ BRAWL!</button>
   <p class="rules">
-    <b>WASD</b> move · <b>Mouse</b> aim · <b>Click</b> shoot · <b>Space/RClick</b> super<br>
+    <b>WASD</b> move · <b>Mouse</b> aim<br>
+    <b>Hold Right-Mouse</b> to aim / fire · <b>Ctrl</b> = quick fire<br>
+    <b>R</b> super auto-aim · <b>E</b> super manual aim (hold→release) · <b>F</b> gadget · <b>V/T</b> charge super<br>
     Last brawler standing wins · Hide in 🌳 bushes · Zone closes after 30s
   </p>
 </div>
@@ -75,8 +81,9 @@
   <div class="timer" id="timer">3:00</div>
   <div class="alive-list" id="alive"></div>
   <div class="skills">
-    <div class="skill" id="sk-attack" title="Attack (click)">⚔️<div class="fill" id="sk-attack-fill"></div></div>
-    <div class="skill" id="sk-super" title="Super (space)">⚡<div class="fill" id="sk-super-fill"></div></div>
+    <div class="skill" id="sk-gadget" title="Gadget (F) — heals +40 HP">🧪<div class="fill" id="sk-gadget-fill"></div><div class="kbd">F</div><div class="count" id="sk-gadget-count">2</div></div>
+    <div class="skill" id="sk-attack" title="Attack — hold Right-Mouse to aim, click to fire (Ctrl = quick fire)">⚔️<div class="fill" id="sk-attack-fill"></div><div class="kbd">RMB</div></div>
+    <div class="skill" id="sk-super" title="Super — R: auto-aim · E: manual aim (hold to aim, release to fire) · V/T: charge meter">⚡<div class="fill" id="sk-super-fill"></div><div class="kbd">R/E</div></div>
   </div>
 </div>
 
@@ -234,6 +241,8 @@ function mkPlayer(hero, x, y, name, isHuman){
     hitFlash:0,
     inBush:false,
     deathFrame:0,
+    gadgetCharges:2,
+    gadgetCool:0,
   };
 }
 
@@ -322,23 +331,53 @@ function tickPlayer(p){
   // Reload
   if(p.reload > 0) p.reload--;
   if(p.superCool > 0) p.superCool--;
+  if(p.gadgetCool > 0) p.gadgetCool--;
   if(p.hitFlash > 0) p.hitFlash--;
   if(p.superActive > 0 && p.hero.super !== 'dash' && p.hero.super !== 'rage') p.superActive--;
   p.inBush = isInBush(p);
 
-  // Shooting
-  const wantsShoot = p.isHuman ? mouseDown : (p.aiWantsShoot || false);
+  // ── Human input ────────────────────────────────────────
+  if(p.isHuman){
+    // V / T: super-charge meter (cheat / training key) — adds while held
+    if(keys.v || keys.t){
+      p.superCharge = Math.min(p.superMax, p.superCharge + 2);
+    }
+    // F: gadget (heal) — edge-triggered
+    if(keys.f && !p._fEdge && p.gadgetCharges > 0 && p.gadgetCool <= 0){
+      useGadget(p);
+    }
+    p._fEdge = !!keys.f;
+    // R: auto-aim super — edge-triggered
+    if(keys.r && !p._rEdge && p.superCharge >= p.superMax && p.superCool <= 0){
+      const tgt = nearestEnemy(p);
+      const aimPt = tgt ? { x: tgt.x, y: tgt.y } : { x: p.x + Math.cos(p.angle)*200, y: p.y + Math.sin(p.angle)*200 };
+      if(tgt) p.angle = Math.atan2(tgt.y - p.y, tgt.x - p.x);
+      fireSuper(p, aimPt);
+      p.superCharge = 0;
+    }
+    p._rEdge = !!keys.r;
+    // E: manual-aim super — fires on RELEASE (hold to aim, release to fire)
+    if(p._eEdge && !keys.e && p.superCharge >= p.superMax && p.superCool <= 0){
+      fireSuper(p, { x: mouse.x, y: mouse.y });
+      p.superCharge = 0;
+    }
+    p._eEdge = !!keys.e;
+  }
+
+  // ── Shooting ───────────────────────────────────────────
+  // Right-mouse held OR Ctrl held = fire (held = continuous, like Brawl Stars drag-aim-release)
+  const wantsShoot = p.isHuman
+    ? (keys.RightMouse || keys.Control)
+    : (p.aiWantsShoot || false);
   if(wantsShoot && p.reload <= 0 && p.alive){
     fireWeapon(p);
     p.reload = p.hero.reload;
   }
 
-  // Super
-  const wantsSuper = p.isHuman ? (keys[' '] || keys.RightMouse) : (p.aiWantsSuper || false);
-  if(wantsSuper && p.superCharge >= p.superMax && p.superCool <= 0){
-    fireSuper(p);
+  // ── AI super (auto-aim) ────────────────────────────────
+  if(!p.isHuman && p.aiWantsSuper && p.superCharge >= p.superMax && p.superCool <= 0){
+    fireSuper(p, p.aiTarget ? { x: p.aiTarget.x, y: p.aiTarget.y } : null);
     p.superCharge = 0;
-    keys.RightMouse = false;
   }
 
   // Damage from zone
@@ -372,13 +411,41 @@ function fireWeapon(p){
   state.cam.shake = Math.min(8, state.cam.shake + (h.weapon === 'rocket' ? 4 : 1.2));
 }
 
-function fireSuper(p){
+function nearestEnemy(p){
+  let best = null, bestD = Infinity;
+  for(const o of state.players){
+    if(o === p || !o.alive) continue;
+    const d = dist2(p.x, p.y, o.x, o.y);
+    if(d < bestD){ bestD = d; best = o; }
+  }
+  return best;
+}
+
+function useGadget(p){
+  p.gadgetCharges--;
+  p.gadgetCool = 30;
+  const heal = 40;
+  p.hp = Math.min(p.maxHp, p.hp + heal);
+  // sparkle particles
+  for(let i=0;i<14;i++){
+    const a = Math.random()*Math.PI*2, sp = 1 + Math.random()*2;
+    state.particles.push({
+      kind:'spark', x:p.x, y:p.y,
+      vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 1,
+      t:0, life:24, color:'#86efac',
+    });
+  }
+}
+
+function fireSuper(p, aimPt){
   const h = p.hero;
   if(h.super === 'dash'){
+    // Dash uses current facing angle; if aimPt given, aim there first
+    if(aimPt){ p.angle = Math.atan2(aimPt.y - p.y, aimPt.x - p.x); }
     p.superActive = h.superDur;
     state.cam.shake += 5;
   } else if(h.super === 'slam'){
-    // AoE around player
+    // AoE around player (no aim needed)
     for(const o of state.players){
       if(o === p || !o.alive) continue;
       if(dist2(o.x,o.y,p.x,p.y) < h.superRadius*h.superRadius){
@@ -389,8 +456,8 @@ function fireSuper(p){
     state.cam.shake += 12;
   } else if(h.super === 'mortar'){
     // Five shells lobbed at the aim point
-    const tx = p.isHuman ? mouse.x : (p.aiTarget ? p.aiTarget.x : p.x + Math.cos(p.angle)*200);
-    const ty = p.isHuman ? mouse.y : (p.aiTarget ? p.aiTarget.y : p.y + Math.sin(p.angle)*200);
+    const tx = aimPt ? aimPt.x : (p.isHuman ? mouse.x : (p.aiTarget ? p.aiTarget.x : p.x + Math.cos(p.angle)*200));
+    const ty = aimPt ? aimPt.y : (p.isHuman ? mouse.y : (p.aiTarget ? p.aiTarget.y : p.y + Math.sin(p.angle)*200));
     for(let i=0;i<5;i++){
       const offX = (Math.random()-0.5)*120, offY = (Math.random()-0.5)*120;
       const dly = i*8;
@@ -761,6 +828,19 @@ function draw(){
     ctx.globalAlpha = 1;
   }
 
+  // Aim lines — only for human player while aiming
+  const me = state.players[0];
+  if(me && me.alive){
+    // Normal attack aim (right-mouse or Ctrl held)
+    if(keys.RightMouse || keys.Control){
+      drawAimLine(me, mouse.x, mouse.y, me.hero.color, me.hero.ammoRange);
+    }
+    // Super manual aim (E held + super ready)
+    if(keys.e && me.superCharge >= me.superMax){
+      drawAimLine(me, mouse.x, mouse.y, '#fbbf24', 600, true);
+    }
+  }
+
   // Players
   for(const p of state.players){
     if(!p.alive) continue;
@@ -788,6 +868,33 @@ function draw(){
     }
   }
 
+  ctx.restore();
+}
+
+function drawAimLine(p, tx, ty, color, maxLen, thick){
+  const dx = tx - p.x, dy = ty - p.y;
+  const dlen = Math.hypot(dx, dy) || 1;
+  const len = Math.min(dlen, maxLen);
+  const ex = p.x + dx/dlen * len;
+  const ey = p.y + dy/dlen * len;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = thick ? 4 : 2.5;
+  ctx.setLineDash(thick ? [14,8] : [8,6]);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(p.x + Math.cos(Math.atan2(dy,dx)) * (p.r+4),
+             p.y + Math.sin(Math.atan2(dy,dx)) * (p.r+4));
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // End reticle
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = thick ? 3 : 2;
+  ctx.beginPath();
+  ctx.arc(ex, ey, thick ? 14 : 9, 0, Math.PI*2);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -901,10 +1008,20 @@ function updateHUD(){
   if(me){
     const atkFill = document.getElementById('sk-attack-fill');
     atkFill.style.height = (me.reload > 0 ? (me.reload / me.hero.reload * 100) : 0) + '%';
+    document.getElementById('sk-attack').classList.toggle('aiming', !!(keys.RightMouse || keys.Control));
+
     const supFill = document.getElementById('sk-super-fill');
     const sf = Math.max(0, 1 - me.superCharge / me.superMax);
     supFill.style.height = (sf * 100) + '%';
-    document.getElementById('sk-super').classList.toggle('ready', me.superCharge >= me.superMax);
+    const supEl = document.getElementById('sk-super');
+    supEl.classList.toggle('ready', me.superCharge >= me.superMax);
+    supEl.classList.toggle('aiming', !!keys.e && me.superCharge >= me.superMax);
+
+    const gEl = document.getElementById('sk-gadget');
+    document.getElementById('sk-gadget-count').textContent = me.gadgetCharges;
+    gEl.classList.toggle('empty', me.gadgetCharges <= 0);
+    document.getElementById('sk-gadget-fill').style.height =
+      (me.gadgetCool > 0 ? (me.gadgetCool / 30 * 100) : 0) + '%';
   }
 }
 
@@ -950,11 +1067,14 @@ window.restart = () => {
 addEventListener('keydown', e => {
   const k = (e.key.length === 1 ? e.key.toLowerCase() : e.key);
   keys[k] = true;
-  if(['w','a','s','d',' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) e.preventDefault();
+  // Track Ctrl as a separate flag (independent of left/right Ctrl)
+  if(e.ctrlKey || k === 'Control') keys.Control = true;
+  if(['w','a','s','d','r','e','f','v','t',' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(k)) e.preventDefault();
 });
 addEventListener('keyup', e => {
   const k = (e.key.length === 1 ? e.key.toLowerCase() : e.key);
   keys[k] = false;
+  if(!e.ctrlKey) keys.Control = false;
 });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; mouseDown = false; });
 
@@ -964,12 +1084,13 @@ cv.addEventListener('mousemove', e => {
   mouse.y = (e.clientY - r.top)  * (H / r.height);
 });
 cv.addEventListener('mousedown', e => {
-  if(e.button === 0) mouseDown = true;
   if(e.button === 2) keys.RightMouse = true;
+  // Left click also fires for accessibility / casual play
+  if(e.button === 0) { keys.RightMouse = true; mouseDown = true; }
 });
 cv.addEventListener('mouseup', e => {
-  if(e.button === 0) mouseDown = false;
   if(e.button === 2) keys.RightMouse = false;
+  if(e.button === 0) { mouseDown = false; if(!keys.Control) keys.RightMouse = false; }
 });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 
@@ -1032,6 +1153,15 @@ document.getElementById('play-btn').onclick = () => {
   document.getElementById('hud').classList.add('on');
   newGame();
 };
+
+// Make HUD skill chips tappable (touch / mouse) — sends a key edge
+function pulseKey(name, ms=140){
+  keys[name] = true;
+  setTimeout(() => { keys[name] = false; }, ms);
+}
+document.getElementById('sk-gadget').addEventListener('click', () => pulseKey('f'));
+document.getElementById('sk-super').addEventListener('click',  () => pulseKey('r'));
+document.getElementById('sk-attack').addEventListener('click', () => pulseKey('Control', 200));
 
 // Boot
 requestAnimationFrame(loop);

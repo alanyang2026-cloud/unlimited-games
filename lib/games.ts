@@ -126,7 +126,7 @@ export const GAMES: Game[] = [
     emoji: "🦸",
     description: "Pick a hero. Top-down arena shooter. Last brawler wins.",
     color: "from-emerald-600 to-amber-600",
-    controls: "WASD move · Mouse aim · Click shoot · Space super",
+    controls: "WASD move · Hold RMB / Ctrl to fire · R super · E aim super · F gadget · V/T charge",
   },
 ];
 
