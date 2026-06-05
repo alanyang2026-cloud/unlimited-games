@@ -1548,6 +1548,39 @@ function drawAimLine(p, tx, ty, color, maxLen, thick){
   ctx.restore();
 }
 
+// ── Hero sprite loader ────────────────────────────────────
+// Drop a PNG at /games/heroes/<hero_id>.png and the game uses it
+// instead of the procedural draw. Falls back silently on 404.
+// See public/games/heroes/README.md for the full convention.
+const HERO_SPRITES = {};
+(function loadHeroSprites(){
+  for(const h of HEROES){
+    const img = new Image();
+    img.onload  = () => { HERO_SPRITES[h.id] = img; };
+    img.onerror = () => {};   // silent fall-back
+    img.src = '/games/heroes/' + h.id + '.png';
+  }
+})();
+
+// Draw an external PNG hero sprite, scaled to a fixed display height.
+// Anchored so the bottom edge sits on the player's ground line.
+function drawHeroSprite(p, img){
+  const TARGET_H = 130;
+  const scale = TARGET_H / img.height;
+  const w = img.width * scale;
+  const feetY = p.y + p.r + 2;
+  // White-flash on hit (CSS-style filter is GPU-cheap; fallback for old browsers
+  // just skips the tint)
+  if(p.hitFlash > 0){
+    ctx.save();
+    if('filter' in ctx) ctx.filter = 'brightness(2.4) saturate(0.3)';
+    ctx.drawImage(img, p.x - w/2, feetY - TARGET_H, w, TARGET_H);
+    ctx.restore();
+  } else {
+    ctx.drawImage(img, p.x - w/2, feetY - TARGET_H, w, TARGET_H);
+  }
+}
+
 // Fallback look for the 4 original brawlers (Scout / Bash / Boom / Rush)
 // — single glowing disc + aim eye. Keeps them visually distinct from
 // Shelly's custom 2.5D sprite.
@@ -1775,9 +1808,14 @@ function drawPlayer(p){
   ctx.ellipse(p.x, p.y + p.r + 4, p.r*0.9, p.r*0.3, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // Per-hero 2.5D body. Falls back to the original circle for heroes
-  // that don't have a custom sprite function yet.
-  if(p.hero.id === 'shelly'){
+  // Per-hero body. Priority:
+  //   1. External PNG at /games/heroes/<id>.png (drop Blender renders here)
+  //   2. Hand-coded sprite (currently only Shelly)
+  //   3. Generic glow disc (Scout / Bash / Boom / Rush)
+  const heroImg = HERO_SPRITES[p.hero.id];
+  if(heroImg){
+    drawHeroSprite(p, heroImg);
+  } else if(p.hero.id === 'shelly'){
     drawShelly(p);
   } else {
     _drawDefaultBody(p);
