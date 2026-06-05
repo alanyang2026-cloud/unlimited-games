@@ -343,6 +343,22 @@ const HEROES = [
     superDur:120,
     desc:'Shotgun spray · close kills',
   },
+  {
+    // Shelly — Brawl Stars-inspired shotgunner (original art).
+    // Close-range bias (damage falls off with distance) + cone-blast
+    // super that knocks back and shatters barrel walls.
+    id:'shelly', name:'SHELLY', role:'SHOTGUNNER',
+    color:'#fbbf24', glow:'rgba(168,85,247,.55)',  // yellow + purple glow
+    hp:130, speed:2.7,
+    weapon:'shotgun',
+    ammoRange:280, ammoDmg:14, ammoSpeed:13, ammoCount:5, ammoSpread:0.30,
+    ammoFalloff:true,    // damage scales 1.0 → 0.3 with distance
+    reload:32,
+    super:'blast',       // wide cone — damage + knockback + breaks barrels
+    superDmg:55, superRange:240, superCone:Math.PI*0.55,
+    superKnockback:16, superSuperGain:35,  // bonus charge on super-hit
+    desc:'Bush ambush · close-range bursts · cone-blast super',
+  },
 ];
 
 const BOT_NAMES = ['Ace','Crit','Hex','Nova','Volt','Sigma','Echo','Razor','Frost','Jade'];
@@ -506,6 +522,7 @@ function mkPlayer(hero, x, y, name, isHuman){
     deathFrame:0,
     gadgetCharges:2,
     gadgetCool:0,
+    kbVx:0, kbVy:0,    // knockback impulse (decays each tick)
   };
 }
 
@@ -685,6 +702,12 @@ function tickPlayer(p){
     aiTick(p);
   }
 
+  // Knockback impulse (applied as displacement, then decays)
+  if(Math.abs(p.kbVx) > 0.05 || Math.abs(p.kbVy) > 0.05){
+    tryMove(p, p.kbVx, p.kbVy);
+    p.kbVx *= 0.78; p.kbVy *= 0.78;
+  } else { p.kbVx = p.kbVy = 0; }
+
   // Reload
   if(p.reload > 0) p.reload--;
   if(p.superCool > 0) p.superCool--;
@@ -755,17 +778,31 @@ function fireWeapon(p){
       ? (Math.random() - 0.5) * h.ammoSpread * 2
       : (h.ammoCount > 1 ? (i - (h.ammoCount-1)/2) * h.ammoSpread : 0);
     const a = p.angle + spread;
+    const sx = p.x + Math.cos(a)*p.r, sy = p.y + Math.sin(a)*p.r;
     state.projectiles.push({
-      x: p.x + Math.cos(a)*p.r, y: p.y + Math.sin(a)*p.r,
+      x: sx, y: sy, sx, sy,                  // sx/sy = spawn point (for falloff)
       vx: Math.cos(a)*h.ammoSpeed, vy: Math.sin(a)*h.ammoSpeed,
       r: h.weapon === 'rocket' ? 9 : 5,
       dmg: h.ammoDmg, splash: h.ammoSplash||0, splashDmg: h.ammoSplashDmg||0,
       life: h.ammoRange / h.ammoSpeed,
+      maxRange: h.ammoRange,
+      falloff: !!h.ammoFalloff,
       owner: p, color: h.color, glow: h.glow,
       kind: h.weapon,
     });
   }
   state.cam.shake = Math.min(8, state.cam.shake + (h.weapon === 'rocket' ? 4 : 1.2));
+}
+
+// Compute final bullet damage at hit time.
+// For falloff weapons (Shelly's shotgun) damage scales smoothly from
+// 100% at point-blank to 30% at the bullet's max range.
+function _bulletDmg(b){
+  if(!b.falloff) return b.dmg;
+  const d = Math.hypot(b.x - b.sx, b.y - b.sy);
+  const t = Math.min(1, d / (b.maxRange || 200));
+  const mult = 1 - 0.7 * t;   // 1.0 → 0.3
+  return b.dmg * mult;
 }
 
 function nearestEnemy(p){
@@ -826,6 +863,58 @@ function fireSuper(p, aimPt){
     state.cam.shake += 6;
   } else if(h.super === 'rage'){
     p.superActive = h.superDur;
+  } else if(h.super === 'blast'){
+    // Wide cone in front of player — damage, knockback, breaks barrels
+    if(aimPt) p.angle = Math.atan2(aimPt.y - p.y, aimPt.x - p.x);
+    const range = h.superRange, half = h.superCone * 0.5;
+    const ca = p.angle;
+    // Hit players in the cone
+    for(const o of state.players){
+      if(o === p || !o.alive) continue;
+      const dx = o.x - p.x, dy = o.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if(d > range) continue;
+      let dang = Math.atan2(dy, dx) - ca;
+      dang = Math.atan2(Math.sin(dang), Math.cos(dang));  // wrap to [-π, π]
+      if(Math.abs(dang) > half) continue;
+      // Falloff inside the cone — closer = harder hit
+      const mult = 1 - 0.4 * (d / range);
+      damage(o, h.superDmg * mult, p);
+      // Knockback away from caster
+      if(o.alive){
+        const nx = dx / (d || 1), ny = dy / (d || 1);
+        o.kbVx = nx * h.superKnockback;
+        o.kbVy = ny * h.superKnockback;
+      }
+    }
+    // Shatter destructibles in the cone
+    if(ARENA.destructibles){
+      for(const dd of ARENA.destructibles){
+        if(dd.hp <= 0) continue;
+        const dxc = (dd.x + dd.w/2) - p.x, dyc = (dd.y + dd.h/2) - p.y;
+        const d = Math.hypot(dxc, dyc);
+        if(d > range + Math.max(dd.w, dd.h)*0.5) continue;
+        let dang = Math.atan2(dyc, dxc) - ca;
+        dang = Math.atan2(Math.sin(dang), Math.cos(dang));
+        if(Math.abs(dang) > half) continue;
+        dd.hp = 0;  // instant shatter
+        const cx = dd.x + dd.w/2, cy = dd.y + dd.h/2;
+        for(let k=0;k<14;k++){
+          const a = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*3;
+          state.particles.push({
+            kind:'spark', x:cx, y:cy,
+            vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 1,
+            t:0, life:30, color:'#c2410c', size:4,
+          });
+        }
+      }
+    }
+    // Visual: yellow cone flash
+    state.splashes.push({
+      x: p.x, y: p.y, r: range, t: 0, life: 24,
+      color: '#fbbf24', kind: 'cone', angle: ca, half,
+    });
+    state.cam.shake += 10;
   }
   p.superCool = 30;
 }
@@ -851,7 +940,7 @@ function tickProjectiles(){
       for(const d of ARENA.destructibles){
         if(d.hp <= 0) continue;
         if(b.x>d.x && b.x<d.x+d.w && b.y>d.y && b.y<d.y+d.h){
-          d.hp -= b.dmg;
+          d.hp -= _bulletDmg(b);
           // Splash damage radiates
           if(b.splash > 0) explode(b.x,b.y,b.splash,b.splashDmg,b.owner);
           if(d.hp <= 0){
@@ -882,7 +971,7 @@ function tickProjectiles(){
         if(b.splash > 0){
           explode(b.x,b.y,b.splash,b.splashDmg,b.owner);
         }
-        damage(p, b.dmg, b.owner);
+        damage(p, _bulletDmg(b), b.owner);
         hit = true;
         break;
       }
@@ -1263,9 +1352,26 @@ function draw(){
     ctx.shadowBlur = 0;
   }
 
-  // Splash rings (explosions / slam)
+  // Splash rings (explosions / slam / Shelly's cone blast)
   for(const s of state.splashes){
     const f = s.t / s.life;
+    if(s.kind === 'cone'){
+      // Shelly-style cone blast — yellow wedge expanding outward
+      const r = s.r * (0.4 + f * 0.85);
+      ctx.fillStyle = s.color;
+      ctx.globalAlpha = (1 - f) * 0.55;
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.arc(s.x, s.y, r, s.angle - s.half, s.angle + s.half);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#fde047';
+      ctx.globalAlpha = (1 - f) * 0.9;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     ctx.strokeStyle = s.color;
     ctx.globalAlpha = (1 - f) * 0.8;
     ctx.lineWidth = 6;
@@ -1611,7 +1717,11 @@ cv.addEventListener('touchend', e => {
 
 // ── Hero icons + lobby UI ─────────────────────────────────
 function heroEmoji(id){
-  return id==='scout'?'🎯':id==='bash'?'👊':id==='boom'?'💣':'🔥';
+  if(id==='scout')  return '🎯';
+  if(id==='bash')   return '👊';
+  if(id==='boom')   return '💣';
+  if(id==='shelly') return '💥';
+  return '🔥'; // rush
 }
 
 const heroesEl = document.getElementById('heroes');
