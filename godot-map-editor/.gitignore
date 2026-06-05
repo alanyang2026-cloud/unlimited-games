@@ -1,0 +1,10 @@
+# Godot 4+ machine-specific cache (shader cache, editor state, etc.)
+# Safe to delete locally — regenerated next time you open the project.
+.godot/
+
+# Godot import cache (Godot 3 style; harmless to ignore for 4 too)
+.import/
+
+# OS / editor noise
+.DS_Store
+*.swp
