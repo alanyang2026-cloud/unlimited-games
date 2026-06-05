@@ -286,11 +286,16 @@
 'use strict';
 
 // ── Constants ──────────────────────────────────────────────
-const W = 1280, H = 720;
+// World (arena) is 2x bigger than the viewport. Camera follows the
+// player so only a 1280x720 slice is on-screen at any time.
+const VW = 1280, VH = 720;   // viewport (canvas) — what the user sees
+const W = 2560, H = 1440;    // world (arena) — total playable area
+const WALL_HEIGHT = 22;      // visual "height" of walls for 2.5D extrude
+
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 function resizeCanvas(){
-  cv.width = W; cv.height = H;
+  cv.width = VW; cv.height = VH;
   // CSS keeps it within the viewport via max-width/height
 }
 resizeCanvas();
@@ -366,29 +371,63 @@ const BOT_NAMES = ['Ace','Crit','Hex','Nova','Volt','Sigma','Echo','Razor','Fros
 // Arena: outer wall, central walls, bushes
 // `ARENA` is `let` so it can be hot-swapped by a custom map (built in
 // the Godot map editor under godot-map-editor/ — see README there).
-const DEFAULT_ARENA = {
-  name: 'default',
-  w: W, h: H,
-  walls: [
-    // Outer walls (4 thick borders)
-    {x:0,y:0,w:W,h:20}, {x:0,y:H-20,w:W,h:20},
-    {x:0,y:0,w:20,h:H}, {x:W-20,y:0,w:20,h:H},
-    // Some inner cover
-    {x:280,y:150,w:100,h:30}, {x:280,y:540,w:100,h:30},
-    {x:900,y:150,w:100,h:30}, {x:900,y:540,w:100,h:30},
-    {x:580,y:280,w:120,h:30}, {x:580,y:410,w:120,h:30},
-    {x:160,y:340,w:30,h:80},  {x:1090,y:340,w:30,h:80},
-  ],
-  bushes: [
-    {x:130,y:130,r:55}, {x:1150,y:130,r:55},
-    {x:130,y:H-130,r:55}, {x:1150,y:H-130,r:55},
-    {x:W/2,y:120,r:60}, {x:W/2,y:H-120,r:60},
-    {x:430,y:H/2,r:55}, {x:850,y:H/2,r:55},
-  ],
-  destructibles: [],
-  slowZones: [],
-  spawns: [],   // empty = game uses 4 corner spawns
-};
+const DEFAULT_ARENA = (() => {
+  // Designed for the 2x world (2560×1440). 4-way symmetric layout
+  // so all four spawn corners are fair. Mix of cover walls + bushes
+  // + a couple of barrel rows that Shelly can blow up.
+  const w = [];
+  // Outer borders (4 thick walls)
+  w.push({x:0,y:0,w:W,h:24}, {x:0,y:H-24,w:W,h:24});
+  w.push({x:0,y:0,w:24,h:H}, {x:W-24,y:0,w:24,h:H});
+  // Central plus-shape — chokepoint cover
+  w.push({x:W/2-200, y:H/2-30, w:400, h:60});
+  w.push({x:W/2-30,  y:H/2-200, w:60, h:400});
+  // 4 inner L-shapes (one per quadrant) — mirrored cover
+  const inner = [
+    {x:560, y:330, w:180, h:40},
+    {x:560, y:330, w:40,  h:180},
+  ];
+  for(const p of inner){
+    w.push({x:p.x, y:p.y, w:p.w, h:p.h});                                     // top-left
+    w.push({x:W-p.x-p.w, y:p.y, w:p.w, h:p.h});                               // top-right
+    w.push({x:p.x, y:H-p.y-p.h, w:p.w, h:p.h});                               // bottom-left
+    w.push({x:W-p.x-p.w, y:H-p.y-p.h, w:p.w, h:p.h});                         // bottom-right
+  }
+  // Far-corner stub walls
+  w.push({x:240, y:240, w:100, h:30}, {x:W-340, y:240, w:100, h:30});
+  w.push({x:240, y:H-270, w:100, h:30}, {x:W-340, y:H-270, w:100, h:30});
+
+  // Bushes — corners (spawn ambush), mid-edges, dead-center cross
+  const bushes = [];
+  const corner = 240;
+  bushes.push({x:corner, y:corner, r:70}, {x:W-corner, y:corner, r:70});
+  bushes.push({x:corner, y:H-corner, r:70}, {x:W-corner, y:H-corner, r:70});
+  // Top/bottom edge midpoints
+  bushes.push({x:W/2, y:220, r:75}, {x:W/2, y:H-220, r:75});
+  // Left/right edge midpoints
+  bushes.push({x:220, y:H/2, r:75}, {x:W-220, y:H/2, r:75});
+  // Quadrant interiors (smaller)
+  bushes.push({x:800, y:480, r:55}, {x:W-800, y:480, r:55});
+  bushes.push({x:800, y:H-480, r:55}, {x:W-800, y:H-480, r:55});
+
+  // Barrel walls — Shelly bait near the center cross
+  const destructibles = [
+    {x:W/2-260, y:H/2-260, w:120, h:36, hp:60, maxHp:60},
+    {x:W/2+140, y:H/2-260, w:120, h:36, hp:60, maxHp:60},
+    {x:W/2-260, y:H/2+224, w:120, h:36, hp:60, maxHp:60},
+    {x:W/2+140, y:H/2+224, w:120, h:36, hp:60, maxHp:60},
+  ];
+
+  return {
+    name: 'default',
+    w: W, h: H,
+    walls: w,
+    bushes,
+    destructibles,
+    slowZones: [],
+    spawns: [],   // empty = game uses 4 corner spawns
+  };
+})();
 let ARENA = DEFAULT_ARENA;
 let CUSTOM_MAP_NAME = null;
 
@@ -489,11 +528,12 @@ function newGame(){
   };
 
   // Spawn 4 players — use map's custom spawns if provided, else 4 corners
+  const cornerFallback = [
+    {x:160,y:160}, {x:W-160,y:160}, {x:160,y:H-160}, {x:W-160,y:H-160},
+  ];
   const spawns = (ARENA.spawns && ARENA.spawns.length >= 1)
     ? ARENA.spawns.slice(0, 4).map(s => ({x:s.x, y:s.y}))
-    : [{x:140,y:140}, {x:W-140,y:140}, {x:140,y:H-140}, {x:W-140,y:H-140}];
-  // Pad with corner fallbacks if map has fewer than 4 spawns
-  const cornerFallback = [{x:140,y:140}, {x:W-140,y:140}, {x:140,y:H-140}, {x:W-140,y:H-140}];
+    : cornerFallback.slice();
   while(spawns.length < 4) spawns.push(cornerFallback[spawns.length]);
   // Player always at random corner
   shuffle(spawns);
@@ -585,9 +625,10 @@ function getGrassFloor(){
     baseFill: '#1f4d2d',
     palette: ['#19402a', '#23553a', '#2e6644', '#385f3a', '#1a3a25'],
     blade: 'rgba(125,200,140,.18)',
-    tufts: 7500,
+    // Scale density to world area so the 2x map doesn't look sparse
+    tufts: Math.round(7500 * (W * H) / (1280 * 720)),
     tuftR: [2, 5],
-    blades: 2400,
+    blades: Math.round(2400 * (W * H) / (1280 * 720)),
   });
   _grassFloor = c;
   return c;
@@ -1163,12 +1204,17 @@ function tickPickups(){
 
 // ── Drawing ───────────────────────────────────────────────
 function draw(){
+  // Clear the viewport (in screen space, before camera transform)
+  ctx.clearRect(0, 0, VW, VH);
+
   ctx.save();
-  // Screen shake
+  // Screen shake (in screen space)
   if(state.cam.shake > 0.3){
     ctx.translate((Math.random()-0.5)*state.cam.shake, (Math.random()-0.5)*state.cam.shake);
     state.cam.shake *= 0.84;
   }
+  // Camera follow — translate so the cam window aligns with viewport
+  ctx.translate(-Math.round(state.cam.x || 0), -Math.round(state.cam.y || 0));
 
   // ── Grass background (pre-rendered tile blit) ──
   ctx.drawImage(getGrassFloor(), 0, 0);
@@ -1225,31 +1271,20 @@ function draw(){
     }
   }
 
-  // Walls — wooden crates
+  // ── Walls — 2.5D wooden crates (top face + front face) ──
+  // For each wall: draw a soft drop shadow on the ground, then the
+  // "front" face hanging below the top edge, then the top face itself.
   for(const w of ARENA.walls){
-    ctx.fillStyle = '#3d2614';
-    ctx.fillRect(w.x, w.y, w.w, w.h);
-    ctx.fillStyle = '#5a3a20';
-    ctx.fillRect(w.x+2, w.y+2, w.w-4, 4);
-    ctx.fillStyle = '#2a1a0a';
-    ctx.fillRect(w.x, w.y+w.h-3, w.w, 3);
+    _drawBox(w, '#5a3a20', '#3d2614', '#1f1208');
   }
 
-  // Destructible barrel walls — orange wood crates with HP bars
+  // ── Destructible barrel walls — 2.5D orange crates with HP bars ──
   if(ARENA.destructibles){
     for(const d of ARENA.destructibles){
       if(d.hp <= 0) continue;
       const frac = d.hp / d.maxHp;
-      // Body
-      ctx.fillStyle = '#9a3412';
-      ctx.fillRect(d.x, d.y, d.w, d.h);
-      // Top highlight
-      ctx.fillStyle = '#c2410c';
-      ctx.fillRect(d.x+2, d.y+2, d.w-4, 4);
-      // Bottom shadow
-      ctx.fillStyle = '#431407';
-      ctx.fillRect(d.x, d.y+d.h-3, d.w, 3);
-      // Vertical plank seams
+      _drawBox(d, '#c2410c', '#9a3412', '#431407');
+      // Vertical plank seams on top face
       ctx.strokeStyle = 'rgba(67,20,7,.7)';
       ctx.lineWidth = 1;
       for(let px = d.x + 24; px < d.x + d.w; px += 24){
@@ -1258,7 +1293,7 @@ function draw(){
         ctx.lineTo(px, d.y+d.h-2);
         ctx.stroke();
       }
-      // Cracks appear as HP drops
+      // Cracks as HP drops
       if(frac < 0.66){
         ctx.strokeStyle = 'rgba(0,0,0,.7)';
         ctx.lineWidth = 1.5;
@@ -1268,12 +1303,12 @@ function draw(){
         ctx.lineTo(d.x+d.w*0.3, d.y+d.h-4);
         ctx.stroke();
       }
-      // HP bar above when damaged
+      // HP bar above when damaged (floats over top face)
       if(frac < 1){
         ctx.fillStyle = 'rgba(0,0,0,.55)';
-        ctx.fillRect(d.x, d.y - 7, d.w, 4);
+        ctx.fillRect(d.x, d.y - 11, d.w, 4);
         ctx.fillStyle = frac > 0.5 ? '#22c55e' : frac > 0.25 ? '#fbbf24' : '#dc2626';
-        ctx.fillRect(d.x+1, d.y - 6, (d.w-2) * frac, 2);
+        ctx.fillRect(d.x+1, d.y - 10, (d.w-2) * frac, 2);
       }
     }
   }
@@ -1459,6 +1494,33 @@ function draw(){
   ctx.restore();
 }
 
+// Render an axis-aligned box with a faked 2.5D extrude:
+//   bottom drop shadow → front face (slanted "down" from top edge)
+//   → top face on the actual collision footprint.
+// `top` is the lit top color, `front` is the side colour, `shadow`
+// is the dark outline / ground shadow tint.
+function _drawBox(r, top, front, shadow){
+  const h = WALL_HEIGHT;
+  // 1. Ground shadow under the box
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.fillRect(r.x + 4, r.y + r.h + h - 2, r.w, 4);
+  // 2. Front face (the visible "wall" extending below the footprint)
+  ctx.fillStyle = front;
+  ctx.fillRect(r.x, r.y + r.h, r.w, h);
+  // 3. Front-face bottom shadow line
+  ctx.fillStyle = shadow;
+  ctx.fillRect(r.x, r.y + r.h + h - 3, r.w, 3);
+  // 4. Top face (the actual collision footprint, lit on top)
+  ctx.fillStyle = top;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  // 5. Subtle highlight strip on the top of the top face
+  ctx.fillStyle = 'rgba(255,255,255,.10)';
+  ctx.fillRect(r.x+2, r.y+2, r.w-4, 3);
+  // 6. Dark outline between top and front for crisp silhouette
+  ctx.fillStyle = shadow;
+  ctx.fillRect(r.x, r.y + r.h - 1, r.w, 2);
+}
+
 function drawAimLine(p, tx, ty, color, maxLen, thick){
   const dx = tx - p.x, dy = ty - p.y;
   const dlen = Math.hypot(dx, dy) || 1;
@@ -1627,8 +1689,23 @@ function loop(){
   for(const p of state.players) tickPlayer(p);
   tickProjectiles();
   tickPickups();
+  updateCamera();
   draw();
   updateHUD();
+}
+
+// Smoothly chase the local player; clamp to world bounds so the
+// viewport never spills past the arena edge.
+function updateCamera(){
+  if(!state || !state.players[0]) return;
+  const me = state.players[0];
+  // If dead, hold last camera position (don't snap to other players)
+  const tx = me.x - VW/2;
+  const ty = me.y - VH/2;
+  const cx = Math.max(0, Math.min(W - VW, tx));
+  const cy = Math.max(0, Math.min(H - VH, ty));
+  state.cam.x = (state.cam.x || 0) + (cx - (state.cam.x || 0)) * 0.14;
+  state.cam.y = (state.cam.y || 0) + (cy - (state.cam.y || 0)) * 0.14;
 }
 
 // ── End ───────────────────────────────────────────────────
@@ -1668,10 +1745,20 @@ addEventListener('keyup', e => {
 });
 addEventListener('blur', () => { for(const k in keys) keys[k] = false; mouseDown = false; });
 
-cv.addEventListener('mousemove', e => {
+// Convert a screen-space (CSS pixel) event to world coordinates
+// by going screen → canvas pixels → world (add camera offset).
+function _screenToWorld(e){
   const r = cv.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * (W / r.width);
-  mouse.y = (e.clientY - r.top)  * (H / r.height);
+  const camX = (state && state.cam) ? state.cam.x : 0;
+  const camY = (state && state.cam) ? state.cam.y : 0;
+  return {
+    x: (e.clientX - r.left) * (VW / r.width)  + camX,
+    y: (e.clientY - r.top)  * (VH / r.height) + camY,
+  };
+}
+cv.addEventListener('mousemove', e => {
+  const p = _screenToWorld(e);
+  mouse.x = p.x; mouse.y = p.y;
 });
 cv.addEventListener('mousedown', e => {
   if(e.button === 2) keys.RightMouse = true;
@@ -1690,6 +1777,7 @@ cv.addEventListener('touchstart', e => {
   e.preventDefault();
   const t = e.touches[0];
   const r = cv.getBoundingClientRect();
+  // touchOrigin in CSS-pixel space (used for relative drag delta)
   touchOrigin = { x:t.clientX - r.left, y:t.clientY - r.top };
   mouseDown = true;
 }, {passive:false});
@@ -1697,13 +1785,12 @@ cv.addEventListener('touchmove', e => {
   e.preventDefault();
   const t = e.touches[0];
   const r = cv.getBoundingClientRect();
-  const x = (t.clientX - r.left) * (W / r.width);
-  const y = (t.clientY - r.top)  * (H / r.height);
-  mouse.x = x; mouse.y = y;
-  // Translate finger delta → WASD
+  const p = _screenToWorld(t);
+  mouse.x = p.x; mouse.y = p.y;
+  // Translate finger delta → WASD (in CSS-pixel space, no camera)
   if(touchOrigin){
-    const dx = x - touchOrigin.x * (W / r.width);
-    const dy = y - touchOrigin.y * (H / r.height);
+    const dx = (t.clientX - r.left) - touchOrigin.x;
+    const dy = (t.clientY - r.top)  - touchOrigin.y;
     keys.a = dx < -20; keys.d = dx > 20;
     keys.w = dy < -20; keys.s = dy > 20;
   }

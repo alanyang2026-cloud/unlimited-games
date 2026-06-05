@@ -21,8 +21,8 @@
 
 extends Node2D
 
-const W := 1280
-const H := 720
+const W := 2560
+const H := 1440
 const GRID := 16          # snap step (game's arena uses fine pixels)
 const WALL_COLOR := Color(0.24, 0.15, 0.08)
 const WALL_HIGHLIGHT := Color(0.35, 0.23, 0.12)

@@ -21,8 +21,11 @@ config/icon="res://icon.svg"
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
+; Arena is 2560x1440 (matches the game's world). The window stays at
+; 1280x720 — canvas_items stretch mode scales the editor down to fit
+; the screen, so mouse clicks still land on the right world cell.
+window/size/viewport_width=2560
+window/size/viewport_height=1440
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
