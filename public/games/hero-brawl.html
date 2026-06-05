@@ -95,15 +95,47 @@
   .alive-row{display:flex;align-items:center;gap:7px;font-size:12px;margin-bottom:4px;color:#cbd5e1}
   .alive-row .dot{width:10px;height:10px;border-radius:50%}
   .alive-row.dead{opacity:.35;text-decoration:line-through}
-  .skills{position:absolute;bottom:14px;right:14px;display:flex;gap:8px;pointer-events:auto}
-  .skill{width:64px;height:64px;border-radius:14px;background:rgba(0,0,0,.65);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#fff;cursor:pointer;position:relative;overflow:hidden}
-  .skill .fill{position:absolute;left:0;right:0;bottom:0;background:rgba(251,191,36,.5);transition:height .12s}
-  .skill.ready{border-color:#fbbf24;box-shadow:0 0 14px rgba(251,191,36,.6)}
-  .skill .label{position:absolute;bottom:-18px;font-size:9px;color:#94a3b8;letter-spacing:1px;font-weight:700;text-align:center;width:100%}
-  .skill .kbd{position:absolute;bottom:2px;right:4px;font-size:9px;color:#fbbf24;letter-spacing:.5px;font-weight:900;background:rgba(0,0,0,.55);padding:1px 4px;border-radius:3px;line-height:1}
-  .skill .count{position:absolute;top:2px;left:4px;font-size:10px;color:#fff;font-weight:900;background:#16a34a;padding:1px 5px;border-radius:8px;line-height:1.2;min-width:14px;text-align:center}
-  .skill.empty{opacity:.35}
-  .skill.aiming{border-color:#ec4899;box-shadow:0 0 14px rgba(236,72,153,.7)}
+  /* ── Virtual joystick (bottom-left) ─────────────────── */
+  .joystick{position:absolute;left:30px;bottom:30px;width:140px;height:140px;pointer-events:auto;touch-action:none;z-index:25}
+  .jbase{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 35% 30%,rgba(60,130,200,.55),rgba(20,60,120,.7));border:4px solid rgba(255,255,255,.65);box-shadow:0 6px 14px rgba(0,0,0,.4),inset 0 -6px 12px rgba(0,0,0,.35)}
+  .jthumb{position:absolute;left:50%;top:50%;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7dd3fc,#1e40af);border:3px solid #fff;box-shadow:0 4px 10px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;transition:transform .04s linear}
+
+  /* ── Touch combat buttons (bottom-right, Brawl Stars layout) ── */
+  .touchpad{position:absolute;right:24px;bottom:24px;width:200px;height:200px;pointer-events:none;z-index:25}
+  .tbtn{position:absolute;pointer-events:auto;cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:50%;user-select:none;touch-action:none;font-family:inherit;font-weight:900;color:#fff}
+  .tbtn .tfill{position:absolute;left:0;right:0;bottom:0;background:rgba(251,191,36,.55);border-radius:50%;transition:height .12s}
+  .tbtn .ticon{position:relative;z-index:2;font-size:34px;line-height:1;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))}
+  .tbtn .tkbd{position:absolute;bottom:4px;right:4px;z-index:3;font-size:9px;font-weight:900;color:#fde047;background:rgba(0,0,0,.55);padding:1px 5px;border-radius:5px;letter-spacing:.5px}
+  .tbtn .tcount{position:absolute;top:-4px;right:-4px;z-index:3;background:#16a34a;border:2px solid #fff;color:#fff;font-weight:900;font-size:11px;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;line-height:1}
+  .tbtn.empty{opacity:.4}
+  .tbtn.aiming{outline:3px solid rgba(236,72,153,.85);outline-offset:2px}
+  .tbtn.ready{animation:tpulse 1.1s ease-in-out infinite}
+  @keyframes tpulse{0%,100%{box-shadow:0 0 0 0 rgba(251,191,36,.7),0 6px 0 var(--shadow,#7c2d12),0 10px 18px rgba(0,0,0,.5)}50%{box-shadow:0 0 0 14px rgba(251,191,36,0),0 6px 0 var(--shadow,#7c2d12),0 10px 18px rgba(0,0,0,.5)}}
+
+  /* Attack — big bottom-right white ring with skull */
+  .tattack{width:130px;height:130px;right:0;bottom:0;
+    background:radial-gradient(circle at 35% 30%,#fafafa,#cbd5e1 70%);
+    border:6px solid #fff;
+    box-shadow:0 7px 0 #475569,0 11px 22px rgba(0,0,0,.5);
+    color:#1f2937;--shadow:#475569}
+  .tattack .ticon{color:#0f172a;font-size:46px}
+  .tattack:active{transform:translateY(3px);box-shadow:0 4px 0 #475569,0 8px 14px rgba(0,0,0,.5)}
+
+  /* Super — red crosshair above attack */
+  .tsuper{width:74px;height:74px;right:120px;bottom:80px;
+    background:radial-gradient(circle at 35% 30%,#fda4af,#9f1239 75%);
+    border:4px solid #fff;
+    box-shadow:0 5px 0 #7f1d1d,0 8px 16px rgba(0,0,0,.5);--shadow:#7f1d1d}
+  .tsuper .ticon{font-size:30px}
+  .tsuper:active{transform:translateY(2px);box-shadow:0 3px 0 #7f1d1d,0 6px 12px rgba(0,0,0,.5)}
+
+  /* Gadget — small green button */
+  .tgadget{width:58px;height:58px;right:0;bottom:140px;
+    background:radial-gradient(circle at 35% 30%,#86efac,#15803d 75%);
+    border:3px solid #fff;
+    box-shadow:0 4px 0 #14532d,0 7px 12px rgba(0,0,0,.4);--shadow:#14532d}
+  .tgadget .ticon{font-size:24px}
+  .tgadget:active{transform:translateY(2px);box-shadow:0 2px 0 #14532d,0 5px 10px rgba(0,0,0,.4)}
   .toast{position:absolute;top:38%;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);padding:14px 28px;border-radius:10px;font-size:20px;font-weight:900;border:2px solid #fbbf24;color:#fbbf24;letter-spacing:2px;text-shadow:0 2px 4px #000;backdrop-filter:blur(8px);animation:tin .25s ease-out}
   @keyframes tin{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
 
@@ -180,6 +212,13 @@
   <div class="mcard">
     <div class="mtitle">选择英雄 · PICK A BRAWLER</div>
     <div class="heroes" id="heroes"></div>
+    <div style="display:flex;gap:10px;justify-content:center;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+      <label style="cursor:pointer;background:linear-gradient(180deg,#fbbf24,#d97706);color:#fff;font-weight:900;padding:10px 20px;border-radius:12px;border:2px solid #fff;box-shadow:0 4px 0 #92400e;font-size:13px;letter-spacing:1px">
+        📁 加载自定义地图 (Godot JSON)
+        <input id="map-file" type="file" accept="application/json,.json" style="display:none">
+      </label>
+      <button style="background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);color:#cbd5e1;padding:10px 16px;border-radius:12px;font-family:inherit;font-weight:700;cursor:pointer;font-size:12px" id="map-reset">恢复默认地图</button>
+    </div>
     <button class="mclose" id="hero-close">确认</button>
     <p class="rules">
       <b>WASD</b> move · <b>Mouse</b> aim · <b>Hold RMB / Ctrl</b> fire<br>
@@ -203,10 +242,35 @@
 <div class="hud" id="hud">
   <div class="timer" id="timer">3:00</div>
   <div class="alive-list" id="alive"></div>
-  <div class="skills">
-    <div class="skill" id="sk-gadget" title="Gadget (F) — heals +40 HP">🧪<div class="fill" id="sk-gadget-fill"></div><div class="kbd">F</div><div class="count" id="sk-gadget-count">2</div></div>
-    <div class="skill" id="sk-attack" title="Attack — hold Right-Mouse to aim, click to fire (Ctrl = quick fire)">⚔️<div class="fill" id="sk-attack-fill"></div><div class="kbd">RMB</div></div>
-    <div class="skill" id="sk-super" title="Super — R: auto-aim · E: manual aim (hold to aim, release to fire) · V/T: charge meter">⚡<div class="fill" id="sk-super-fill"></div><div class="kbd">R/E</div></div>
+
+  <!-- Virtual joystick (bottom-left) — drag inside to move -->
+  <div class="joystick" id="joystick">
+    <div class="jbase"></div>
+    <div class="jthumb" id="jthumb">
+      <span style="font-size:20px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.5)">✥</span>
+    </div>
+  </div>
+
+  <!-- Touch combat buttons (bottom-right) — like Brawl Stars -->
+  <div class="touchpad">
+    <!-- Super (top, larger) -->
+    <div class="tbtn tsuper" id="sk-super" title="Super — R / tap">
+      <div class="tfill" id="sk-super-fill"></div>
+      <div class="ticon">⚡</div>
+      <div class="tkbd">R</div>
+    </div>
+    <!-- Attack (bottom, big white ring) -->
+    <div class="tbtn tattack" id="sk-attack" title="Attack — hold Ctrl / tap">
+      <div class="tfill" id="sk-attack-fill"></div>
+      <div class="ticon">💀</div>
+      <div class="tkbd">FIRE</div>
+    </div>
+    <!-- Gadget (small bottom-right) -->
+    <div class="tbtn tgadget" id="sk-gadget" title="Gadget (F)">
+      <div class="tfill" id="sk-gadget-fill"></div>
+      <div class="ticon">🧪</div>
+      <div class="tcount" id="sk-gadget-count">2</div>
+    </div>
   </div>
 </div>
 
@@ -284,7 +348,10 @@ const HEROES = [
 const BOT_NAMES = ['Ace','Crit','Hex','Nova','Volt','Sigma','Echo','Razor','Frost','Jade'];
 
 // Arena: outer wall, central walls, bushes
-const ARENA = {
+// `ARENA` is `let` so it can be hot-swapped by a custom map (built in
+// the Godot map editor under godot-map-editor/ — see README there).
+const DEFAULT_ARENA = {
+  name: 'default',
   w: W, h: H,
   walls: [
     // Outer walls (4 thick borders)
@@ -302,7 +369,77 @@ const ARENA = {
     {x:W/2,y:120,r:60}, {x:W/2,y:H-120,r:60},
     {x:430,y:H/2,r:55}, {x:850,y:H/2,r:55},
   ],
+  destructibles: [],
+  slowZones: [],
+  spawns: [],   // empty = game uses 4 corner spawns
 };
+let ARENA = DEFAULT_ARENA;
+let CUSTOM_MAP_NAME = null;
+
+// Validate + apply an externally-loaded map JSON (from Godot editor).
+function applyArena(data){
+  if(!data || !Array.isArray(data.walls) || !Array.isArray(data.bushes)){
+    throw new Error('Invalid map: missing walls/bushes arrays');
+  }
+  const arena = {
+    name: data.name || 'custom',
+    w: W, h: H,  // game always renders at fixed 1280x720
+    walls:  data.walls.map(w => ({x:+w.x, y:+w.y, w:+w.w, h:+w.h})),
+    destructibles: (data.destructibles || []).map(d => ({
+      x:+d.x, y:+d.y, w:+d.w, h:+d.h,
+      hp: +d.hp || 60, maxHp: +d.hp || 60,
+    })),
+    bushes: data.bushes.map(b => {
+      if(Array.isArray(b.points)){
+        // 王者荣耀-style polygon bush — compute centroid for AI
+        const pts = b.points.map(p => [+p[0], +p[1]]);
+        let cx=0, cy=0;
+        for(const p of pts){ cx+=p[0]; cy+=p[1]; }
+        cx /= pts.length || 1; cy /= pts.length || 1;
+        return { poly: pts, x: cx, y: cy };
+      }
+      return { x:+b.x, y:+b.y, r:+b.r };
+    }),
+    slowZones: (data.slowZones || []).map(z => ({
+      poly: (z.points || []).map(p => [+p[0], +p[1]]),
+      speed: +z.speed || 0.5,
+    })),
+    spawns: (data.spawns || []).map(s => ({x:+s.x, y:+s.y})),
+  };
+  ARENA = arena;
+  CUSTOM_MAP_NAME = arena.name;
+  // Refresh the lobby's mode pill to show map name
+  const sub = document.querySelector('.modepill .msub');
+  if(sub) sub.textContent = '4 brawlers · map: ' + arena.name;
+}
+
+// Optional: ?map=<url> query param auto-loads a hosted map JSON.
+(function tryAutoLoadMap(){
+  try {
+    const u = new URL(location.href);
+    const url = u.searchParams.get('map');
+    if(!url) return;
+    fetch(url).then(r => r.json()).then(applyArena).catch(err => {
+      console.warn('[hero-brawl] failed to load ?map=', err);
+    });
+  } catch(_) {}
+})();
+
+// Listen for a file picker in the lobby (#map-file) and load on change.
+addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('map-file');
+  if(!inp) return;
+  inp.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if(!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try { applyArena(JSON.parse(rd.result)); }
+      catch(err){ alert('Map load failed: ' + err.message); }
+    };
+    rd.readAsText(f);
+  });
+});
 
 // ── Game state ─────────────────────────────────────────────
 let state = null;
@@ -335,10 +472,13 @@ function newGame(){
     survived: 0,
   };
 
-  // Spawn 4 players at 4 corners
-  const spawns = [
-    {x:140,y:140}, {x:W-140,y:140}, {x:140,y:H-140}, {x:W-140,y:H-140},
-  ];
+  // Spawn 4 players — use map's custom spawns if provided, else 4 corners
+  const spawns = (ARENA.spawns && ARENA.spawns.length >= 1)
+    ? ARENA.spawns.slice(0, 4).map(s => ({x:s.x, y:s.y}))
+    : [{x:140,y:140}, {x:W-140,y:140}, {x:140,y:H-140}, {x:W-140,y:H-140}];
+  // Pad with corner fallbacks if map has fewer than 4 spawns
+  const cornerFallback = [{x:140,y:140}, {x:W-140,y:140}, {x:140,y:H-140}, {x:W-140,y:H-140}];
+  while(spawns.length < 4) spawns.push(cornerFallback[spawns.length]);
   // Player always at random corner
   shuffle(spawns);
   state.players.push(mkPlayer(playerHero, spawns[0].x, spawns[0].y, 'YOU', true));
@@ -384,9 +524,91 @@ function rectCircleColliding(rx,ry,rw,rh,cx,cy,cr){
   return dx*dx + dy*dy < cr*cr;
 }
 function dist2(ax,ay,bx,by){const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy}
+
+// ── Grass textures ────────────────────────────────────────
+// Pre-rendered once. The whole arena is grass — bushes are just
+// patches of denser/darker grass (王者荣耀-style camouflage).
+let _grassFloor = null, _grassBush = null;
+function _seededRand(seed){
+  let s = seed | 0;
+  return function(){
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+function _drawGrassClumps(g, w, h, cfg){
+  // cfg: { tufts, blades, palette, baseFill }
+  g.fillStyle = cfg.baseFill;
+  g.fillRect(0, 0, w, h);
+  const rand = _seededRand(cfg.seed || 1234567);
+  // round tufts
+  for(let i=0; i<cfg.tufts; i++){
+    const x = rand()*w, y = rand()*h;
+    const r = cfg.tuftR[0] + rand()*(cfg.tuftR[1]-cfg.tuftR[0]);
+    g.fillStyle = cfg.palette[Math.floor(rand()*cfg.palette.length)];
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI*2); g.fill();
+  }
+  // upright blades (tiny vertical strokes for that "thick grass" feel)
+  g.lineWidth = 1;
+  for(let i=0; i<cfg.blades; i++){
+    const x = rand()*w, y = rand()*h;
+    const len = 2 + rand()*5;
+    g.strokeStyle = cfg.blade;
+    g.beginPath();
+    g.moveTo(x, y); g.lineTo(x + (rand()-0.5)*1.2, y - len);
+    g.stroke();
+  }
+}
+function getGrassFloor(){
+  if(_grassFloor) return _grassFloor;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  _drawGrassClumps(c.getContext('2d'), W, H, {
+    seed: 13371337,
+    baseFill: '#1f4d2d',
+    palette: ['#19402a', '#23553a', '#2e6644', '#385f3a', '#1a3a25'],
+    blade: 'rgba(125,200,140,.18)',
+    tufts: 7500,
+    tuftR: [2, 5],
+    blades: 2400,
+  });
+  _grassFloor = c;
+  return c;
+}
+function getBushTile(){
+  // A square tile of denser, darker grass — used clipped to the polygon.
+  if(_grassBush) return _grassBush;
+  const SZ = 220;
+  const c = document.createElement('canvas');
+  c.width = SZ; c.height = SZ;
+  _drawGrassClumps(c.getContext('2d'), SZ, SZ, {
+    seed: 999,
+    baseFill: '#0e2a1c',
+    palette: ['#0a2117', '#102e1f', '#1a4029', '#225035', '#0d2618'],
+    blade: 'rgba(100,180,130,.22)',
+    tufts: 1600,
+    tuftR: [2, 4.5],
+    blades: 800,
+  });
+  _grassBush = c;
+  return c;
+}
+// Ray-cast point-in-polygon test (王者荣耀-style polygon grass)
+function pointInPoly(x, y, pts){
+  let inside = false;
+  for(let i=0, j=pts.length-1; i<pts.length; j=i++){
+    const xi=pts[i][0], yi=pts[i][1], xj=pts[j][0], yj=pts[j][1];
+    if(((yi>y) !== (yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
 function isInBush(p){
   for(const b of ARENA.bushes){
-    if(dist2(p.x,p.y,b.x,b.y) < b.r*b.r) return true;
+    if(b.poly){
+      if(pointInPoly(p.x, p.y, b.poly)) return true;
+    } else {
+      if(dist2(p.x,p.y,b.x,b.y) < b.r*b.r) return true;
+    }
   }
   return false;
 }
@@ -405,6 +627,12 @@ function tryMove(p, vx, vy){
 function collidesWalls(x,y,r){
   for(const w of ARENA.walls){
     if(rectCircleColliding(w.x,w.y,w.w,w.h,x,y,r)) return true;
+  }
+  // Destructible barrel walls block movement too (until destroyed)
+  if(ARENA.destructibles){
+    for(const d of ARENA.destructibles){
+      if(d.hp > 0 && rectCircleColliding(d.x,d.y,d.w,d.h,x,y,r)) return true;
+    }
   }
   return false;
 }
@@ -443,7 +671,13 @@ function tickPlayer(p){
       const len = Math.hypot(dx,dy);
       dx /= len; dy /= len;
     }
-    const sp = p.hero.speed * (p.superActive>0 && p.hero.super==='rage' ? 1.4 : 1);
+    let sp = p.hero.speed * (p.superActive>0 && p.hero.super==='rage' ? 1.4 : 1);
+    // Slow zones (river/swamp) — multiply speed
+    if(ARENA.slowZones && ARENA.slowZones.length){
+      for(const z of ARENA.slowZones){
+        if(pointInPoly(p.x, p.y, z.poly)){ sp *= z.speed; break; }
+      }
+    }
     tryMove(p, dx*sp, dy*sp);
     // Aim at mouse
     p.angle = Math.atan2(mouse.y - p.y, mouse.x - p.x);
@@ -611,6 +845,35 @@ function tickProjectiles(){
       }
     }
     if(!state.projectiles[i]) continue;
+    // Hit destructible barrel?
+    if(ARENA.destructibles){
+      let consumed = false;
+      for(const d of ARENA.destructibles){
+        if(d.hp <= 0) continue;
+        if(b.x>d.x && b.x<d.x+d.w && b.y>d.y && b.y<d.y+d.h){
+          d.hp -= b.dmg;
+          // Splash damage radiates
+          if(b.splash > 0) explode(b.x,b.y,b.splash,b.splashDmg,b.owner);
+          if(d.hp <= 0){
+            // Break — spawn debris particles
+            const cx = d.x + d.w/2, cy = d.y + d.h/2;
+            for(let k=0;k<14;k++){
+              const a = Math.random()*Math.PI*2, sp = 1.5 + Math.random()*3;
+              state.particles.push({
+                kind:'spark', x:cx, y:cy,
+                vx:Math.cos(a)*sp, vy:Math.sin(a)*sp - 1,
+                t:0, life:30, color:'#c2410c', size:4,
+              });
+            }
+            state.cam.shake += 4;
+          }
+          state.projectiles.splice(i,1);
+          consumed = true;
+          break;
+        }
+      }
+      if(consumed) continue;
+    }
     // Hit player?
     let hit = false;
     for(const p of state.players){
@@ -818,16 +1081,8 @@ function draw(){
     state.cam.shake *= 0.84;
   }
 
-  // Grass background
-  ctx.fillStyle = '#1a3920';
-  ctx.fillRect(0,0,W,H);
-  // Grid texture
-  ctx.fillStyle = '#0e2912';
-  for(let x=0;x<W;x+=64) ctx.fillRect(x,0,1,H);
-  for(let y=0;y<H;y+=64) ctx.fillRect(0,y,W,1);
-  // Sub-grid lighter dots
-  ctx.fillStyle = 'rgba(255,255,255,.03)';
-  for(let x=32;x<W;x+=64) for(let y=32;y<H;y+=64) ctx.fillRect(x,y,2,2);
+  // ── Grass background (pre-rendered tile blit) ──
+  ctx.drawImage(getGrassFloor(), 0, 0);
 
   // Danger zone (shrunken safe area shows red outside)
   if(state.elapsedFrames > state.zoneStartFrame){
@@ -849,6 +1104,38 @@ function draw(){
     ctx.setLineDash([]);
   }
 
+  // Slow zones (river/swamp) — under everything else
+  if(ARENA.slowZones){
+    for(const z of ARENA.slowZones){
+      if(!z.poly || z.poly.length < 3) continue;
+      ctx.fillStyle = 'rgba(14,80,150,.55)';
+      ctx.beginPath();
+      ctx.moveTo(z.poly[0][0], z.poly[0][1]);
+      for(let i=1;i<z.poly.length;i++) ctx.lineTo(z.poly[i][0], z.poly[i][1]);
+      ctx.closePath();
+      ctx.fill();
+      // Wavy water highlights
+      ctx.strokeStyle = 'rgba(125,211,252,.55)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(z.poly[0][0], z.poly[0][1]);
+      for(let i=1;i<z.poly.length;i++) ctx.lineTo(z.poly[i][0], z.poly[i][1]);
+      ctx.closePath();
+      ctx.stroke();
+      // Centroid sparkles
+      const cx = z.poly.reduce((s,p)=>s+p[0],0)/z.poly.length;
+      const cy = z.poly.reduce((s,p)=>s+p[1],0)/z.poly.length;
+      const phase = (state.elapsedFrames || 0) * 0.05;
+      ctx.fillStyle = 'rgba(186,230,253,.7)';
+      for(let i=0;i<6;i++){
+        const a = phase + i*1.05;
+        ctx.beginPath();
+        ctx.arc(cx + Math.cos(a)*18, cy + Math.sin(a*1.3)*12, 2, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+
   // Walls — wooden crates
   for(const w of ARENA.walls){
     ctx.fillStyle = '#3d2614';
@@ -857,6 +1144,49 @@ function draw(){
     ctx.fillRect(w.x+2, w.y+2, w.w-4, 4);
     ctx.fillStyle = '#2a1a0a';
     ctx.fillRect(w.x, w.y+w.h-3, w.w, 3);
+  }
+
+  // Destructible barrel walls — orange wood crates with HP bars
+  if(ARENA.destructibles){
+    for(const d of ARENA.destructibles){
+      if(d.hp <= 0) continue;
+      const frac = d.hp / d.maxHp;
+      // Body
+      ctx.fillStyle = '#9a3412';
+      ctx.fillRect(d.x, d.y, d.w, d.h);
+      // Top highlight
+      ctx.fillStyle = '#c2410c';
+      ctx.fillRect(d.x+2, d.y+2, d.w-4, 4);
+      // Bottom shadow
+      ctx.fillStyle = '#431407';
+      ctx.fillRect(d.x, d.y+d.h-3, d.w, 3);
+      // Vertical plank seams
+      ctx.strokeStyle = 'rgba(67,20,7,.7)';
+      ctx.lineWidth = 1;
+      for(let px = d.x + 24; px < d.x + d.w; px += 24){
+        ctx.beginPath();
+        ctx.moveTo(px, d.y+2);
+        ctx.lineTo(px, d.y+d.h-2);
+        ctx.stroke();
+      }
+      // Cracks appear as HP drops
+      if(frac < 0.66){
+        ctx.strokeStyle = 'rgba(0,0,0,.7)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(d.x+5, d.y+d.h*0.3);
+        ctx.lineTo(d.x+d.w-8, d.y+d.h*0.55);
+        ctx.lineTo(d.x+d.w*0.3, d.y+d.h-4);
+        ctx.stroke();
+      }
+      // HP bar above when damaged
+      if(frac < 1){
+        ctx.fillStyle = 'rgba(0,0,0,.55)';
+        ctx.fillRect(d.x, d.y - 7, d.w, 4);
+        ctx.fillStyle = frac > 0.5 ? '#22c55e' : frac > 0.25 ? '#fbbf24' : '#dc2626';
+        ctx.fillRect(d.x+1, d.y - 6, (d.w-2) * frac, 2);
+      }
+    }
   }
 
   // Pickups
@@ -970,24 +1300,53 @@ function draw(){
     drawPlayer(p);
   }
 
-  // Bushes (drawn LAST so they hide players inside)
+  // Bushes — patches of denser, darker grass (camouflage style).
+  // Implementation: clip to the bush shape, blit the darker grass
+  // texture, add a subtle drop-shadow rim for the elevated feel.
+  const bushTile = getBushTile();
   for(const b of ARENA.bushes){
-    ctx.fillStyle = '#0d3018';
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#1b4a26';
-    // Leaf clumps
-    for(let i=0;i<8;i++){
-      const a = (i/8)*Math.PI*2 + b.x*0.01;
-      ctx.beginPath();
-      ctx.arc(b.x + Math.cos(a)*b.r*0.55, b.y + Math.sin(a)*b.r*0.55, b.r*0.45, 0, Math.PI*2);
-      ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    if(b.poly){
+      const pts = b.poly;
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.closePath();
+    } else {
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI*2);
     }
-    ctx.fillStyle = '#2a6b34';
-    for(let i=0;i<5;i++){
-      const a = (i/5)*Math.PI*2 + 0.6;
-      ctx.beginPath();
-      ctx.arc(b.x + Math.cos(a)*b.r*0.3, b.y + Math.sin(a)*b.r*0.3, b.r*0.32, 0, Math.PI*2);
-      ctx.fill();
+    ctx.clip();
+    // Tile the darker grass tile across the bush area
+    const tileSize = bushTile.width;
+    const bx = b.poly ? Math.min(...b.poly.map(p=>p[0])) : b.x - b.r;
+    const by = b.poly ? Math.min(...b.poly.map(p=>p[1])) : b.y - b.r;
+    const bw = b.poly ? (Math.max(...b.poly.map(p=>p[0])) - bx) : b.r*2;
+    const bh = b.poly ? (Math.max(...b.poly.map(p=>p[1])) - by) : b.r*2;
+    for(let yy = Math.floor(by/tileSize)*tileSize; yy < by + bh; yy += tileSize){
+      for(let xx = Math.floor(bx/tileSize)*tileSize; xx < bx + bw; xx += tileSize){
+        ctx.drawImage(bushTile, xx, yy);
+      }
+    }
+    // Subtle inner shadow for elevation
+    ctx.fillStyle = 'rgba(0,0,0,.25)';
+    ctx.fill();
+    ctx.restore();
+    // Bright tuft highlights on top (drawn outside clip so they stick up)
+    ctx.fillStyle = 'rgba(110,200,140,.30)';
+    if(b.poly){
+      for(let i=0;i<b.poly.length;i++){
+        const a = b.poly[i], n = b.poly[(i+1)%b.poly.length];
+        ctx.beginPath();
+        ctx.arc((a[0]+n[0])/2, (a[1]+n[1])/2 - 1, 7, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else {
+      for(let i=0;i<6;i++){
+        const a = (i/6)*Math.PI*2;
+        ctx.beginPath();
+        ctx.arc(b.x + Math.cos(a)*b.r*0.7, b.y + Math.sin(a)*b.r*0.7 - 1, 7, 0, Math.PI*2);
+        ctx.fill();
+      }
     }
   }
 
@@ -1300,6 +1659,12 @@ document.getElementById('btn-heroes').onclick = () => {
   document.getElementById('hero-badge').style.display = 'none';
 };
 document.getElementById('hero-close').onclick = () => heroModal.classList.remove('on');
+document.getElementById('map-reset').onclick = () => {
+  ARENA = DEFAULT_ARENA;
+  CUSTOM_MAP_NAME = null;
+  const sub = document.querySelector('.modepill .msub');
+  if(sub) sub.textContent = '4 brawlers · last hero standing wins';
+};
 heroModal.addEventListener('click', e => {
   if(e.target === heroModal) heroModal.classList.remove('on');
 });
@@ -1331,9 +1696,68 @@ function pulseKey(name, ms=140){
   keys[name] = true;
   setTimeout(() => { keys[name] = false; }, ms);
 }
-document.getElementById('sk-gadget').addEventListener('click', () => pulseKey('f'));
-document.getElementById('sk-super').addEventListener('click',  () => pulseKey('r'));
-document.getElementById('sk-attack').addEventListener('click', () => pulseKey('Control', 200));
+// ── Touchpad: attack / super / gadget ──────────────────────
+// Attack — hold to auto-fire (sets keys.Control while down)
+const attackBtn = document.getElementById('sk-attack');
+function attackDown(e){ e.preventDefault(); keys.Control = true; }
+function attackUp(){ keys.Control = false; }
+attackBtn.addEventListener('pointerdown',  attackDown);
+attackBtn.addEventListener('pointerup',    attackUp);
+attackBtn.addEventListener('pointercancel',attackUp);
+attackBtn.addEventListener('pointerleave', attackUp);
+
+// Super — tap = auto-aim (R key)
+document.getElementById('sk-super').addEventListener('pointerdown', e => {
+  e.preventDefault(); pulseKey('r', 150);
+});
+// Gadget — tap = use (F key)
+document.getElementById('sk-gadget').addEventListener('pointerdown', e => {
+  e.preventDefault(); pulseKey('f', 150);
+});
+
+// ── Virtual joystick ───────────────────────────────────────
+// Drag inside the joystick base → maps to keys.w/a/s/d.
+// Works for mouse + touch via pointer events.
+(function setupJoystick(){
+  const js = document.getElementById('joystick');
+  const thumb = document.getElementById('jthumb');
+  if(!js || !thumb) return;
+  const R = 50;      // max thumb travel
+  const DEAD = 12;   // ignore tiny twitches
+  let active = false, originX = 0, originY = 0, pid = -1;
+  function reset(){
+    thumb.style.transform = 'translate(0,0)';
+    keys.w = keys.a = keys.s = keys.d = false;
+  }
+  function setKeysFromVec(dx, dy){
+    keys.w = dy < -DEAD; keys.s = dy > DEAD;
+    keys.a = dx < -DEAD; keys.d = dx > DEAD;
+  }
+  js.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    const r = js.getBoundingClientRect();
+    originX = r.left + r.width/2; originY = r.top + r.height/2;
+    active = true; pid = e.pointerId;
+    js.setPointerCapture(e.pointerId);
+  });
+  js.addEventListener('pointermove', e => {
+    if(!active || e.pointerId !== pid) return;
+    e.preventDefault();
+    let dx = e.clientX - originX, dy = e.clientY - originY;
+    const len = Math.hypot(dx, dy);
+    if(len > R){ dx = dx/len * R; dy = dy/len * R; }
+    thumb.style.transform = `translate(${dx}px,${dy}px)`;
+    setKeysFromVec(dx, dy);
+  });
+  function release(e){
+    if(e.pointerId !== pid && pid !== -1) return;
+    active = false; pid = -1;
+    reset();
+  }
+  js.addEventListener('pointerup', release);
+  js.addEventListener('pointercancel', release);
+  js.addEventListener('pointerleave', release);
+})();
 
 // Boot
 requestAnimationFrame(loop);
