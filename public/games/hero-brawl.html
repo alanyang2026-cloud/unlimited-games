@@ -1548,6 +1548,218 @@ function drawAimLine(p, tx, ty, color, maxLen, thick){
   ctx.restore();
 }
 
+// Fallback look for the 4 original brawlers (Scout / Bash / Boom / Rush)
+// — single glowing disc + aim eye. Keeps them visually distinct from
+// Shelly's custom 2.5D sprite.
+function _drawDefaultBody(p){
+  // Body
+  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : p.hero.color;
+  ctx.shadowBlur = 12; ctx.shadowColor = p.hero.glow;
+  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Highlight
+  ctx.fillStyle = 'rgba(255,255,255,.25)';
+  ctx.beginPath();
+  ctx.arc(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.5, 0, Math.PI*2);
+  ctx.fill();
+  // Aim eye (white + iris dot)
+  const ax = p.x + Math.cos(p.angle) * (p.r + 2);
+  const ay = p.y + Math.sin(p.angle) * (p.r + 2);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(ax, ay, 7, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0f0f1a';
+  const ex = p.x + Math.cos(p.angle) * (p.r + 4);
+  const ey = p.y + Math.sin(p.angle) * (p.r + 4);
+  ctx.beginPath(); ctx.arc(ex, ey, 3.5, 0, Math.PI*2); ctx.fill();
+}
+
+// 2.5D Shelly sprite — purple flower-shape hair, yellow scarf, blue
+// boots / pants with yellow stripe, holding a wood-and-steel shotgun.
+// Body always faces the camera; only the shotgun arm rotates with
+// aim direction (same convention Brawl Stars uses).
+function drawShelly(p){
+  // Feet anchor (just above shadow) — body stacks upward from here
+  const fx = p.x;
+  const fy = p.y + p.r - 2;
+  const flash = p.hitFlash > 0;
+  const SKIN     = flash ? '#ffe5cc' : '#d4956b';
+  const SKIN_SH  = '#a16a4c';
+  const HAIR     = flash ? '#fff'    : '#9333ea';
+  const HAIR_DK  = '#6d28d9';
+  const SHIRT    = flash ? '#fff'    : '#a78bfa';
+  const SHIRT_HI = '#ddd6fe';
+  const SHIRT_SH = '#7c3aed';
+  const PANTS    = '#1e3a8a';
+  const PANTS_HI = '#3b82f6';
+  const PANTS_ST = '#facc15';
+  const BOOT     = '#1e293b';
+  const SCARF    = '#facc15';
+  const SCARF_SH = '#b45309';
+
+  // ── Boots ──
+  ctx.fillStyle = BOOT;
+  ctx.beginPath(); ctx.ellipse(fx - 7, fy - 1, 6, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(fx + 7, fy - 1, 6, 5, 0, 0, Math.PI*2); ctx.fill();
+  // boot cuff
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(fx - 12, fy - 5, 24, 2);
+
+  // ── Legs / pants ──
+  ctx.fillStyle = PANTS;
+  ctx.fillRect(fx - 11, fy - 22, 9, 18);   // left leg
+  ctx.fillRect(fx + 2,  fy - 22, 9, 18);   // right leg
+  // outside yellow stripe
+  ctx.fillStyle = PANTS_ST;
+  ctx.fillRect(fx - 11, fy - 22, 1.5, 18);
+  ctx.fillRect(fx + 9.5, fy - 22, 1.5, 18);
+  // pants highlight (top of each leg)
+  ctx.fillStyle = PANTS_HI;
+  ctx.fillRect(fx - 9, fy - 22, 5, 2);
+  ctx.fillRect(fx + 4, fy - 22, 5, 2);
+
+  // ── Torso (purple shirt) ──
+  ctx.fillStyle = SHIRT;
+  _shellyRoundRect(fx - 15, fy - 40, 30, 20, 6);
+  // Highlight on top of shirt
+  ctx.fillStyle = SHIRT_HI;
+  _shellyRoundRect(fx - 14, fy - 40, 28, 5, 4);
+  // Shadow at bottom of shirt (above belt)
+  ctx.fillStyle = SHIRT_SH;
+  ctx.fillRect(fx - 14, fy - 24, 28, 3);
+
+  // ── Yellow scarf ──
+  // Knot under chin
+  ctx.fillStyle = SCARF;
+  _shellyRoundRect(fx - 7, fy - 41, 14, 8, 3);
+  // Triangle hanging down to chest
+  ctx.beginPath();
+  ctx.moveTo(fx - 7, fy - 36);
+  ctx.lineTo(fx + 7, fy - 36);
+  ctx.lineTo(fx + 4, fy - 24);
+  ctx.lineTo(fx - 4, fy - 24);
+  ctx.closePath(); ctx.fill();
+  // Scarf shadow stripe
+  ctx.fillStyle = SCARF_SH;
+  ctx.fillRect(fx - 6, fy - 27, 12, 1.5);
+
+  // ── Left arm (peeks out, not holding gun) ──
+  ctx.fillStyle = SKIN;
+  ctx.beginPath();
+  ctx.ellipse(fx - 17, fy - 32, 4.5, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── Head ──
+  const hx = fx, hy = fy - 52;
+
+  // Purple "flower" hair — 5 petals + center puff
+  ctx.fillStyle = HAIR;
+  // outer petals
+  const petals = [
+    [0, -14, 9],     // top
+    [-12, -6, 8],    // top-left
+    [12, -6, 8],     // top-right
+    [-10, 5, 7],     // bottom-left
+    [10, 5, 7],      // bottom-right
+  ];
+  for(const [dx, dy, r] of petals){
+    ctx.beginPath(); ctx.arc(hx + dx, hy + dy, r, 0, Math.PI*2); ctx.fill();
+  }
+  // Hair shadow (dark) on the bottom petals for depth
+  if(!flash){
+    ctx.fillStyle = HAIR_DK;
+    ctx.beginPath(); ctx.arc(hx - 9, hy + 7, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx + 9, hy + 7, 6, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Face
+  ctx.fillStyle = SKIN;
+  ctx.beginPath(); ctx.arc(hx, hy + 1, 9, 0, Math.PI*2); ctx.fill();
+  // Chin shading
+  ctx.fillStyle = SKIN_SH;
+  ctx.beginPath();
+  ctx.ellipse(hx, hy + 8, 6, 2, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Side bangs covering temples
+  ctx.fillStyle = HAIR;
+  ctx.beginPath(); ctx.ellipse(hx - 7, hy + 1, 3.5, 5, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx + 7, hy + 1, 3.5, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Eyes — whites
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(hx - 3, hy + 2, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(hx + 3, hy + 2, 2.2, 0, Math.PI*2); ctx.fill();
+  // Pupils
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.arc(hx - 3, hy + 2.5, 1.3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(hx + 3, hy + 2.5, 1.3, 0, Math.PI*2); ctx.fill();
+  // Catchlight
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(hx - 3.4, hy + 1.7, 0.8, 0.8);
+  ctx.fillRect(hx + 2.6, hy + 1.7, 0.8, 0.8);
+
+  // Eyebrows
+  ctx.strokeStyle = HAIR_DK;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(hx - 6, hy - 2); ctx.lineTo(hx - 1, hy - 1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(hx + 6, hy - 2); ctx.lineTo(hx + 1, hy - 1); ctx.stroke();
+
+  // Signature cheek bandage
+  ctx.fillStyle = '#fef3c7';
+  ctx.fillRect(hx + 5, hy + 5, 4, 1.6);
+  ctx.fillStyle = '#fde68a';
+  ctx.fillRect(hx + 5.5, hy + 5.3, 1, 0.6);
+  ctx.fillRect(hx + 7.5, hy + 5.3, 1, 0.6);
+
+  // ── Shotgun (held in right hand, rotates with aim) ──
+  ctx.save();
+  ctx.translate(fx + 10, fy - 40);   // shoulder/hand pivot
+  ctx.rotate(p.angle);
+  // Right hand on stock
+  ctx.fillStyle = SKIN;
+  ctx.beginPath(); ctx.arc(-2, 0, 3.5, 0, Math.PI*2); ctx.fill();
+  // Wooden stock
+  ctx.fillStyle = '#92400e';
+  ctx.fillRect(-10, -3.5, 8, 7);
+  ctx.fillStyle = '#7c2d12';
+  ctx.fillRect(-10, 2,    8, 1.5);   // bottom shadow
+  // Pump action grip
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(0, -1, 4, 4);
+  // Metal barrel
+  ctx.fillStyle = '#475569';
+  ctx.fillRect(4, -3.5, 14, 7);
+  ctx.fillStyle = '#94a3b8';      // top highlight
+  ctx.fillRect(4, -3.5, 14, 1.5);
+  ctx.fillStyle = '#1e293b';      // bottom shadow
+  ctx.fillRect(4,  2,    14, 1.5);
+  // Muzzle
+  ctx.fillStyle = '#020617';
+  ctx.fillRect(17, -4, 2, 8);
+  // Muzzle flash when freshly fired
+  if(p.reload > p.hero.reload - 4){
+    ctx.fillStyle = '#fde047';
+    ctx.beginPath();
+    ctx.moveTo(19, -5); ctx.lineTo(28, 0); ctx.lineTo(19, 5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillRect(19, -2, 6, 4);
+  }
+  ctx.restore();
+}
+
+// Local helper — rounded rect (canvas 2D has no built-in cross-browser)
+function _shellyRoundRect(x, y, w, h, r){
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+  ctx.fill();
+}
+
 function drawPlayer(p){
   // Players inside bushes show as faint silhouette to ENEMIES,
   // but the local player can always see themselves.
@@ -1557,38 +1769,19 @@ function drawPlayer(p){
   ctx.save();
   ctx.globalAlpha = opacity;
 
-  // Shadow
+  // Shadow (always on the ground line, regardless of body art)
   ctx.fillStyle = 'rgba(0,0,0,.4)';
-  ctx.beginPath(); ctx.ellipse(p.x, p.y + p.r + 4, p.r*0.9, p.r*0.3, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y + p.r + 4, p.r*0.9, p.r*0.3, 0, 0, Math.PI*2);
+  ctx.fill();
 
-  // Body
-  if(p.hitFlash > 0){
-    ctx.fillStyle = '#fff';
+  // Per-hero 2.5D body. Falls back to the original circle for heroes
+  // that don't have a custom sprite function yet.
+  if(p.hero.id === 'shelly'){
+    drawShelly(p);
   } else {
-    ctx.fillStyle = p.hero.color;
+    _drawDefaultBody(p);
   }
-  ctx.shadowBlur = 12; ctx.shadowColor = p.hero.glow;
-  ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Inner highlight
-  ctx.fillStyle = 'rgba(255,255,255,.25)';
-  ctx.beginPath(); ctx.arc(p.x - p.r*0.3, p.y - p.r*0.3, p.r*0.5, 0, Math.PI*2); ctx.fill();
-
-  // Aim direction
-  const ax = p.x + Math.cos(p.angle) * (p.r + 2);
-  const ay = p.y + Math.sin(p.angle) * (p.r + 2);
-  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : '#fff';
-  ctx.beginPath();
-  ctx.arc(ax, ay, 7, 0, Math.PI*2);
-  ctx.fill();
-  // Eye iris dot
-  ctx.fillStyle = '#0f0f1a';
-  const ex = p.x + Math.cos(p.angle) * (p.r + 4);
-  const ey = p.y + Math.sin(p.angle) * (p.r + 4);
-  ctx.beginPath();
-  ctx.arc(ex, ey, 3.5, 0, Math.PI*2);
-  ctx.fill();
 
   // Name
   ctx.fillStyle = '#fff';
