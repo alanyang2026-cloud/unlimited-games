@@ -1,0 +1,13 @@
+# Local Python bytecode + Blender autosaves
+__pycache__/
+*.blend1
+*.blend@
+未命名.blend
+
+# Downloaded third-party asset packs (large, regenerable)
+quaternius/
+tribal-pack/
+
+# Practice files
+shelly-practice.blend
+shelly.blend

@@ -301,68 +301,72 @@ function resizeCanvas(){
 resizeCanvas();
 addEventListener('resize', resizeCanvas);
 
-// Brawlers — each one a distinct playstyle
+// Brawlers — each one a distinct playstyle. Visual is the
+// Blender-rendered PNG at /games/heroes/<id>.png; gameplay stats
+// stay the same as the previous brawler in that slot.
 const HEROES = [
   {
-    id:'scout', name:'SCOUT', role:'SHARPSHOOTER',
+    // Pirate sharpshooter — was SCOUT slot. Long-range musket.
+    id:'jolly', name:'JOLLY', role:'SHARPSHOOTER',
     color:'#06b6d4', glow:'rgba(6,182,212,.6)',
     hp:80, speed:3.2,
     weapon:'pistol',
     ammoRange:340, ammoDmg:16, ammoSpeed:11, ammoCount:1, ammoSpread:0.0,
     reload:14,
-    super:'dash',  // long invulnerable dash
+    super:'dash',
     superDur:18, superSpeed:9.5,
-    desc:'Long range · fast feet',
+    desc:'Long range · fast feet · dash super',
   },
   {
-    id:'bash', name:'BASH', role:'BRUISER',
+    // Viking bruiser — was BASH slot. Axe-swing close range tank.
+    id:'bjorn', name:'BJORN', role:'BRUISER',
     color:'#f43f5e', glow:'rgba(244,63,94,.6)',
     hp:150, speed:2.4,
     weapon:'punch',
     ammoRange:88, ammoDmg:30, ammoSpeed:14, ammoCount:1, ammoSpread:0.0,
     reload:24,
-    super:'slam',  // shockwave damages everyone nearby
+    super:'slam',
     superDmg:45, superRadius:140,
-    desc:'High HP · big punch',
+    desc:'High HP · big swings · ground-slam super',
   },
   {
-    id:'boom', name:'BOOM', role:'ARTILLERY',
+    // Wizard caster — was BOOM slot. Mortar / fireball artillery.
+    id:'hex', name:'HEX', role:'ARTILLERY',
     color:'#fbbf24', glow:'rgba(251,191,36,.6)',
     hp:90, speed:2.6,
     weapon:'rocket',
     ammoRange:420, ammoDmg:22, ammoSpeed:6.5, ammoCount:1, ammoSpread:0.0,
     reload:48,
     ammoSplash:74, ammoSplashDmg:18,
-    super:'mortar', // 5 explosive shells lobbed at aim point
+    super:'mortar',
     superDmg:30, superRadius:90,
-    desc:'Splash · long reload',
+    desc:'Splash · long reload · mortar barrage',
   },
   {
-    id:'rush', name:'RUSH', role:'SCRAPPER',
+    // Ninja scrapper — was RUSH slot. Fast shuriken spray + rage super.
+    id:'kage', name:'KAGE', role:'SCRAPPER',
     color:'#a855f7', glow:'rgba(168,85,247,.6)',
     hp:110, speed:3.0,
     weapon:'shotgun',
     ammoRange:200, ammoDmg:9, ammoSpeed:12, ammoCount:5, ammoSpread:0.32,
     reload:30,
-    super:'rage', // brief super-fast attack
+    super:'rage',
     superDur:120,
-    desc:'Shotgun spray · close kills',
+    desc:'Shuriken spray · close kills · rage super',
   },
   {
-    // Shelly — Brawl Stars-inspired shotgunner (original art).
-    // Close-range bias (damage falls off with distance) + cone-blast
-    // super that knocks back and shatters barrel walls.
-    id:'shelly', name:'SHELLY', role:'SHOTGUNNER',
-    color:'#fbbf24', glow:'rgba(168,85,247,.55)',  // yellow + purple glow
+    // Cowboy gunslinger — was SHELLY slot. Close-range shotgun.
+    id:'ace', name:'ACE', role:'SHOTGUNNER',
+    color:'#fbbf24', glow:'rgba(168,85,247,.55)',
     hp:130, speed:2.7,
     weapon:'shotgun',
     ammoRange:280, ammoDmg:14, ammoSpeed:13, ammoCount:5, ammoSpread:0.30,
-    ammoFalloff:true,    // damage scales 1.0 → 0.3 with distance
+    ammoFalloff:true,
     reload:32,
-    super:'blast',       // wide cone — damage + knockback + breaks barrels
+    super:'blast',
     superDmg:55, superRange:240, superCone:Math.PI*0.55,
-    superKnockback:16, superSuperGain:35,  // bonus charge on super-hit
-    desc:'Bush ambush · close-range bursts · cone-blast super',
+    superKnockback:16, superSuperGain:35,
+    desc:'Bush ambush · close bursts · cone-blast super',
   },
 ];
 
@@ -1809,14 +1813,12 @@ function drawPlayer(p){
   ctx.fill();
 
   // Per-hero body. Priority:
-  //   1. External PNG at /games/heroes/<id>.png (drop Blender renders here)
-  //   2. Hand-coded sprite (currently only Shelly)
-  //   3. Generic glow disc (Scout / Bash / Boom / Rush)
+  //   1. External PNG at /games/heroes/<id>.png (Blender renders)
+  //   2. Generic glow disc (fallback when PNG missing)
+  // drawShelly() is kept for legacy reference but no current hero uses it.
   const heroImg = HERO_SPRITES[p.hero.id];
   if(heroImg){
     drawHeroSprite(p, heroImg);
-  } else if(p.hero.id === 'shelly'){
-    drawShelly(p);
   } else {
     _drawDefaultBody(p);
   }
@@ -2035,11 +2037,12 @@ cv.addEventListener('touchend', e => {
 
 // ── Hero icons + lobby UI ─────────────────────────────────
 function heroEmoji(id){
-  if(id==='scout')  return '🎯';
-  if(id==='bash')   return '👊';
-  if(id==='boom')   return '💣';
-  if(id==='shelly') return '💥';
-  return '🔥'; // rush
+  if(id==='jolly') return '🏴‍☠️';
+  if(id==='bjorn') return '⚔️';
+  if(id==='hex')   return '🧙';
+  if(id==='kage')  return '🥷';
+  if(id==='ace')   return '🤠';
+  return '⭐';
 }
 
 const heroesEl = document.getElementById('heroes');
