@@ -1606,6 +1606,24 @@ function drawHeroSprite(p, slot){
   }
   if(!img) return;   // assets not loaded yet
 
+  // Brawl Stars-style aim ring under the local player (when alive)
+  if(p.isHuman){
+    const t = (state.elapsedFrames || 0) * 0.05;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(56,189,248,.85)';     // cyan ring
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + p.r + 4, p.r * 1.4, p.r * 0.45, 0, 0, Math.PI*2);
+    ctx.stroke();
+    // Inner pulse
+    ctx.strokeStyle = `rgba(125,211,252,${0.4 + Math.sin(t)*0.2})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + p.r + 4, p.r * 1.1, p.r * 0.35, 0, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   const scale = TARGET_H / img.height;
   const w = img.width * scale;
   const feetY = p.y + p.r + 2;

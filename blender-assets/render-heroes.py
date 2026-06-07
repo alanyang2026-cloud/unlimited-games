@@ -151,9 +151,26 @@ def render_one(blend_file, output_name):
     action_names = [a.name for a in bpy.data.actions]
     print(f"  Actions: {action_names[:6]}{' ...' if len(action_names)>6 else ''}")
 
-    # ── IDLE — rest pose (the character standing still) ──
-    armature.data.pose_position = 'REST'
-    bpy.context.view_layer.update()
+    # ── IDLE — use the "Idle" action's first frame (the ready stance),
+    # not the bare T-pose. Falls back to REST if no idle action exists. ──
+    armature.data.pose_position = 'POSE'
+    if armature.animation_data is None:
+        armature.animation_data_create()
+    idle_action = find_action_by_keywords(['idle', 'wait', 'stand'])
+    if idle_action:
+        armature.animation_data.action = idle_action
+        # Pick a middle-of-cycle frame so we get a settled pose, not the
+        # very start where some Quaternius idles overlap with T-pose.
+        start = int(idle_action.frame_range[0])
+        end   = int(idle_action.frame_range[1])
+        scene.frame_set(start + (end - start) // 2)
+        armature.location = (0.0, 0.0, 0.0)
+        bpy.context.view_layer.update()
+        print(f"  Using idle action: {idle_action.name}")
+    else:
+        armature.data.pose_position = 'REST'
+        bpy.context.view_layer.update()
+        print(f"  ⚠️ no Idle action — falling back to T-pose")
     ok = render_pose(scene, armature,
                      os.path.join(OUT_DIR, f"{output_name}.png"),
                      f"{output_name}.png  (idle)")
