@@ -98,7 +98,8 @@ def setup_render(scene):
 
 
 # ── Per-character pipeline ─────────────────────────────────
-WALK_FRAMES = 8    # frames sampled evenly across the walk cycle
+WALK_FRAMES   = 8   # frames across the walk cycle
+ATTACK_FRAMES = 4   # frames across the attack action (short + snappy)
 
 
 def find_action_by_keywords(keywords):
@@ -175,33 +176,33 @@ def render_one(blend_file, output_name):
                      os.path.join(OUT_DIR, f"{output_name}.png"),
                      f"{output_name}.png  (idle)")
 
-    # ── WALK — N frames spread across the walk cycle ──
-    walk_action = find_action_by_keywords(['walking', 'walk', 'run', 'running'])
-    if walk_action is None:
-        print(f"  ⚠️ no Walk action found — skipping walk frames")
-        return ok
+    # Render a named animation cycle (walk / attack / etc.) at N frames.
+    def render_cycle(label, keywords, num_frames):
+        action = find_action_by_keywords(keywords)
+        if action is None:
+            print(f"  ⚠️ no {label} action found — skipping")
+            return
+        armature.data.pose_position = 'POSE'
+        if armature.animation_data is None:
+            armature.animation_data_create()
+        armature.animation_data.action = action
+        start = int(action.frame_range[0])
+        end   = int(action.frame_range[1])
+        if end <= start:
+            print(f"  ⚠️ {label} action has 0-length range — skipping")
+            return
+        print(f"  {label}: using action '{action.name}'  ({start}-{end})")
+        for i in range(num_frames):
+            frame = start + i * (end - start) // num_frames
+            scene.frame_set(frame)
+            armature.location = (0.0, 0.0, 0.0)
+            bpy.context.view_layer.update()
+            render_pose(scene, armature,
+                        os.path.join(OUT_DIR, f"{output_name}_{label}_{i}.png"),
+                        f"{output_name}_{label}_{i}.png  (frame {frame})")
 
-    armature.data.pose_position = 'POSE'
-    if armature.animation_data is None:
-        armature.animation_data_create()
-    armature.animation_data.action = walk_action
-
-    start = int(walk_action.frame_range[0])
-    end   = int(walk_action.frame_range[1])
-    if end <= start:
-        print(f"  ⚠️ walk action has 0-length range — skipping")
-        return ok
-
-    for i in range(WALK_FRAMES):
-        frame = start + i * (end - start) // WALK_FRAMES
-        scene.frame_set(frame)
-        # Pin armature to origin so root motion in the action doesn't
-        # push the character out of the camera frame.
-        armature.location = (0.0, 0.0, 0.0)
-        bpy.context.view_layer.update()
-        render_pose(scene, armature,
-                    os.path.join(OUT_DIR, f"{output_name}_walk_{i}.png"),
-                    f"{output_name}_walk_{i}.png  (frame {frame})")
+    render_cycle('walk',   ['walking', 'walk', 'run', 'running'], WALK_FRAMES)
+    render_cycle('attack', ['attack', 'shoot', 'fire', 'punch', 'slash', 'kick'], ATTACK_FRAMES)
     return ok
 
 

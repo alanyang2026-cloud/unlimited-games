@@ -1559,23 +1559,28 @@ function drawAimLine(p, tx, ty, color, maxLen, thick){
 // Each hero loads as { idle: Image, walk: [Image x N] }. Missing
 // PNGs leave the slot null and the draw code falls back to idle.
 const HERO_SPRITES = {};
-const WALK_FRAME_COUNT = 8;
+const WALK_FRAME_COUNT   = 8;
+const ATTACK_FRAME_COUNT = 4;
 (function loadHeroSprites(){
+  function loadFrames(slot, key, h, count){
+    for(let i = 0; i < count; i++){
+      const img = new Image();
+      const fi = i;
+      img.onload  = () => { slot[key][fi] = img; };
+      img.onerror = () => {};
+      img.src = '/games/heroes/' + h.id + '_' + key + '_' + i + '.png';
+    }
+  }
   for(const h of HEROES){
-    const slot = HERO_SPRITES[h.id] = { idle: null, walk: [] };
+    const slot = HERO_SPRITES[h.id] = { idle: null, walk: [], attack: [] };
     // Idle
     const idle = new Image();
     idle.onload  = () => { slot.idle = idle; };
     idle.onerror = () => {};
     idle.src = '/games/heroes/' + h.id + '.png';
-    // Walk cycle
-    for(let i = 0; i < WALK_FRAME_COUNT; i++){
-      const img = new Image();
-      const fi = i;
-      img.onload  = () => { slot.walk[fi] = img; };
-      img.onerror = () => {};
-      img.src = '/games/heroes/' + h.id + '_walk_' + i + '.png';
-    }
+    // Animation cycles
+    loadFrames(slot, 'walk',   h, WALK_FRAME_COUNT);
+    loadFrames(slot, 'attack', h, ATTACK_FRAME_COUNT);
   }
 })();
 
@@ -1595,9 +1600,17 @@ function drawHeroSprite(p, slot){
   // Update facing direction (only flip on meaningful horizontal motion)
   if(Math.abs(dx) > 0.05) p._faceFlip = dx < 0 ? -1 : 1;
 
-  // Pick frame
+  // Pick frame — priority: attack > walk > idle
   let img = slot.idle;
-  if(moving && slot.walk && slot.walk.length){
+  const attacking = p.reload > 0 && slot.attack && slot.attack.length;
+  if(attacking){
+    // Map reload progress 0→1 onto attack frames 0→N-1
+    const progress = 1 - (p.reload / Math.max(1, p.hero.reload));
+    const idx = Math.min(slot.attack.length - 1,
+                         Math.floor(progress * slot.attack.length));
+    if(slot.attack[idx]) img = slot.attack[idx];
+    p._walkPhase = 0;
+  } else if(moving && slot.walk && slot.walk.length){
     p._walkPhase += 0.22;          // ~13 fps, full 8-frame cycle ≈ 0.6s
     const idx = Math.floor(p._walkPhase) % slot.walk.length;
     if(slot.walk[idx]) img = slot.walk[idx];
