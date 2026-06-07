@@ -27,9 +27,9 @@ RENDERS = [
     ("Cowboy_Female.blend", "ace"),
 ]
 
-CAM_LOC      = (0.0, -5.0, 1.8)   # -Y side (Quaternius chars face -Y, this gets the face)
-CAM_PITCH    = 93.4               # degrees — pitch slightly down to aim at chest
-ORTHO_SCALE  = 3.0
+CAM_LOC      = (0.0, -5.0, 1.3)   # lower to centre the body in frame
+CAM_PITCH    = 90.0               # horizontal — looks straight along +Y
+ORTHO_SCALE  = 4.5                # wider view so head + feet both fit
 RES_X = 512
 RES_Y = 768
 
