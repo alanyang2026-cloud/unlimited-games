@@ -27,26 +27,26 @@ RENDERS = [
     ("Cowboy_Female.blend", "ace"),
 ]
 
-CAM_LOC      = (0.0, -5.0, 3.2)   # camera on -Y side
-CAM_TARGET   = (0.0, 0.0, 1.0)    # aims at character chest
-ORTHO_SCALE  = 4.5
+CAM_LOC      = (0.0, -5.0, 1.8)   # -Y side (Quaternius chars face -Y, this gets the face)
+CAM_PITCH    = 93.4               # degrees — pitch slightly down to aim at chest
+ORTHO_SCALE  = 3.0
 RES_X = 512
 RES_Y = 768
 
 
 # ── Direct data-API helpers (script-context safe) ──────────
 def add_camera(scene):
-    # Direct rotation via mathutils — avoids Track To constraint that
-    # sometimes lags behind the render call in script context.
+    # Manual rotation — to_track_quat with up='Y' gave a degenerate
+    # solution (Z=-180° flip) when the look direction was along -Y.
+    # Hardcoding the pitch is safer.
     cam_data = bpy.data.cameras.new(name="HeroCam")
     cam_data.type = 'ORTHO'
     cam_data.ortho_scale = ORTHO_SCALE
     cam_obj = bpy.data.objects.new(name="HeroCam", object_data=cam_data)
     scene.collection.objects.link(cam_obj)
     cam_obj.location = CAM_LOC
-    # Aim camera's local -Z axis at the character chest
-    direction = Vector(CAM_TARGET) - Vector(CAM_LOC)
-    cam_obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
+    # X-rotation 90° = look along +Y. Add CAM_PITCH past 90° to tilt down.
+    cam_obj.rotation_euler = (math.radians(CAM_PITCH), 0.0, 0.0)
     scene.camera = cam_obj
     return cam_obj
 
@@ -70,14 +70,9 @@ def cleanup_lighting(scene):
 
 
 def ensure_facing(scene):
-    """Force every root armature/mesh/empty to face -Y (toward the
-    camera at -5 on Y). Also clears animation_data so a default action
-    can't reset our rotation back to 0 before rendering."""
-    for o in scene.objects:
-        if o.type in {'ARMATURE', 'MESH', 'EMPTY'} and o.parent is None:
-            if o.animation_data:
-                o.animation_data_clear()
-            o.rotation_euler = (0.0, 0.0, math.radians(180))
+    """No rotation — let Quaternius characters face their default
+    direction. The previous 180° was clearly making them turn AWAY."""
+    pass
 
 
 def face_camera(scene):
@@ -125,8 +120,19 @@ def render_one(blend_file, output_name):
 
     # Sanity print BEFORE rendering — easier to diagnose if something's off
     print(f"  Engine : {scene.render.engine}")
-    print(f"  Camera : {scene.camera.name if scene.camera else 'NONE — render will fail!'}")
+    if scene.camera:
+        loc = [round(x, 2) for x in scene.camera.location]
+        rot = [round(math.degrees(x), 1) for x in scene.camera.rotation_euler]
+        print(f"  Camera : {scene.camera.name}  loc={loc}  rot_deg={rot}")
+    else:
+        print(f"  Camera : NONE — render will fail!")
     print(f"  Lights : {sum(1 for o in scene.objects if o.type == 'LIGHT')}")
+    # Print position of armature/mesh to see where the character actually is
+    for o in scene.objects:
+        if o.type == 'ARMATURE':
+            arm_loc = [round(x, 2) for x in o.location]
+            arm_rot = [round(math.degrees(x), 1) for x in o.rotation_euler]
+            print(f"  Armat. : {o.name}  loc={arm_loc}  rot_deg={arm_rot}")
     meshes = [o.name for o in scene.objects if o.type == 'MESH']
     print(f"  Meshes : {meshes}")
 
