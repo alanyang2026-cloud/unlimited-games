@@ -98,6 +98,30 @@ def setup_render(scene):
 
 
 # ── Per-character pipeline ─────────────────────────────────
+WALK_FRAMES = 4    # frames sampled evenly across the walk cycle
+
+
+def find_action_by_keywords(keywords):
+    """Find an action whose name contains any of these keywords."""
+    for keyword in keywords:
+        for action in bpy.data.actions:
+            if keyword.lower() in action.name.lower():
+                return action
+    return None
+
+
+def render_pose(scene, armature, output_path, label):
+    """Render the current scene state to a PNG."""
+    scene.render.filepath = output_path
+    bpy.ops.render.render(write_still=True)
+    if os.path.exists(output_path):
+        size_kb = os.path.getsize(output_path) // 1024
+        print(f"  ✅ {label} ({size_kb} KB)")
+        return True
+    print(f"  ❌ {label} NOT written")
+    return False
+
+
 def render_one(blend_file, output_name):
     blend_path = os.path.join(BLEND_DIR, blend_file)
     if not os.path.exists(blend_path):
@@ -109,7 +133,7 @@ def render_one(blend_file, output_name):
 
     scene = bpy.context.scene
     cleanup_lighting(scene)
-    ensure_facing(scene)             # flip character + clear animation lock
+    ensure_facing(scene)
 
     add_camera(scene)
     add_sun(scene, "Key",  ( 3.0, -2.0, 6.0), ( 45.0, 30.0, 20.0), 4.0, (1.00, 0.97, 0.92))
@@ -118,35 +142,50 @@ def render_one(blend_file, output_name):
 
     setup_render(scene)
 
-    # Sanity print BEFORE rendering — easier to diagnose if something's off
-    print(f"  Engine : {scene.render.engine}")
-    if scene.camera:
-        loc = [round(x, 2) for x in scene.camera.location]
-        rot = [round(math.degrees(x), 1) for x in scene.camera.rotation_euler]
-        print(f"  Camera : {scene.camera.name}  loc={loc}  rot_deg={rot}")
-    else:
-        print(f"  Camera : NONE — render will fail!")
-    print(f"  Lights : {sum(1 for o in scene.objects if o.type == 'LIGHT')}")
-    # Print position of armature/mesh to see where the character actually is
-    for o in scene.objects:
-        if o.type == 'ARMATURE':
-            arm_loc = [round(x, 2) for x in o.location]
-            arm_rot = [round(math.degrees(x), 1) for x in o.rotation_euler]
-            print(f"  Armat. : {o.name}  loc={arm_loc}  rot_deg={arm_rot}")
-    meshes = [o.name for o in scene.objects if o.type == 'MESH']
-    print(f"  Meshes : {meshes}")
+    armature = next((o for o in scene.objects if o.type == 'ARMATURE'), None)
+    if not armature:
+        print(f"  ⚠️ no armature in {blend_file}")
+        return False
 
-    output_path = os.path.join(OUT_DIR, f"{output_name}.png")
-    scene.render.filepath = output_path
+    # Print actions for visibility (helps if Quaternius renames them)
+    action_names = [a.name for a in bpy.data.actions]
+    print(f"  Actions: {action_names[:6]}{' ...' if len(action_names)>6 else ''}")
 
-    bpy.ops.render.render(write_still=True)
+    # ── IDLE — rest pose (the character standing still) ──
+    armature.data.pose_position = 'REST'
+    bpy.context.view_layer.update()
+    ok = render_pose(scene, armature,
+                     os.path.join(OUT_DIR, f"{output_name}.png"),
+                     f"{output_name}.png  (idle)")
 
-    if os.path.exists(output_path):
-        size_kb = os.path.getsize(output_path) // 1024
-        print(f"  ✅ {output_name}.png ({size_kb} KB)")
-        return True
-    print(f"  ❌ {output_name}.png NOT written")
-    return False
+    # ── WALK — N frames spread across the walk cycle ──
+    walk_action = find_action_by_keywords(['walking', 'walk', 'run', 'running'])
+    if walk_action is None:
+        print(f"  ⚠️ no Walk action found — skipping walk frames")
+        return ok
+
+    armature.data.pose_position = 'POSE'
+    if armature.animation_data is None:
+        armature.animation_data_create()
+    armature.animation_data.action = walk_action
+
+    start = int(walk_action.frame_range[0])
+    end   = int(walk_action.frame_range[1])
+    if end <= start:
+        print(f"  ⚠️ walk action has 0-length range — skipping")
+        return ok
+
+    for i in range(WALK_FRAMES):
+        frame = start + i * (end - start) // WALK_FRAMES
+        scene.frame_set(frame)
+        # Pin armature to origin so root motion in the action doesn't
+        # push the character out of the camera frame.
+        armature.location = (0.0, 0.0, 0.0)
+        bpy.context.view_layer.update()
+        render_pose(scene, armature,
+                    os.path.join(OUT_DIR, f"{output_name}_walk_{i}.png"),
+                    f"{output_name}_walk_{i}.png  (frame {frame})")
+    return ok
 
 
 def main():
