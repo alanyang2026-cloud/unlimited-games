@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
-  "version": "1.4.2",
-  "description": "A growing collection of free browser games: snake, chess, fishing, fighting, a 3D liar's bar, and more. Click the toolbar icon to pick & play — games open as a floating window on the current page.",
+  "version": "1.5.0",
+  "description": "15 free browser games: snake, chess, tetris, a Brawl Stars-style hero arena, 3D liar's bar, and more. Click the toolbar icon to pick & play — games open as a floating window on the current page.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
     "16":  "icons/icon-16.png",
