@@ -1559,7 +1559,7 @@ function drawAimLine(p, tx, ty, color, maxLen, thick){
 // Each hero loads as { idle: Image, walk: [Image x N] }. Missing
 // PNGs leave the slot null and the draw code falls back to idle.
 const HERO_SPRITES = {};
-const WALK_FRAME_COUNT = 4;
+const WALK_FRAME_COUNT = 8;
 (function loadHeroSprites(){
   for(const h of HEROES){
     const slot = HERO_SPRITES[h.id] = { idle: null, walk: [] };
@@ -1598,7 +1598,7 @@ function drawHeroSprite(p, slot){
   // Pick frame
   let img = slot.idle;
   if(moving && slot.walk && slot.walk.length){
-    p._walkPhase += 0.18;          // ~11 fps walk cycle
+    p._walkPhase += 0.22;          // ~13 fps, full 8-frame cycle ≈ 0.6s
     const idx = Math.floor(p._walkPhase) % slot.walk.length;
     if(slot.walk[idx]) img = slot.walk[idx];
   } else {

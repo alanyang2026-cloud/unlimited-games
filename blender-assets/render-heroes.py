@@ -98,7 +98,7 @@ def setup_render(scene):
 
 
 # ── Per-character pipeline ─────────────────────────────────
-WALK_FRAMES = 4    # frames sampled evenly across the walk cycle
+WALK_FRAMES = 8    # frames sampled evenly across the walk cycle
 
 
 def find_action_by_keywords(keywords):
