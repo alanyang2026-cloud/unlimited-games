@@ -128,6 +128,14 @@ export const GAMES: Game[] = [
     color: "from-emerald-600 to-amber-600",
     controls: "WASD move · Hold RMB / Ctrl to fire · R super · E aim super · F gadget · V/T charge",
   },
+  {
+    id: "potato-bros",
+    title: "Potato Bros",
+    emoji: "🥔",
+    description: "Auto-aim bullet-hell survival. 20 waves, 6 weapons, one tough potato.",
+    color: "from-amber-700 to-lime-700",
+    controls: "WASD move · Auto-aim · Level up to pick upgrades · Shop between waves",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -146,6 +154,7 @@ const URL_MAP: Record<string, string> = {
   "squish": "/games/squish.html",
   "liars-tavern": "/games/liars-tavern.html",
   "hero-brawl": "/games/hero-brawl.html",
+  "potato-bros": "/games/potato-bros.html",
 };
 
 export function getGameUrl(id: string): string {

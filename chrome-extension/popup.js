@@ -21,6 +21,7 @@ const GAMES = [
   { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',          c1:'#f472b6', c2:'#a855f7', w:480, h:520 },
   { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',   c1:'#78350f', c2:'#0c0a09', w:760, h:520, live:true },
   { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',     c1:'#059669', c2:'#b45309', w:780, h:520 },
+  { id:'potato-bros',   title:'Potato Bros',   emoji:'🥔', url:'/games/potato-bros.html',    c1:'#b45309', c2:'#65a30d', w:760, h:540 },
 ];
 
 // ─ Injected into the page: builds the floating game window ─────
