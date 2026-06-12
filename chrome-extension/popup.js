@@ -107,14 +107,19 @@ function injectGameOverlay(url, title, w, h, accent){
   bar.appendChild(closeBtn);
   ov.appendChild(bar);
 
-  // The actual game
+  // The actual game. `scrolling="auto"` + overflow:auto let the iframe
+  // expose its own scrollbar when content is taller than the overlay.
+  // (Games whose body sets overflow:hidden — most of ours — still won't
+  // scroll, but this at least makes pure-HTML pages scrollable.)
   const frame = document.createElement('iframe');
   frame.src = url;
   frame.allow = 'autoplay; fullscreen; gamepad; clipboard-read; clipboard-write';
+  frame.setAttribute('scrolling', 'auto');
   frame.style.cssText = [
     'all: initial', 'position: absolute',
     'top: 34px', 'left: 0', 'width: 100%', 'height: calc(100% - 34px)',
     'border: 0', 'background: #07070d',
+    'overflow: auto',
   ].join(';');
   ov.appendChild(frame);
 
@@ -132,11 +137,11 @@ function injectGameOverlay(url, title, w, h, accent){
   document.documentElement.appendChild(ov);
 
   // ── Wire up interactions ──────────────────────────────────
-  closeBtn.addEventListener('click', () => ov.remove());
+  closeBtn.addEventListener('click', () => cleanup());
 
   newTabBtn.addEventListener('click', () => {
     window.open(url, '_blank', 'noopener');
-    ov.remove();
+    cleanup();
   });
 
   // Scale by a uniform factor (preserves aspect ratio). Clamped so the
@@ -191,8 +196,31 @@ function injectGameOverlay(url, title, w, h, accent){
   window.addEventListener('mouseup', () => { drag = null; resize = null; });
 
   // Esc closes
-  function onKey(e){ if(e.key === 'Escape'){ ov.remove(); window.removeEventListener('keydown', onKey); } }
+  function onKey(e){ if(e.key === 'Escape'){ cleanup(); } }
   window.addEventListener('keydown', onKey);
+
+  // Click anywhere outside the overlay closes it. We swallow the click
+  // (capture phase + preventDefault) so the host page doesn't act on
+  // it — e.g. you don't accidentally open a link you clicked through.
+  function onOutsideClick(e){
+    if(ov.contains(e.target)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    cleanup();
+  }
+
+  function cleanup(){
+    ov.remove();
+    window.removeEventListener('keydown', onKey);
+    document.removeEventListener('mousedown', onOutsideClick, true);
+  }
+
+  // Small delay so the click that opened the overlay doesn't immediately
+  // close it (the popup's click event is still propagating when we
+  // attach the listener synchronously).
+  setTimeout(() => {
+    document.addEventListener('mousedown', onOutsideClick, true);
+  }, 250);
 }
 
 // ─ Popup-side glue ─────────────────────────────────────────
