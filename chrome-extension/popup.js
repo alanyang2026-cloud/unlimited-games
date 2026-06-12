@@ -29,11 +29,11 @@ function injectGameOverlay(url, title, w, h, accent){
   const old = document.getElementById('__ug_overlay');
   if(old) old.remove();
 
-  // Cap window to 80% of viewport with a healthy margin so big games
-  // never fill the whole page. Preserves aspect ratio if the requested
-  // size would only need to shrink in one dimension.
-  const maxW = Math.max(360, Math.floor(window.innerWidth  * 0.80));
-  const maxH = Math.max(360, Math.floor(window.innerHeight * 0.85));
+  // Cap window to roughly the size of a "minigame popup" — about 60% of
+  // viewport width and 70% of viewport height. Preserves the original
+  // aspect ratio if both dimensions would otherwise need to shrink.
+  const maxW = Math.max(360, Math.floor(window.innerWidth  * 0.60));
+  const maxH = Math.max(360, Math.floor(window.innerHeight * 0.70));
   let ww = Math.min(w, maxW);
   let hh = Math.min(h, maxH);
   const scale = Math.min(maxW / w, maxH / h, 1);
