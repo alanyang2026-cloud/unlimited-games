@@ -2,22 +2,25 @@
 // `w`/`h` is the size of the floating overlay window shown on the
 // user's current page when the game is launched.
 const SITE = 'https://unlimitedgames.vercel.app';
+// `w`/`h` are now compact "minigame popup" sizes — small enough that
+// even on a 1440px laptop the host page stays usable underneath. The
+// overlay's +/- buttons let the user scale up if a game needs more room.
 const GAMES = [
-  { id:'snake',         title:'Snake',         emoji:'🐍', url:'/games/snake.html',          c1:'#16a34a', c2:'#0d9488', w:600,  h:660 },
-  { id:'2048',          title:'2048',          emoji:'🔢', url:'/games/2048.html',           c1:'#a855f7', c2:'#6d28d9', w:520,  h:720 },
-  { id:'tetris',        title:'Tetris',        emoji:'🧱', url:'/games/tetris.html',         c1:'#06b6d4', c2:'#1e40af', w:500,  h:740 },
-  { id:'flappy',        title:'Flappy',        emoji:'🐦', url:'/games/flappy.html',         c1:'#facc15', c2:'#ea580c', w:430,  h:680 },
-  { id:'breakout',      title:'Breakout',      emoji:'🏓', url:'/games/breakout.html',       c1:'#f43f5e', c2:'#b91c1c', w:720,  h:620 },
-  { id:'memory',        title:'Memory',        emoji:'🃏', url:'/games/memory.html',         c1:'#ec4899', c2:'#a21caf', w:640,  h:700 },
-  { id:'snake-battle',  title:'Snake Battle',  emoji:'⚔️', url:'/games/snake-battle.html',  c1:'#7c3aed', c2:'#581c87', w:1100, h:760, live:true },
-  { id:'arcade-brawl',  title:'Arcade Brawl',  emoji:'🥊', url:'/games/arcade-brawl.html',  c1:'#e11d48', c2:'#b45309', w:1000, h:620, live:true },
-  { id:'doorman',       title:'Night Watch',   emoji:'🚪', url:'/games/doorman.html',        c1:'#7f1d1d', c2:'#1c1917', w:900,  h:680 },
-  { id:'door-escape',   title:'Find Door',     emoji:'🏃', url:'/games/door-escape.html',    c1:'#4338ca', c2:'#581c87', w:900,  h:680 },
-  { id:'downhill',      title:'Downhill',      emoji:'🚵', url:'/games/downhill-brawl.html', c1:'#15803d', c2:'#b45309', w:1000, h:700 },
-  { id:'chess',         title:'Rated Chess',   emoji:'♔', url:'/games/chess.html',           c1:'#d97706', c2:'#292524', w:880,  h:780 },
-  { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',          c1:'#f472b6', c2:'#a855f7', w:600,  h:640 },
-  { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',   c1:'#78350f', c2:'#0c0a09', w:1080, h:740, live:true },
-  { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',     c1:'#059669', c2:'#b45309', w:1100, h:720 },
+  { id:'snake',         title:'Snake',         emoji:'🐍', url:'/games/snake.html',          c1:'#16a34a', c2:'#0d9488', w:480, h:520 },
+  { id:'2048',          title:'2048',          emoji:'🔢', url:'/games/2048.html',           c1:'#a855f7', c2:'#6d28d9', w:420, h:560 },
+  { id:'tetris',        title:'Tetris',        emoji:'🧱', url:'/games/tetris.html',         c1:'#06b6d4', c2:'#1e40af', w:400, h:580 },
+  { id:'flappy',        title:'Flappy',        emoji:'🐦', url:'/games/flappy.html',         c1:'#facc15', c2:'#ea580c', w:380, h:540 },
+  { id:'breakout',      title:'Breakout',      emoji:'🏓', url:'/games/breakout.html',       c1:'#f43f5e', c2:'#b91c1c', w:580, h:500 },
+  { id:'memory',        title:'Memory',        emoji:'🃏', url:'/games/memory.html',         c1:'#ec4899', c2:'#a21caf', w:520, h:560 },
+  { id:'snake-battle',  title:'Snake Battle',  emoji:'⚔️', url:'/games/snake-battle.html',  c1:'#7c3aed', c2:'#581c87', w:760, h:540, live:true },
+  { id:'arcade-brawl',  title:'Arcade Brawl',  emoji:'🥊', url:'/games/arcade-brawl.html',  c1:'#e11d48', c2:'#b45309', w:720, h:460, live:true },
+  { id:'doorman',       title:'Night Watch',   emoji:'🚪', url:'/games/doorman.html',        c1:'#7f1d1d', c2:'#1c1917', w:660, h:500 },
+  { id:'door-escape',   title:'Find Door',     emoji:'🏃', url:'/games/door-escape.html',    c1:'#4338ca', c2:'#581c87', w:660, h:500 },
+  { id:'downhill',      title:'Downhill',      emoji:'🚵', url:'/games/downhill-brawl.html', c1:'#15803d', c2:'#b45309', w:720, h:520 },
+  { id:'chess',         title:'Rated Chess',   emoji:'♔', url:'/games/chess.html',           c1:'#d97706', c2:'#292524', w:640, h:600 },
+  { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',          c1:'#f472b6', c2:'#a855f7', w:480, h:520 },
+  { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',   c1:'#78350f', c2:'#0c0a09', w:760, h:520, live:true },
+  { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',     c1:'#059669', c2:'#b45309', w:780, h:520 },
 ];
 
 // ─ Injected into the page: builds the floating game window ─────
@@ -94,8 +97,12 @@ function injectGameOverlay(url, title, w, h, accent){
     ].join(';');
     return b;
   }
+  const shrinkBtn = makeBtn('−', 'rgba(255,255,255,.12)', 'Shrink');
+  const growBtn   = makeBtn('+', 'rgba(255,255,255,.12)', 'Grow');
   const newTabBtn = makeBtn('⤢', 'rgba(255,255,255,.12)', 'Open in new tab');
-  const closeBtn  = makeBtn('×',  '#dc2626', 'Close');
+  const closeBtn  = makeBtn('×', '#dc2626', 'Close');
+  bar.appendChild(shrinkBtn);
+  bar.appendChild(growBtn);
   bar.appendChild(newTabBtn);
   bar.appendChild(closeBtn);
   ov.appendChild(bar);
@@ -131,6 +138,23 @@ function injectGameOverlay(url, title, w, h, accent){
     window.open(url, '_blank', 'noopener');
     ov.remove();
   });
+
+  // Scale by a uniform factor (preserves aspect ratio). Clamped so the
+  // overlay can't shrink past 320×260 or grow past 95% of the viewport.
+  function rescale(factor){
+    const cw = ov.offsetWidth, ch = ov.offsetHeight;
+    const minW = 320, minH = 260;
+    const maxRW = Math.floor(window.innerWidth  * 0.95);
+    const maxRH = Math.floor(window.innerHeight * 0.95);
+    let nw = Math.round(cw * factor);
+    let nh = Math.round(ch * factor);
+    nw = Math.max(minW, Math.min(maxRW, nw));
+    nh = Math.max(minH, Math.min(maxRH, nh));
+    ov.style.width  = nw + 'px';
+    ov.style.height = nh + 'px';
+  }
+  shrinkBtn.addEventListener('click', () => rescale(0.85));
+  growBtn.addEventListener('click',   () => rescale(1.18));
 
   // Drag the overlay around by the title bar. We anchor with `right`,
   // not `left`, so dragging uses the current bounding rect to compute
