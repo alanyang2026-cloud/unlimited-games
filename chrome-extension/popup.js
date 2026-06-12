@@ -29,19 +29,29 @@ function injectGameOverlay(url, title, w, h, accent){
   const old = document.getElementById('__ug_overlay');
   if(old) old.remove();
 
-  // Cap to viewport with margin
-  const maxW = Math.max(360, window.innerWidth  - 60);
-  const maxH = Math.max(360, window.innerHeight - 80);
-  const ww = Math.min(w, maxW);
-  const hh = Math.min(h, maxH);
+  // Cap window to 80% of viewport with a healthy margin so big games
+  // never fill the whole page. Preserves aspect ratio if the requested
+  // size would only need to shrink in one dimension.
+  const maxW = Math.max(360, Math.floor(window.innerWidth  * 0.80));
+  const maxH = Math.max(360, Math.floor(window.innerHeight * 0.85));
+  let ww = Math.min(w, maxW);
+  let hh = Math.min(h, maxH);
+  const scale = Math.min(maxW / w, maxH / h, 1);
+  if(scale < 1){ ww = Math.floor(w * scale); hh = Math.floor(h * scale); }
+
+  // Anchor to the right edge — user-preferred position per feedback.
+  // Vertical centering preserved.
+  const rightMargin = 20;
+  const top = Math.max(20, Math.floor((window.innerHeight - hh) / 2));
 
   const ov = document.createElement('div');
   ov.id = '__ug_overlay';
   ov.style.cssText = [
     'all: initial',
     'position: fixed',
-    'top: ' + Math.max(20, (window.innerHeight - hh)/2) + 'px',
-    'left: ' + Math.max(20, (window.innerWidth - ww)/2) + 'px',
+    'top: ' + top + 'px',
+    'right: ' + rightMargin + 'px',
+    'left: auto',
     'width: ' + ww + 'px',
     'height: ' + hh + 'px',
     'z-index: 2147483647',
@@ -122,12 +132,14 @@ function injectGameOverlay(url, title, w, h, accent){
     ov.remove();
   });
 
-  // Drag the overlay around by the title bar
+  // Drag the overlay around by the title bar. We anchor with `right`,
+  // not `left`, so dragging uses the current bounding rect to compute
+  // the new position from the appropriate edge.
   let drag = null;
   bar.addEventListener('mousedown', e => {
     if(e.target === closeBtn || e.target === newTabBtn) return;
-    drag = { x: e.clientX, y: e.clientY,
-             ox: parseInt(ov.style.left, 10), oy: parseInt(ov.style.top, 10) };
+    const r = ov.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, ox: r.left, oy: r.top, w: r.width };
     e.preventDefault();
   });
   // Resize via the grip
@@ -138,8 +150,14 @@ function injectGameOverlay(url, title, w, h, accent){
   });
   window.addEventListener('mousemove', e => {
     if(drag){
-      ov.style.left = Math.max(0, Math.min(window.innerWidth-100, drag.ox + e.clientX - drag.x)) + 'px';
-      ov.style.top  = Math.max(0, Math.min(window.innerHeight-60, drag.oy + e.clientY - drag.y)) + 'px';
+      // Convert the cursor delta into a new `left`, then translate to a
+      // `right` value so dragging stays smooth regardless of which edge
+      // we anchored to.
+      const newLeft = Math.max(0, Math.min(window.innerWidth-100, drag.ox + e.clientX - drag.x));
+      const newTop  = Math.max(0, Math.min(window.innerHeight-60, drag.oy + e.clientY - drag.y));
+      ov.style.left  = newLeft + 'px';
+      ov.style.right = 'auto';
+      ov.style.top   = newTop + 'px';
     }
     if(resize){
       ov.style.width  = Math.max(360, resize.w + e.clientX - resize.x) + 'px';
