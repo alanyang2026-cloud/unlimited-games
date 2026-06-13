@@ -62,6 +62,18 @@
   .inv-slot{width:32px;height:32px;border-radius:6px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:18px}
   .inv-slot.empty{opacity:.25}
 
+  /* Character pick screen */
+  .picker{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;max-width:720px;margin-bottom:18px}
+  .charCard{background:rgba(0,0,0,.5);border:3px solid rgba(255,255,255,.12);border-radius:14px;padding:14px 16px;width:200px;cursor:pointer;transition:transform .12s,border-color .12s;text-align:center}
+  .charCard:hover{transform:translateY(-4px);border-color:#fbbf24;box-shadow:0 12px 30px rgba(251,191,36,.25)}
+  .charCard.selected{border-color:var(--cc,#fbbf24);box-shadow:0 0 32px var(--cg,rgba(251,191,36,.4))}
+  .charCard .icon{font-size:54px;margin-bottom:6px;line-height:1}
+  .charCard .nm{font-size:16px;font-weight:900;letter-spacing:1px;color:#fbbf24;margin-bottom:4px}
+  .charCard .tag{color:#cbd5e1;font-size:11px;line-height:1.4;min-height:32px;margin-bottom:8px;font-style:italic}
+  .charCard .stat{display:flex;justify-content:space-between;font-size:10px;color:#a3a3a3;letter-spacing:.5px;line-height:1.4}
+  .charCard .stat.pos{color:#84cc16}
+  .charCard .stat.neg{color:#f87171}
+
   /* Mobile virtual joystick */
   .joystick{position:fixed;left:18px;bottom:18px;width:120px;height:120px;pointer-events:auto;touch-action:none;z-index:30;display:none}
   .joystick.on{display:block}
@@ -76,12 +88,8 @@
 <!-- Title screen -->
 <div class="ov" id="title">
   <h1>🥔 POTATO BROS</h1>
-  <div class="sub">20 WAVES · 6 WEAPONS · ONE TOUGH POTATO</div>
-  <p style="color:#94a3b8;font-size:13px;line-height:1.7;max-width:480px;margin-bottom:24px">
-    Move with <b>WASD</b> or the joystick. Your potato auto-aims and shoots —<br>
-    just don't die. Collect <span style="color:#84cc16">green orbs</span> for XP and gold.<br>
-    Level up to pick upgrades; buy weapons between waves.
-  </p>
+  <div class="sub">PICK YOUR POTATO</div>
+  <div class="picker" id="picker"></div>
   <button class="btn gold" id="play-btn">▶ START</button>
 </div>
 
@@ -158,6 +166,68 @@ const WEAPONS = {
 // Starter weapon order — added in this order when picked from shop
 const ALL_WEAPONS = ['pistol','smg','shotgun','sniper','shuriken','laser'];
 
+// ─── Characters (pick at start) ─────────────────────────
+// Each character tweaks the player's stats, starts with a specific
+// weapon, and sometimes carries a per-tick mechanic (mech). The cc/cg
+// colour pair is used to highlight the selected card on the picker.
+const CHARACTERS = [
+  {
+    id:'potato', name:'POTATO', emoji:'🥔',
+    cc:'#fbbf24', cg:'rgba(251,191,36,.5)',
+    tag:'The original. Balanced for any strategy.',
+    hp:50, speed:2.7, dmgMul:1.0, atkSpeedMul:1.0,
+    crit:0, pickupR:60, regen:0, lifesteal:0,
+    rangeMul:1.0, goldMul:1.0, hpDrain:0, weapSlots:6,
+    weapon:'pistol',
+  },
+  {
+    id:'gunner', name:'GUNNER', emoji:'🔫',
+    cc:'#fde047', cg:'rgba(253,224,71,.5)',
+    tag:'Long shots, fast fingers, glass jaw.',
+    hp:40, speed:2.5, dmgMul:1.0, atkSpeedMul:1.15,
+    crit:0, pickupR:60, regen:0, lifesteal:0,
+    rangeMul:1.30, goldMul:1.0, hpDrain:0, weapSlots:6,
+    weapon:'pistol',
+  },
+  {
+    id:'scout', name:'SCOUT', emoji:'⚡',
+    cc:'#22d3ee', cg:'rgba(34,211,238,.5)',
+    tag:'Zooms in, zooms out. Just don\'t stop.',
+    hp:35, speed:3.3, dmgMul:0.85, atkSpeedMul:1.0,
+    crit:0, pickupR:110, regen:0, lifesteal:0,
+    rangeMul:1.0, goldMul:1.0, hpDrain:0, weapSlots:6,
+    weapon:'shuriken',
+  },
+  {
+    id:'tank', name:'TANK', emoji:'🛡',
+    cc:'#a855f7', cg:'rgba(168,85,247,.5)',
+    tag:'Slow as molasses, hard as a brick.',
+    hp:80, speed:2.2, dmgMul:1.0, atkSpeedMul:0.85,
+    crit:0, pickupR:60, regen:2, lifesteal:0,
+    rangeMul:1.0, goldMul:1.0, hpDrain:0, weapSlots:6,
+    weapon:'shotgun',
+  },
+  {
+    id:'lucky', name:'LUCKY', emoji:'🌟',
+    cc:'#facc15', cg:'rgba(250,204,21,.5)',
+    tag:'Crits and coins. Just 4 weapon slots.',
+    hp:35, speed:2.7, dmgMul:1.0, atkSpeedMul:1.0,
+    crit:0.20, pickupR:60, regen:0, lifesteal:0,
+    rangeMul:1.0, goldMul:2.0, hpDrain:0, weapSlots:4,
+    weapon:'sniper',
+  },
+  {
+    id:'demon', name:'DEMON', emoji:'👹',
+    cc:'#dc2626', cg:'rgba(220,38,38,.5)',
+    tag:'Pure damage. Hungry. Always hungry.',
+    hp:35, speed:2.7, dmgMul:1.55, atkSpeedMul:1.0,
+    crit:0, pickupR:60, regen:0, lifesteal:0.10,
+    rangeMul:1.0, goldMul:1.0, hpDrain:0.6, weapSlots:6,
+    weapon:'laser',
+  },
+];
+let selectedChar = CHARACTERS[0];
+
 // ─── Passive items (shop) ────────────────────────────────
 // Each modifies player stats permanently
 const ITEMS = [
@@ -233,19 +303,24 @@ function newGame(){
 }
 
 function mkPlayer(){
+  const c = selectedChar;
   return {
     x:W/2, y:H/2, r:14,
-    hp:50, maxHp:50,
-    speed:2.7,
-    dmgMul:1.0, atkSpeedMul:1.0,
-    crit:0, pickupR:60,
-    regen:0, lifesteal:0, thorns:0,
+    char: c,
+    hp:c.hp, maxHp:c.hp,
+    speed:c.speed,
+    dmgMul:c.dmgMul, atkSpeedMul:c.atkSpeedMul,
+    crit:c.crit, pickupR:c.pickupR,
+    regen:c.regen, lifesteal:c.lifesteal, thorns:0,
+    rangeMul:c.rangeMul, goldMul:c.goldMul, hpDrain:c.hpDrain,
+    weapSlots:c.weapSlots,
     xp:0, level:1, xpNeeded:5,
     gold:0,
     invuln:0, hitFlash:0,
-    weapons:[{ id:'pistol', cool:0 }],
+    weapons:[{ id:c.weapon, cool:0 }],
     items:[],
     aimAngle:0,
+    drainAcc:0,
   };
 }
 
@@ -366,15 +441,23 @@ function tickPlayer(p, dt){
   if(p.regen > 0 && state.elapsed % 60 === 0){
     p.hp = Math.min(p.maxHp, p.hp + p.regen);
   }
-  // Auto-aim weapons
+  // Hunger / HP drain (DEMON)
+  if(p.hpDrain > 0){
+    p.drainAcc += p.hpDrain * dt;
+    while(p.drainAcc >= 1 && p.hp > 1){
+      p.hp -= 1;
+      p.drainAcc -= 1;
+    }
+  }
+  // Auto-aim weapons (range can be boosted per-character via rangeMul)
   for(const w of p.weapons){
     w.cool -= dt;
     if(w.cool <= 0){
       const wep = WEAPONS[w.id];
-      const target = nearestEnemy(p, wep.range);
+      const range = wep.range * p.rangeMul;
+      const target = nearestEnemy(p, range);
       if(target){
-        fireWeapon(p, wep, target);
-        // Set the player's "aim angle" to the latest fired weapon's target
+        fireWeapon(p, wep, target, range);
         p.aimAngle = Math.atan2(target.y - p.y, target.x - p.x);
         w.cool = wep.rate / p.atkSpeedMul;
       } else {
@@ -394,7 +477,7 @@ function nearestEnemy(p, maxRange){
   return best;
 }
 
-function fireWeapon(p, wep, target){
+function fireWeapon(p, wep, target, effectiveRange){
   const baseAng = Math.atan2(target.y - p.y, target.x - p.x);
   for(let i = 0; i < wep.count; i++){
     let ang = baseAng;
@@ -409,7 +492,7 @@ function fireWeapon(p, wep, target){
       x:p.x, y:p.y,
       vx:Math.cos(ang)*wep.spd, vy:Math.sin(ang)*wep.spd,
       r:5, dmg,
-      life: wep.range / wep.spd,
+      life: (effectiveRange || wep.range) / wep.spd,
       pierce: wep.pierce,
       hit: new Set(),
       color: wep.color,
@@ -572,7 +655,7 @@ function tickMaterials(){
     // Pickup
     if(d2 < (p.r + 6) * (p.r + 6)){
       p.xp += m.value;
-      p.gold += m.value;
+      p.gold += Math.round(m.value * p.goldMul);
       state.materials.splice(i,1);
       while(p.xp >= p.xpNeeded){
         p.xp -= p.xpNeeded;
@@ -813,7 +896,7 @@ function updateHUD(){
   // Inventory
   const wEl = document.getElementById('inv-weapons');
   wEl.innerHTML = '';
-  for(let i = 0; i < 6; i++){
+  for(let i = 0; i < p.weapSlots; i++){
     const slot = document.createElement('div');
     slot.className = 'inv-slot' + (i < p.weapons.length ? '' : ' empty');
     slot.textContent = i < p.weapons.length ? WEAPONS[p.weapons[i].id].emoji : '·';
@@ -876,7 +959,7 @@ function rollShop(){
   // Mix: 1-2 weapons (if room) + 2-3 items
   const items = [];
   const p = state.p;
-  if(p.weapons.length < 6){
+  if(p.weapons.length < p.weapSlots){
     const ownedWep = new Set(p.weapons.map(w => w.id));
     const availWep = ALL_WEAPONS.filter(w => !ownedWep.has(w));
     if(availWep.length){
@@ -955,6 +1038,57 @@ document.getElementById('restart-btn').onclick = () => {
   document.getElementById('end').classList.add('off');
   newGame();
 };
+
+// ─── Character picker ───────────────────────────────────
+function statRow(label, val, baseline){
+  const cls = val > baseline ? 'pos' : val < baseline ? 'neg' : '';
+  const sign = val > baseline ? '+' : '';
+  return `<div class="stat ${cls}"><span>${label}</span><span>${sign}${val > baseline ? Math.round((val-baseline)*100)/100 : val === baseline ? '0' : Math.round((val-baseline)*100)/100}</span></div>`;
+}
+
+function renderPicker(){
+  // Restore last pick from storage
+  try {
+    const last = localStorage.getItem('potato-bros:char');
+    if(last){
+      const found = CHARACTERS.find(c => c.id === last);
+      if(found) selectedChar = found;
+    }
+  } catch(_){}
+  const root = document.getElementById('picker');
+  root.innerHTML = '';
+  for(const c of CHARACTERS){
+    const card = document.createElement('div');
+    card.className = 'charCard' + (c.id === selectedChar.id ? ' selected' : '');
+    card.style.setProperty('--cc', c.cc);
+    card.style.setProperty('--cg', c.cg);
+    const wep = WEAPONS[c.weapon];
+    card.innerHTML =
+      `<div class="icon">${c.emoji}</div>` +
+      `<div class="nm">${c.name}</div>` +
+      `<div class="tag">${c.tag}</div>` +
+      `<div class="stat"><span>Weapon</span><span style="color:#fde047">${wep.emoji} ${wep.name}</span></div>` +
+      `<div class="stat ${c.hp>50?'pos':c.hp<50?'neg':''}"><span>HP</span><span>${c.hp}</span></div>` +
+      `<div class="stat ${c.speed>2.7?'pos':c.speed<2.7?'neg':''}"><span>Speed</span><span>${c.speed}</span></div>` +
+      (c.dmgMul !== 1.0 ? `<div class="stat ${c.dmgMul>1?'pos':'neg'}"><span>Damage</span><span>${Math.round(c.dmgMul*100)}%</span></div>` : '') +
+      (c.atkSpeedMul !== 1.0 ? `<div class="stat ${c.atkSpeedMul>1?'pos':'neg'}"><span>Atk Speed</span><span>${Math.round(c.atkSpeedMul*100)}%</span></div>` : '') +
+      (c.crit > 0 ? `<div class="stat pos"><span>Crit</span><span>+${Math.round(c.crit*100)}%</span></div>` : '') +
+      (c.regen > 0 ? `<div class="stat pos"><span>Regen</span><span>+${c.regen}/s</span></div>` : '') +
+      (c.lifesteal > 0 ? `<div class="stat pos"><span>Lifesteal</span><span>+${Math.round(c.lifesteal*100)}%</span></div>` : '') +
+      (c.rangeMul !== 1.0 ? `<div class="stat ${c.rangeMul>1?'pos':'neg'}"><span>Range</span><span>${Math.round(c.rangeMul*100)}%</span></div>` : '') +
+      (c.pickupR !== 60 ? `<div class="stat ${c.pickupR>60?'pos':'neg'}"><span>Magnet</span><span>${c.pickupR}</span></div>` : '') +
+      (c.goldMul !== 1.0 ? `<div class="stat pos"><span>Gold</span><span>${c.goldMul}×</span></div>` : '') +
+      (c.weapSlots !== 6 ? `<div class="stat neg"><span>Slots</span><span>${c.weapSlots}</span></div>` : '') +
+      (c.hpDrain > 0 ? `<div class="stat neg"><span>Hunger</span><span>-${c.hpDrain} HP/s</span></div>` : '');
+    card.onclick = () => {
+      selectedChar = c;
+      try { localStorage.setItem('potato-bros:char', c.id); } catch(_){}
+      renderPicker();
+    };
+    root.appendChild(card);
+  }
+}
+renderPicker();
 
 document.getElementById('play-btn').onclick = () => {
   document.getElementById('title').classList.add('off');
