@@ -239,6 +239,33 @@ const ITEMS = [
   { id:'heart',   name:'LIFE STEAL',  emoji:'❤️', desc:'+5% lifesteal',        price:20, apply:p=>{ p.lifesteal+=0.05; } },
   { id:'thorns',  name:'THORNS',      emoji:'🌵', desc:'Touch dmg reflected',  price:16, apply:p=>{ p.thorns+=2; } },
   { id:'tonic',   name:'REGEN TONIC', emoji:'🧪', desc:'+1 HP regen/sec',      price:18, apply:p=>{ p.regen+=1; } },
+  // ── Tradeoff items ──────────────────────────────────
+  { id:'glassc',  name:'GLASS CANNON', emoji:'🌹', desc:'+25% dmg · -10 max HP',     price:22,
+    apply:p=>{ p.dmgMul*=1.25; p.maxHp=Math.max(10,p.maxHp-10); p.hp=Math.min(p.hp,p.maxHp); } },
+  { id:'sadtom',  name:'SAD TOMATO',   emoji:'🍅', desc:'+5 regen · -25% HP each wave', price:18,
+    apply:p=>{ p.regen+=5; p.sadTomato=(p.sadTomato||0)+1; } },
+  { id:'virus',   name:'VIRUS',        emoji:'🦠', desc:'+30% dmg · take +50% dmg',  price:24,
+    apply:p=>{ p.dmgMul*=1.30; p.dmgTakenMul=(p.dmgTakenMul||1)*1.50; } },
+  { id:'tomes',   name:'TOMES',        emoji:'📚', desc:'+25% XP gain',              price:16,
+    apply:p=>{ p.xpMul=(p.xpMul||1)*1.25; } },
+  // ── Trigger items (periodic spawns) ──────────────────
+  { id:'eye',     name:'ALIEN EYE',    emoji:'👁', desc:'Every 5s: 4 eye orbs',      price:26,
+    apply:p=>{ p.alienEyeStack=(p.alienEyeStack||0)+1; p.alienEyeT=p.alienEyeT||5; } },
+  { id:'mines',   name:'MINES',        emoji:'💣', desc:'Every 12s: drop a mine',    price:20,
+    apply:p=>{ p.mineStack=(p.mineStack||0)+1; p.mineT=p.mineT||12; } },
+  { id:'wind',    name:'WINDFALL',     emoji:'🌪', desc:'Every 10s: +$3 windfall',   price:22,
+    apply:p=>{ p.windStack=(p.windStack||0)+1; p.windT=p.windT||10; } },
+  { id:'tyler',   name:'TYLER',        emoji:'⚡', desc:'Summons a lightning pal',   price:30,
+    apply:p=>{ p.tylerStack=(p.tylerStack||0)+1; } },
+  // ── Conditional items ────────────────────────────────
+  { id:'adren',   name:'ADRENALINE',   emoji:'💉', desc:'+30% atk speed if HP < 50%',price:18,
+    apply:p=>{ p.adrenaline=(p.adrenaline||0)+0.30; } },
+  { id:'ghost',   name:'GHOST',        emoji:'👻', desc:'Revive once at 50% HP',     price:35,
+    apply:p=>{ p.revivesLeft=(p.revivesLeft||0)+1; } },
+  { id:'anvil',   name:'ANVIL',        emoji:'🔨', desc:'Each wave: upgrade a weapon',price:32,
+    apply:p=>{ p.anvilStack=(p.anvilStack||0)+1; } },
+  { id:'crown',   name:'CROWN',        emoji:'👑', desc:'+1 gold per kill',          price:24,
+    apply:p=>{ p.goldPerKill=(p.goldPerKill||0)+1; } },
 ];
 
 // ─── Upgrades (level-up) ─────────────────────────────────
@@ -321,6 +348,16 @@ function mkPlayer(){
     items:[],
     aimAngle:0,
     drainAcc:0,
+    // Item-driven extra fields (initialised so reads never NaN)
+    dmgTakenMul:1.0, xpMul:1.0,
+    sadTomato:0, adrenaline:0,
+    alienEyeStack:0, alienEyeT:0,
+    mineStack:0, mineT:0,
+    windStack:0, windT:0,
+    tylerStack:0, tylerCool:0,
+    revivesLeft:0, anvilStack:0, goldPerKill:0,
+    weaponDmgBonus:1.0,  // ANVIL multiplies this each wave
+    summons:[],          // Tyler pals
   };
 }
 
@@ -449,6 +486,67 @@ function tickPlayer(p, dt){
       p.drainAcc -= 1;
     }
   }
+  // ── Item triggers (ALIEN EYE / MINES / WINDFALL / TYLER) ──
+  if(p.alienEyeStack > 0){
+    p.alienEyeT -= dt;
+    if(p.alienEyeT <= 0){
+      p.alienEyeT = 5;
+      const N = 4 + p.alienEyeStack;   // more stacks → more eyes
+      for(let k = 0; k < N; k++){
+        const a = (k / N) * Math.PI * 2;
+        state.projectiles.push({
+          x:p.x, y:p.y,
+          vx:Math.cos(a) * 5, vy:Math.sin(a) * 5,
+          r:6, dmg: 8 * p.dmgMul,
+          life: 50, pierce: 1, hit: new Set(),
+          color:'#fde047', crit:false,
+        });
+      }
+    }
+  }
+  if(p.mineStack > 0){
+    p.mineT -= dt;
+    if(p.mineT <= 0){
+      p.mineT = 12;
+      // Drop a mine near the player at a random offset
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 60 + Math.random() * 80;
+      state.mines = state.mines || [];
+      state.mines.push({
+        x:p.x + Math.cos(ang)*rad, y:p.y + Math.sin(ang)*rad,
+        r:14, dmg: 30 * p.dmgMul * p.mineStack, life: 600, t:0,
+      });
+    }
+  }
+  if(p.windStack > 0){
+    p.windT -= dt;
+    if(p.windT <= 0){
+      p.windT = 10;
+      p.gold += 3 * p.windStack;
+      // Pop a gold coin number
+      state.particles.push({ kind:'dmg', x:p.x, y:p.y - p.r - 4, vx:0, vy:-1.6, t:0, life:36, text:'+$' + (3*p.windStack), crit:true });
+    }
+  }
+  if(p.tylerStack > 0){
+    p.tylerCool -= dt;
+    if(p.tylerCool <= 0){
+      p.tylerCool = 0.65;
+      const target = nearestEnemy(p, 300);
+      if(target){
+        // Lightning bolt that pierces — visual = projectile w/ tyler color
+        const a = Math.atan2(target.y - p.y, target.x - p.x);
+        state.projectiles.push({
+          x:p.x, y:p.y,
+          vx:Math.cos(a) * 16, vy:Math.sin(a) * 16,
+          r:5, dmg: 10 * p.dmgMul * p.tylerStack,
+          life: 30, pierce: 3, hit: new Set(),
+          color:'#7dd3fc', crit:false, tyler:true,
+        });
+      }
+    }
+  }
+  // ── ADRENALINE — bonus atk speed below 50% HP ──
+  const adrenBonus = (p.adrenaline > 0 && p.hp < p.maxHp * 0.5) ? (1 + p.adrenaline) : 1;
   // Auto-aim weapons (range can be boosted per-character via rangeMul)
   for(const w of p.weapons){
     w.cool -= dt;
@@ -459,7 +557,7 @@ function tickPlayer(p, dt){
       if(target){
         fireWeapon(p, wep, target, range);
         p.aimAngle = Math.atan2(target.y - p.y, target.x - p.x);
-        w.cool = wep.rate / p.atkSpeedMul;
+        w.cool = wep.rate / (p.atkSpeedMul * adrenBonus);
       } else {
         // No target — recheck quickly
         w.cool = 0.1;
@@ -487,7 +585,7 @@ function fireWeapon(p, wep, target, effectiveRange){
       ang = baseAng + (Math.random() - 0.5) * wep.spread;
     }
     const isCrit = Math.random() < p.crit;
-    const dmg = wep.dmg * p.dmgMul * (isCrit ? 2 : 1);
+    const dmg = wep.dmg * p.dmgMul * p.weaponDmgBonus * (isCrit ? 2 : 1);
     state.projectiles.push({
       x:p.x, y:p.y,
       vx:Math.cos(ang)*wep.spd, vy:Math.sin(ang)*wep.spd,
@@ -532,7 +630,7 @@ function tickEnemies(dt){
     // Touch damage
     const touch = e.r + p.r;
     if(p.invuln <= 0 && dist2(p.x, p.y, e.x, e.y) < touch * touch){
-      p.hp -= e.dmg;
+      p.hp -= e.dmg * p.dmgTakenMul;
       p.invuln = 40;
       p.hitFlash = 12;
       state.cam.shake = Math.min(8, state.cam.shake + 4);
@@ -541,14 +639,33 @@ function tickEnemies(dt){
         e.hp -= p.thorns;
         if(e.hp <= 0){ killEnemy(i); continue; }
       }
-      if(p.hp <= 0){ state.phase = 'dead'; showEnd(false); return; }
+      if(p.hp <= 0 && !tryRevive(p)){ state.phase = 'dead'; showEnd(false); return; }
     }
   }
+}
+
+function tryRevive(p){
+  if(p.revivesLeft <= 0) return false;
+  p.revivesLeft--;
+  p.hp = Math.round(p.maxHp * 0.5);
+  p.invuln = 90;
+  // Ghost burst particles
+  for(let k = 0; k < 24; k++){
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1 + Math.random() * 3;
+    state.particles.push({ x:p.x, y:p.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, r:3, life:30, t:0, color:'#e0e7ff' });
+  }
+  state.cam.shake += 10;
+  return true;
 }
 
 function killEnemy(idx){
   const e = state.enemies[idx];
   if(!e) return;
+  // CROWN: bonus gold per kill (non-boss)
+  if(state.p.goldPerKill > 0 && !e.boss){
+    state.p.gold += state.p.goldPerKill;
+  }
   // Spawn materials based on XP value
   const n = e.boss ? e.xp : Math.max(1, e.xp);
   for(let k = 0; k < n; k++){
@@ -616,12 +733,12 @@ function tickProjectiles(){
     }
     // Hit player
     if(p.invuln <= 0 && dist2(b.x, b.y, p.x, p.y) < (b.r + p.r) * (b.r + p.r)){
-      p.hp -= b.dmg;
+      p.hp -= b.dmg * p.dmgTakenMul;
       p.invuln = 30;
       p.hitFlash = 10;
       state.cam.shake += 3;
       state.enemyShots.splice(i,1);
-      if(p.hp <= 0){ state.phase = 'dead'; showEnd(false); return; }
+      if(p.hp <= 0 && !tryRevive(p)){ state.phase = 'dead'; showEnd(false); return; }
     }
   }
 }
@@ -654,7 +771,7 @@ function tickMaterials(){
     }
     // Pickup
     if(d2 < (p.r + 6) * (p.r + 6)){
-      p.xp += m.value;
+      p.xp += m.value * p.xpMul;
       p.gold += Math.round(m.value * p.goldMul);
       state.materials.splice(i,1);
       while(p.xp >= p.xpNeeded){
@@ -666,6 +783,39 @@ function tickMaterials(){
       continue;
     }
     if(m.t > m.life){ state.materials.splice(i,1); }
+  }
+}
+
+// ─── Mines (MINES item — proximity AoE) ─────────────────
+function tickMines(){
+  if(!state.mines || !state.mines.length) return;
+  for(let i = state.mines.length - 1; i >= 0; i--){
+    const m = state.mines[i];
+    m.t++;
+    // Detonate when an enemy enters the blast radius
+    const R = 60;
+    let target = null;
+    for(const e of state.enemies){
+      if(dist2(e.x, e.y, m.x, m.y) < R * R){ target = e; break; }
+    }
+    if(target || m.t > m.life){
+      // Boom — damage everything in radius
+      for(let j = state.enemies.length - 1; j >= 0; j--){
+        const e = state.enemies[j];
+        if(dist2(e.x, e.y, m.x, m.y) < R * R){
+          e.hp -= m.dmg;
+          e.hitFlash = 6;
+          if(e.hp <= 0){ killEnemy(j); }
+        }
+      }
+      // Particles
+      for(let k = 0; k < 20; k++){
+        const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 4;
+        state.particles.push({ x:m.x, y:m.y, vx:Math.cos(a)*sp, vy:Math.sin(a)*sp, r:3, life:24, t:0, color:'#fb923c' });
+      }
+      state.cam.shake += 5;
+      state.mines.splice(i,1);
+    }
   }
 }
 
@@ -874,12 +1024,30 @@ function draw(){
     state.cam.shake *= 0.84;
   }
   drawGround();
+  drawMines();
   drawMaterials();
   drawEnemies();
   drawProjectiles();
   drawPlayer();
   drawParticles();
   ctx.restore();
+}
+
+function drawMines(){
+  if(!state.mines) return;
+  for(const m of state.mines){
+    const pulse = 0.5 + Math.sin(m.t * 0.3) * 0.5;
+    ctx.fillStyle = `rgba(251,146,60,${0.25 + pulse * 0.5})`;
+    ctx.beginPath(); ctx.arc(m.x, m.y, 60, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fb923c';
+    ctx.shadowBlur = 10; ctx.shadowColor = '#fb923c';
+    ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a0604';
+    ctx.font = 'bold 13px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillText('💣', m.x, m.y + 4);
+  }
 }
 
 // ─── HUD updates ─────────────────────────────────────────
@@ -1023,6 +1191,14 @@ document.getElementById('next-btn').onclick = () => {
   state.spawnTimer = 0;
   state.phase = 'play';
   state.bossSpawned = false;
+  // ── ANVIL — bonus weapon damage every wave ──
+  if(state.p.anvilStack > 0){
+    state.p.weaponDmgBonus *= (1 + 0.10 * state.p.anvilStack);
+  }
+  // ── SAD TOMATO — slice HP at wave start ──
+  if(state.p.sadTomato > 0){
+    state.p.hp = Math.max(1, Math.round(state.p.hp * (1 - 0.25 * state.p.sadTomato)));
+  }
   showWaveToast(state.wave);
 };
 
@@ -1109,6 +1285,7 @@ function loop(now){
     tickEnemies(dt);
     tickProjectiles();
     tickMaterials();
+    tickMines();
     tickWave(dt);
   }
   tickParticles();
