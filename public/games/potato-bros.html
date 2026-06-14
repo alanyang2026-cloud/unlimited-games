@@ -361,6 +361,21 @@ function mkPlayer(){
   };
 }
 
+// ─── Sprite helper (PNG-first, emoji fallback) ──────────
+// Drop any PNG into /games/potato-art/{characters,items}/<id>.png and
+// it overrides the emoji wherever the UI renders an icon. Missing PNG
+// just stays as the emoji — no error, no flash.
+function iconHtml(kind, id, emoji, size){
+  size = size || 48;
+  const fs = Math.round(size * 0.78);
+  return `<span style="display:inline-block;position:relative;width:${size}px;height:${size}px;line-height:${size}px;font-size:${fs}px;text-align:center">
+    <img src="/games/potato-art/${kind}/${id}.png" alt=""
+         style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none"
+         onerror="this.style.display='none'">
+    ${emoji}
+  </span>`;
+}
+
 // ─── Helpers ─────────────────────────────────────────────
 function dist2(ax,ay,bx,by){const dx=ax-bx,dy=ay-by;return dx*dx+dy*dy}
 function dist(ax,ay,bx,by){return Math.sqrt(dist2(ax,ay,bx,by))}
@@ -1061,13 +1076,18 @@ function updateHUD(){
   document.getElementById('hp-lbl').textContent = `HP ${Math.max(0, Math.round(p.hp))}/${p.maxHp}`;
   document.getElementById('xp-fill').style.width = (p.xp / p.xpNeeded * 100) + '%';
   document.getElementById('xp-lbl').textContent = `LV ${p.level}  ·  ${p.xp}/${p.xpNeeded}`;
-  // Inventory
+  // Inventory — small icons (28px), PNG-first with emoji fallback
   const wEl = document.getElementById('inv-weapons');
   wEl.innerHTML = '';
   for(let i = 0; i < p.weapSlots; i++){
     const slot = document.createElement('div');
     slot.className = 'inv-slot' + (i < p.weapons.length ? '' : ' empty');
-    slot.textContent = i < p.weapons.length ? WEAPONS[p.weapons[i].id].emoji : '·';
+    if(i < p.weapons.length){
+      const wid = p.weapons[i].id;
+      slot.innerHTML = iconHtml('items', wid, WEAPONS[wid].emoji, 26);
+    } else {
+      slot.textContent = '·';
+    }
     wEl.appendChild(slot);
   }
   const iEl = document.getElementById('inv-items');
@@ -1075,7 +1095,7 @@ function updateHUD(){
   for(const it of p.items){
     const slot = document.createElement('div');
     slot.className = 'inv-slot';
-    slot.textContent = it.emoji;
+    slot.innerHTML = iconHtml('items', it.id, it.emoji, 26);
     iEl.appendChild(slot);
   }
 }
@@ -1103,7 +1123,9 @@ function showLevelUp(){
   for(const up of choices){
     const c = document.createElement('div');
     c.className = 'card';
-    c.innerHTML = `<div class="icon">${up.emoji}</div><div class="nm">${up.name}</div><div class="desc">${up.desc}</div>`;
+    // Upgrades use generic stat icons — share namespace with items
+    const upId = up.name.toLowerCase().replace(/[^a-z]/g,'').slice(0,8) || 'upgrade';
+    c.innerHTML = `<div class="icon">${iconHtml('items', upId, up.emoji, 48)}</div><div class="nm">${up.name}</div><div class="desc">${up.desc}</div>`;
     c.onclick = () => {
       up.apply(state.p);
       ov.classList.add('off');
@@ -1152,7 +1174,9 @@ function renderShop(){
     const c = document.createElement('div');
     const sold = it.sold || p.gold < it.price;
     c.className = 'card' + (sold ? ' disabled' : '');
-    c.innerHTML = `<div class="icon">${it.emoji}</div><div class="nm">${it.name}</div><div class="desc">${it.desc}</div><div class="price">${it.sold ? 'SOLD' : '💰 ' + it.price}</div>`;
+    // Weapons resolve under characters/weapons folder convention, items under items/
+    const kind = it.kind === 'weapon' ? 'items' : 'items';
+    c.innerHTML = `<div class="icon">${iconHtml(kind, it.id, it.emoji, 48)}</div><div class="nm">${it.name}</div><div class="desc">${it.desc}</div><div class="price">${it.sold ? 'SOLD' : '💰 ' + it.price}</div>`;
     if(!sold){
       c.onclick = () => {
         if(p.gold < it.price) return;
@@ -1240,7 +1264,7 @@ function renderPicker(){
     card.style.setProperty('--cg', c.cg);
     const wep = WEAPONS[c.weapon];
     card.innerHTML =
-      `<div class="icon">${c.emoji}</div>` +
+      `<div class="icon">${iconHtml('characters', c.id, c.emoji, 56)}</div>` +
       `<div class="nm">${c.name}</div>` +
       `<div class="tag">${c.tag}</div>` +
       `<div class="stat"><span>Weapon</span><span style="color:#fde047">${wep.emoji} ${wep.name}</span></div>` +
