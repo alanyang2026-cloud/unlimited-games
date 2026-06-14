@@ -1046,32 +1046,49 @@ function drawPlayer(){
   }
 }
 
-// Fallback body — same procedural potato as before, drawn at local origin
-// (caller already translated/scaled, so coords are relative to body centre).
+// Plain egg body — cream oval, black outline, simple serious face.
+// All 6 character classes share the same look in-game; they differ by
+// stats, starting weapon, and HUD icon, not by sprite. The picker on
+// the title screen already shows the class name + emoji.
 function drawProceduralBody(p){
-  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : '#b45309';
-  ctx.shadowBlur = 12; ctx.shadowColor = '#fbbf24';
-  ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.05, p.r * 1.2, 0, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
-  // Bumps
-  ctx.fillStyle = '#92400e';
-  ctx.beginPath(); ctx.arc(-4, -3, 2, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 5,  2, 1.8, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 2, -5, 1.5, 0, Math.PI*2); ctx.fill();
-  // Eyes
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-4, -2, 2.6, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 4, -2, 2.6, 0, Math.PI*2); ctx.fill();
-  // Pupils tracked toward aim (multiply by faceFlip undo since we may be mirrored)
-  ctx.fillStyle = '#0a0604';
-  const aim = p.aimAngle * (p._faceFlip || 1);
-  const lx = Math.cos(aim) * 0.8, ly = Math.sin(p.aimAngle) * 0.8;
-  ctx.beginPath(); ctx.arc(-4 + lx, -2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc( 4 + lx, -2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
-  // Mouth
-  ctx.strokeStyle = '#0a0604';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.arc(0, 3, 2, 0.2, Math.PI - 0.2); ctx.stroke();
+  const flash = p.hitFlash > 0;
+
+  // Egg outline (drawn slightly larger as the "shell line")
+  ctx.fillStyle = flash ? '#ffffff' : '#1a0f08';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, p.r * 0.95 + 1.2, p.r * 1.20 + 1.2, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Egg body (cream / off-white)
+  ctx.fillStyle = flash ? '#ffffff' : '#f7e8d0';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, p.r * 0.95, p.r * 1.20, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Two simple eyes — vertical ovals = serious gaze
+  ctx.fillStyle = '#1a0f08';
+  ctx.beginPath();
+  ctx.ellipse(-3.6, -1, 1.5, 3.0, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse( 3.6, -1, 1.5, 3.0, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Angled eyebrows — short strokes giving a "determined" look
+  ctx.strokeStyle = '#1a0f08';
+  ctx.lineWidth = 1.8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-6.5, -5.5); ctx.lineTo(-2, -4.5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo( 6.5, -5.5); ctx.lineTo( 2, -4.5);
+  ctx.stroke();
+
+  // Tiny straight mouth
+  ctx.beginPath();
+  ctx.moveTo(-2.2, 5); ctx.lineTo(2.2, 5);
+  ctx.stroke();
 }
 
 function drawProjectiles(){
