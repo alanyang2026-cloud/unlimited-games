@@ -979,45 +979,46 @@ function drawPlayer(){
   p._lastX = p.x; p._lastY = p.y;
 
   // ── Animation curves ──
-  let bodyDy = 0, scaleX = 1, scaleY = 1;
-  let walkPhase = 0;
-  if(moving){
-    // Walk — body bounces, briefly squashes on "landing"
-    walkPhase = time * 0.28;
-    const bounceY = Math.abs(Math.sin(walkPhase));
-    bodyDy = -bounceY * 4;
-    if(bounceY < 0.15){ scaleX = 1.06; scaleY = 0.94; }
-  } else {
-    // Idle — gentle breath
-    const breath = Math.sin(time * 0.06);
-    bodyDy = breath * 1.8;
-    scaleY = 1 + breath * 0.025;
-  }
+  // Per user request: keep it minimal. Only the face-flip is meaningful;
+  // body has the tiniest breath so it doesn't look frozen, and feet do
+  // a small alternating shuffle when moving — nothing else.
+  let bodyDy = 0;
+  const breath = Math.sin(time * 0.05);
+  bodyDy = breath * 0.6;          // very subtle ±0.6px
 
-  // ── Ground shadow (syncs with body bounce so feet always touch ground) ──
-  const groundY = p.y + p.r + 3;
-  const shadowScale = 1 + bodyDy * 0.04;   // shrinks when body rises
+  // ── Stick feet (thin, short, detached from body) ──
+  // Position is well below the body's lowest point so there's a visible
+  // gap, like little legs hanging in mid-air.
+  const feetTop = p.y + p.r * 1.20 + 6;   // 6px clear gap from body bottom
+  const legW    = 2.4;                    // narrow stick
+  const legH    = 7;                      // taller so they're visible
+  const gap     = 4.5;                    // horizontal spread between feet
+  const stepPhase = moving ? time * 0.32 : 0;
+  const stepSwing = Math.sin(stepPhase);
+  const lLift = moving ? Math.max(0, -stepSwing) * 2.5 : 0;
+  const rLift = moving ? Math.max(0,  stepSwing) * 2.5 : 0;
+
+  // ── Ground shadow (single static ellipse since body barely moves) ──
   ctx.fillStyle = 'rgba(0,0,0,.42)';
   ctx.beginPath();
-  ctx.ellipse(p.x, groundY + 1, 11 * shadowScale, 3.5 * shadowScale, 0, 0, Math.PI*2);
+  ctx.ellipse(p.x, feetTop + legH + 2, 10, 2.6, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // ── Stick legs (drawn under the body, swing during walk) ──
-  // Two short black ovals; in walk they alternate up/down to fake steps.
-  const legCol = '#1a0f08';
-  const swing  = moving ? Math.sin(walkPhase) : 0;
-  // When walking, one foot lifts as the other plants
-  const lLiftY = moving ? Math.max(0, -swing) * 3 : 0;
-  const rLiftY = moving ? Math.max(0,  swing) * 3 : 0;
-  ctx.fillStyle = legCol;
-  // Left foot
-  ctx.beginPath();
-  ctx.ellipse(p.x - 5 + swing * 1.5, groundY - lLiftY, 3, 2.6, 0, 0, Math.PI*2);
-  ctx.fill();
-  // Right foot
-  ctx.beginPath();
-  ctx.ellipse(p.x + 5 - swing * 1.5, groundY - rLiftY, 3, 2.6, 0, 0, Math.PI*2);
-  ctx.fill();
+  // Left + right feet (rounded rectangles, dark)
+  ctx.fillStyle = '#1a0f08';
+  function foot(x, y){
+    if(ctx.roundRect){
+      ctx.beginPath();
+      ctx.roundRect(x - legW/2, y, legW, legH, 1.2);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - legW/2, y, legW, legH);
+    }
+  }
+  foot(p.x - gap, feetTop - lLift);
+  foot(p.x + gap, feetTop - rLift);
+
+  const scaleX = 1, scaleY = 1;
 
   // ── Body (PNG if available, procedural otherwise) ──
   const sprite = CHAR_SPRITES[p.char && p.char.id];
