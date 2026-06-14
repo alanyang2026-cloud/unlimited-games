@@ -953,46 +953,125 @@ function drawEnemies(){
   }
 }
 
+// In-game character sprites (PNG body) — loaded lazily, fall back to
+// the procedural potato when missing. Drop a PNG at
+// /games/potato-art/characters/<char_id>.png to override.
+const CHAR_SPRITES = {};
+(function loadCharSprites(){
+  for(const c of CHARACTERS){
+    const img = new Image();
+    img.onload = () => { CHAR_SPRITES[c.id] = img; };
+    img.onerror = () => {};
+    img.src = '/games/potato-art/characters/' + c.id + '.png';
+  }
+})();
+
 function drawPlayer(){
   const p = state.p;
-  // Shadow
-  ctx.fillStyle = 'rgba(0,0,0,.5)';
+  const time = state.elapsed;
+
+  // Track movement direction for face flip + walk vs idle decision
+  if(p._lastX === undefined){ p._lastX = p.x; p._lastY = p.y; p._faceFlip = 1; }
+  const dx = p.x - p._lastX;
+  const dy = p.y - p._lastY;
+  const moving = Math.hypot(dx, dy) > 0.06;
+  if(Math.abs(dx) > 0.05) p._faceFlip = dx < 0 ? -1 : 1;
+  p._lastX = p.x; p._lastY = p.y;
+
+  // ── Animation curves ──
+  let bodyDy = 0, scaleX = 1, scaleY = 1;
+  let walkPhase = 0;
+  if(moving){
+    // Walk — body bounces, briefly squashes on "landing"
+    walkPhase = time * 0.28;
+    const bounceY = Math.abs(Math.sin(walkPhase));
+    bodyDy = -bounceY * 4;
+    if(bounceY < 0.15){ scaleX = 1.06; scaleY = 0.94; }
+  } else {
+    // Idle — gentle breath
+    const breath = Math.sin(time * 0.06);
+    bodyDy = breath * 1.8;
+    scaleY = 1 + breath * 0.025;
+  }
+
+  // ── Ground shadow (syncs with body bounce so feet always touch ground) ──
+  const groundY = p.y + p.r + 3;
+  const shadowScale = 1 + bodyDy * 0.04;   // shrinks when body rises
+  ctx.fillStyle = 'rgba(0,0,0,.42)';
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y + p.r * 0.8, p.r * 0.9, p.r * 0.3, 0, 0, Math.PI*2);
+  ctx.ellipse(p.x, groundY + 1, 11 * shadowScale, 3.5 * shadowScale, 0, 0, Math.PI*2);
   ctx.fill();
-  // Potato body — oval, brown
-  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : '#b45309';
-  ctx.shadowBlur = 12; ctx.shadowColor = '#fbbf24';
+
+  // ── Stick legs (drawn under the body, swing during walk) ──
+  // Two short black ovals; in walk they alternate up/down to fake steps.
+  const legCol = '#1a0f08';
+  const swing  = moving ? Math.sin(walkPhase) : 0;
+  // When walking, one foot lifts as the other plants
+  const lLiftY = moving ? Math.max(0, -swing) * 3 : 0;
+  const rLiftY = moving ? Math.max(0,  swing) * 3 : 0;
+  ctx.fillStyle = legCol;
+  // Left foot
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y, p.r * 1.05, p.r * 1.2, 0, 0, Math.PI*2);
+  ctx.ellipse(p.x - 5 + swing * 1.5, groundY - lLiftY, 3, 2.6, 0, 0, Math.PI*2);
   ctx.fill();
-  ctx.shadowBlur = 0;
-  // Bumps for that potato texture
-  ctx.fillStyle = '#92400e';
-  ctx.beginPath(); ctx.arc(p.x - 4, p.y - 3, 2, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x + 5, p.y + 2, 1.8, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x + 2, p.y - 5, 1.5, 0, Math.PI*2); ctx.fill();
-  // Eyes
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(p.x - 4, p.y - 2, 2.6, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x + 4, p.y - 2, 2.6, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#0a0604';
-  // Pupils look toward aim direction
-  const lx = Math.cos(p.aimAngle) * 0.8, ly = Math.sin(p.aimAngle) * 0.8;
-  ctx.beginPath(); ctx.arc(p.x - 4 + lx, p.y - 2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(p.x + 4 + lx, p.y - 2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
-  // Tiny mouth
-  ctx.strokeStyle = '#0a0604';
-  ctx.lineWidth = 1.5;
+  // Right foot
   ctx.beginPath();
-  ctx.arc(p.x, p.y + 3, 2, 0.2, Math.PI - 0.2);
-  ctx.stroke();
-  // Pickup range visual when low XP (subtle ring)
+  ctx.ellipse(p.x + 5 - swing * 1.5, groundY - rLiftY, 3, 2.6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // ── Body (PNG if available, procedural otherwise) ──
+  const sprite = CHAR_SPRITES[p.char && p.char.id];
+  ctx.save();
+  ctx.translate(p.x, p.y + bodyDy);
+  ctx.scale(p._faceFlip * scaleX, scaleY);
+  if(p.hitFlash > 0 && 'filter' in ctx){
+    ctx.filter = 'brightness(2.4) saturate(0.3)';
+  }
+  if(sprite && sprite.complete && sprite.naturalWidth > 0){
+    const TARGET_H = 42;
+    const ar = sprite.naturalWidth / sprite.naturalHeight;
+    const drawH = TARGET_H;
+    const drawW = TARGET_H * ar;
+    ctx.drawImage(sprite, -drawW/2, -drawH/2 - 2, drawW, drawH);
+  } else {
+    drawProceduralBody(p);
+  }
+  ctx.restore();
+
+  // Pickup range visual when boosted
   if(p.pickupR > 60){
     ctx.strokeStyle = 'rgba(132,204,22,.12)';
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(p.x, p.y, p.pickupR, 0, Math.PI*2); ctx.stroke();
   }
+}
+
+// Fallback body — same procedural potato as before, drawn at local origin
+// (caller already translated/scaled, so coords are relative to body centre).
+function drawProceduralBody(p){
+  ctx.fillStyle = p.hitFlash > 0 ? '#fff' : '#b45309';
+  ctx.shadowBlur = 12; ctx.shadowColor = '#fbbf24';
+  ctx.beginPath(); ctx.ellipse(0, 0, p.r * 1.05, p.r * 1.2, 0, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Bumps
+  ctx.fillStyle = '#92400e';
+  ctx.beginPath(); ctx.arc(-4, -3, 2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 5,  2, 1.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 2, -5, 1.5, 0, Math.PI*2); ctx.fill();
+  // Eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-4, -2, 2.6, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 4, -2, 2.6, 0, Math.PI*2); ctx.fill();
+  // Pupils tracked toward aim (multiply by faceFlip undo since we may be mirrored)
+  ctx.fillStyle = '#0a0604';
+  const aim = p.aimAngle * (p._faceFlip || 1);
+  const lx = Math.cos(aim) * 0.8, ly = Math.sin(p.aimAngle) * 0.8;
+  ctx.beginPath(); ctx.arc(-4 + lx, -2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc( 4 + lx, -2 + ly, 1.4, 0, Math.PI*2); ctx.fill();
+  // Mouth
+  ctx.strokeStyle = '#0a0604';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, 3, 2, 0.2, Math.PI - 0.2); ctx.stroke();
 }
 
 function drawProjectiles(){
