@@ -147,6 +147,10 @@
 
 // ─── Canvas + constants ──────────────────────────────────
 const W = 900, H = 600;
+// Camera zoom — > 1 zooms in so the player can't see the entire arena.
+// 1.6 means roughly the central 560×375 px of the world is visible at
+// any moment, with enemies fading in from the edges as they approach.
+const ZOOM = 1.6;
 const cv = document.getElementById('cv');
 const ctx = cv.getContext('2d');
 cv.width = W; cv.height = H;
@@ -322,7 +326,7 @@ function newGame(){
     elapsed: 0,
     rerollCost: 5,
     rerollUsed: false,
-    cam: { shake: 0 },
+    cam: { shake: 0, x: W/2, y: H/2 },
     winner: false,
     paused: false,
   };
@@ -1004,19 +1008,30 @@ function drawPlayer(){
   ctx.ellipse(p.x, feetTop + legH + 2, 10, 2.6, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // Left + right feet (rounded rectangles, dark)
-  ctx.fillStyle = '#1a0f08';
-  function foot(x, y){
+  // Left + right feet — same cream as the body, with a thin dark
+  // outline so they still read. Rotated outward into a 八 splay.
+  function foot(cx, cy, rotation){
+    ctx.save();
+    ctx.translate(cx, cy + legH * 0.5);
+    ctx.rotate(rotation);
+    ctx.translate(0, -legH * 0.5);
+    ctx.fillStyle   = '#f7e8d0';
+    ctx.strokeStyle = '#1a0f08';
+    ctx.lineWidth   = 1.4;
     if(ctx.roundRect){
       ctx.beginPath();
-      ctx.roundRect(x - legW/2, y, legW, legH, 1.2);
+      ctx.roundRect(-legW/2, 0, legW, legH, 1.4);
       ctx.fill();
+      ctx.stroke();
     } else {
-      ctx.fillRect(x - legW/2, y, legW, legH);
+      ctx.fillRect(-legW/2, 0, legW, legH);
+      ctx.strokeRect(-legW/2, 0, legW, legH);
     }
+    ctx.restore();
   }
-  foot(p.x - gap, feetTop - lLift);
-  foot(p.x + gap, feetTop - rLift);
+  const splay = 0.32;   // ~18° outward each side (the 八 spread)
+  foot(p.x - gap, feetTop - lLift, -splay);
+  foot(p.x + gap, feetTop - rLift,  splay);
 
   const scaleX = 1, scaleY = 1;
 
@@ -1128,13 +1143,33 @@ function drawParticles(){
   }
 }
 
+// Smooth-follow camera, clamped so we never see outside the arena
+function updateCamera(){
+  if(!state || !state.p) return;
+  const halfW = W / (2 * ZOOM);
+  const halfH = H / (2 * ZOOM);
+  const tx = Math.max(halfW, Math.min(W - halfW, state.p.x));
+  const ty = Math.max(halfH, Math.min(H - halfH, state.p.y));
+  state.cam.x += (tx - state.cam.x) * 0.18;
+  state.cam.y += (ty - state.cam.y) * 0.18;
+}
+
 function draw(){
+  // Solid backdrop covers any sliver outside the arena
+  ctx.fillStyle = '#0a0604';
+  ctx.fillRect(0, 0, W, H);
+
   ctx.save();
-  // Screen shake
+  // Screen shake (screen space, applied before the world transform)
   if(state.cam.shake > 0.3){
     ctx.translate((Math.random()-0.5)*state.cam.shake, (Math.random()-0.5)*state.cam.shake);
     state.cam.shake *= 0.84;
   }
+  // Camera transform — centre on cam.{x,y} at ZOOM ratio
+  ctx.translate(W/2, H/2);
+  ctx.scale(ZOOM, ZOOM);
+  ctx.translate(-state.cam.x, -state.cam.y);
+
   drawGround();
   drawMines();
   drawMaterials();
@@ -1410,6 +1445,7 @@ function loop(now){
     tickWave(dt);
   }
   tickParticles();
+  updateCamera();
   if(state.phase !== 'title'){
     draw();
     updateHUD();
