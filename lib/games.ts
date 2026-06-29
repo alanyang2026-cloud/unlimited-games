@@ -136,6 +136,14 @@ export const GAMES: Game[] = [
     color: "from-amber-700 to-lime-700",
     controls: "WASD move · Auto-aim · Level up to pick upgrades · Shop between waves",
   },
+  {
+    id: "animal-survival",
+    title: "Animal Survival",
+    emoji: "🦌",
+    description: "3D first-person forest survival. Pick predator or prey. Multiplayer food chain.",
+    color: "from-green-900 to-stone-900",
+    controls: "WASD move · Mouse look · Shift sprint · Click to lock pointer",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -155,6 +163,7 @@ const URL_MAP: Record<string, string> = {
   "liars-tavern": "/games/liars-tavern.html",
   "hero-brawl": "/games/hero-brawl.html",
   "potato-bros": "/games/potato-bros.html",
+  "animal-survival": "/games/animal-survival.html",
 };
 
 export function getGameUrl(id: string): string {

@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>森林 · 第一视角生存恐怖（联机）</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { height:100%; overflow:hidden; background:#000; font-family:"PingFang SC","Segoe UI",sans-serif; }
+  canvas { display:block; }
+  .overlay { position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:radial-gradient(circle at 50% 35%, #14241a, #000 80%); color:#dfeede; z-index:10; text-align:center; }
+  .panel { max-width:780px; padding:28px; }
+  h1 { font-size:42px; letter-spacing:6px; margin-bottom:6px; color:#cfe8cf; text-shadow:0 0 20px rgba(80,160,90,.4); }
+  .sub { opacity:.7; margin-bottom:20px; font-size:15px; }
+  .name-row { margin-bottom:22px; }
+  .name-row input { padding:9px 14px; font-size:15px; border-radius:8px; border:1px solid rgba(255,255,255,.2);
+    background:rgba(0,0,0,.3); color:#fff; text-align:center; width:200px; }
+  .cards { display:flex; gap:16px; justify-content:center; flex-wrap:wrap; }
+  .card { width:200px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.1);
+    border-radius:14px; padding:20px 16px; cursor:pointer; transition:.18s; }
+  .card:hover { transform:translateY(-5px); border-color:#7fbf8a; background:rgba(127,191,138,.1); box-shadow:0 0 30px rgba(127,191,138,.15); }
+  .card .emoji { font-size:48px; } .card h2 { font-size:21px; margin:8px 0 6px; }
+  .card p { font-size:12.5px; opacity:.78; line-height:1.5; }
+  .tag { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; margin-top:8px; }
+  .t-carn{background:#ff6b6b22;color:#ff9d9d} .t-omni{background:#ffd16b22;color:#ffe0a0} .t-herb{background:#8fe39a22;color:#b8f5c0}
+  .hint { margin-top:24px; font-size:13px; opacity:.55; line-height:1.8; }
+  #hud { position:fixed; left:16px; bottom:16px; z-index:5; color:#dfeede; font-size:13px; line-height:1.7;
+    background:rgba(0,0,0,.4); padding:10px 14px; border-radius:10px; min-width:170px; }
+  .bar{ height:7px; border-radius:4px; background:rgba(255,255,255,.12); overflow:hidden; margin-top:3px;}
+  .bar>i{ display:block; height:100%; transition:width .15s;}
+  #obj{ position:fixed; top:16px; left:50%; transform:translateX(-50%); z-index:5; color:#cfe0cf;
+    font-size:13px; background:rgba(0,0,0,.35); padding:6px 14px; border-radius:999px;}
+  #crosshair{ position:fixed; top:50%; left:50%; width:6px; height:6px; margin:-3px 0 0 -3px;
+    border-radius:50%; background:rgba(255,255,255,.5); z-index:4; pointer-events:none;}
+  #lockHint{ position:fixed; bottom:74px; left:50%; transform:translateX(-50%); z-index:6;
+    color:#fff; font-size:14px; background:rgba(0,0,0,.5); padding:8px 18px; border-radius:999px;
+    pointer-events:none; letter-spacing:1px;}
+  #fear{ position:fixed; inset:0; z-index:3; pointer-events:none; opacity:0; transition:opacity .25s;
+    background:radial-gradient(circle at 50% 50%, transparent 55%, rgba(120,0,0,.55));}
+  #endTitle{ font-size:38px; margin-bottom:8px; color:#ff8c8c; text-shadow:0 0 24px rgba(200,0,0,.5);}
+  button.again{ margin-top:22px; padding:12px 30px; font-size:16px; border:none; border-radius:10px;
+    background:#7fbf8a; color:#06250f; cursor:pointer; font-weight:700;}
+  button.again:hover{ background:#a8e0b0;}
+  .hidden{ display:none !important; }
+  .err{ color:#ff8c8c; margin-top:16px; font-size:14px; line-height:1.7; }
+</style>
+</head>
+<body>
+
+<div id="menu" class="overlay">
+  <div class="panel">
+    <h1>森　林</h1>
+    <div class="sub">第一视角 · 生存恐怖 · 局域网联机 —— 和同学一起，在森林里活下去</div>
+    <div class="name-row"><input id="nameInput" placeholder="输入你的名字" maxlength="12"></div>
+    <div class="cards">
+      <div class="card" data-diet="carnivore">
+        <div class="emoji">🐺</div><h2>食肉动物</h2>
+        <p>顶级猎手。可捕食食草、杂食动物——包括扮演它们的同学。</p>
+        <span class="tag t-carn">猎手 · 中等恐惧</span>
+      </div>
+      <div class="card" data-diet="omnivore">
+        <div class="emoji">🐗</div><h2>杂食动物</h2>
+        <p>能吃浆果，也能捕食食草动物。但要提防食肉的同学。</p>
+        <span class="tag t-omni">猎物兼猎手</span>
+      </div>
+      <div class="card" data-diet="herbivore">
+        <div class="emoji">🦌</div><h2>食草动物</h2>
+        <p>只能吃浆果。所有捕食者都想要你。跑，藏，活下去。</p>
+        <span class="tag t-herb">纯猎物 · 最恐怖</span>
+      </div>
+    </div>
+    <div class="hint">移动 W A S D　·　转头 按住鼠标拖动（或点击锁定指针）　·　冲刺 Shift</div>
+    <div id="loadErr" class="err"></div>
+  </div>
+</div>
+
+<div id="lockHint" class="hidden">按住鼠标拖动转头 · 点击可锁定指针</div>
+<div id="obj" class="hidden">活下去</div>
+<div id="crosshair" class="hidden"></div>
+<div id="fear"></div>
+
+<div id="hud" class="hidden">
+  <div><span id="hudIcon"></span> <b id="hudName"></b> · 在线 <span id="hudOnline">1</span></div>
+  <div>饥饿 <div class="bar"><i id="hungerBar" style="background:#ff9d4d"></i></div></div>
+  <div>体力 <div class="bar"><i id="staminaBar" style="background:#6bc8ff"></i></div></div>
+  <div style="margin-top:6px;opacity:.85">进食 <b id="hudScore">0</b> · 存活 <span id="hudTime">0</span>s</div>
+</div>
+
+<div id="end" class="overlay hidden">
+  <div class="panel">
+    <div id="endTitle"></div>
+    <div id="endStats" class="sub"></div>
+    <button class="again" onclick="location.reload()">再次进入森林</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+// ──────────────────────────────────────────────────────────
+//   Firebase realtime multiplayer (replaces the LAN WebSocket
+//   server from the original `node server.js` build). Same
+//   gameplay; sync layer just moved into the cloud so the game
+//   can run on Vercel without a Node server.
+// ──────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyB-RhKZBJZW5y_GfPgKlnpBgRMG_jUf-rA",
+  authDomain: "unlimited-games-522cb.firebaseapp.com",
+  databaseURL: "https://unlimited-games-522cb-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "unlimited-games-522cb",
+});
+const fdb = firebase.database();
+const ROOM = "lobby";
+const RPATH = "/animal-survival/" + ROOM;
+const TS = firebase.database.ServerValue.TIMESTAMP;
+
+const MP = {
+  myId: null, myRef: null,
+  isHost: false, hostRef: null, hostHeartbeatT: 0,
+  lastSendT: 0,
+  cs: new Map(),    // host-local creature state (full sim)
+  pls: new Map(),   // host-local plant state
+  critSeq: 0, plantSeq: 0,
+};
+
+const clientDIETS = {
+  carnivore: { name:"食肉动物", icon:"🐺", color:0x7a443a, eyes:0xff3322, speed:7.5, size:1.6, eats:["herbivore","omnivore"], plants:false, vision:26 },
+  omnivore:  { name:"杂食动物", icon:"🐗", color:0x6e5230, eyes:0xffaa33, speed:6.5, size:1.5, eats:["herbivore"],            plants:true,  vision:24 },
+  herbivore: { name:"食草动物", icon:"🦌", color:0x5a6b3b, eyes:0xffe680, speed:7.0, size:1.3, eats:[],                       plants:true,  vision:30 },
+};
+function canEat(predDiet, predSize, preyDiet, preySize){
+  if (!clientDIETS[predDiet].eats.includes(preyDiet)) return false;
+  return predSize >= preySize*0.85;
+}
+
+if (typeof THREE === "undefined")
+  document.getElementById("loadErr").textContent = "⚠ 无法加载 3D 引擎（Three.js），请确认电脑联网后刷新。";
+
+// ---------- 全局 ----------
+let scene, camera, renderer;
+let WORLD = 220;
+let yaw=0, pitch=0, locked=false, dragging=false;
+const move = { f:false,b:false,l:false,r:false,sprint:false };
+let myId=null, myDiet=null, me=null;
+let px=0, pz=0, stamina=100;
+let running=false, startTime=0, clk=0, sendT=0, heartTimer=0, spottedCD=0;
+let treeColliders=[];
+const otherPlayers = new Map();  // id -> {group,label,diet}
+const critMeshes   = new Map();  // id -> {group,diet}
+const plantMeshes  = new Map();  // id -> mesh
+let lastState = { players:[], creatures:[] };
+
+// ---------- 音频 ----------
+let actx=null, master=null, ambGain=null;
+function initAudio(){
+  if (actx) return;
+  actx = new (window.AudioContext||window.webkitAudioContext)();
+  master = actx.createGain(); master.gain.value=0.9; master.connect(actx.destination);
+  const len=actx.sampleRate*2, buf=actx.createBuffer(1,len,actx.sampleRate), data=buf.getChannelData(0); let lp=0;
+  for(let i=0;i<len;i++){ const wn=Math.random()*2-1; lp=(lp+0.02*wn)/1.02; data[i]=lp*3.5; }
+  const src=actx.createBufferSource(); src.buffer=buf; src.loop=true;
+  const f=actx.createBiquadFilter(); f.type="lowpass"; f.frequency.value=420;
+  ambGain=actx.createGain(); ambGain.gain.value=0.18;
+  src.connect(f).connect(ambGain).connect(master); src.start();
+}
+function thump(vol){ if(!actx)return; const t=actx.currentTime;
+  for(const off of [0,0.16]){ const o=actx.createOscillator(),g=actx.createGain();
+    o.type="sine"; o.frequency.setValueAtTime(70,t+off); o.frequency.exponentialRampToValueAtTime(40,t+off+0.18);
+    g.gain.setValueAtTime(0.0001,t+off); g.gain.exponentialRampToValueAtTime(vol*(off?0.7:1),t+off+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+off+0.22); o.connect(g).connect(master); o.start(t+off); o.stop(t+off+0.3);} }
+function stinger(){ if(!actx)return; const t=actx.currentTime;
+  [880,1320,1760].forEach((fr,i)=>{ const o=actx.createOscillator(),g=actx.createGain();
+    o.type="sawtooth"; o.frequency.value=fr*(1+i*0.01);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.06,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.5); o.connect(g).connect(master); o.start(t); o.stop(t+0.55);}); }
+function growl(){ if(!actx)return; const t=actx.currentTime;
+  const o=actx.createOscillator(),g=actx.createGain(),f=actx.createBiquadFilter();
+  o.type="sawtooth"; o.frequency.setValueAtTime(55,t); o.frequency.linearRampToValueAtTime(48,t+0.6);
+  f.type="lowpass"; f.frequency.value=300;
+  g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12,t+0.1);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+0.7); o.connect(f).connect(g).connect(master); o.start(t); o.stop(t+0.8); }
+
+// ---------- 建场景 ----------
+function buildScene(trees, plants){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0c141a);
+  scene.fog = new THREE.FogExp2(0x0c141a, 0.026);
+  camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 400);
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  document.body.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x4a5a6e, 0.75));
+  const moon=new THREE.DirectionalLight(0x8aa6d0,0.7); moon.position.set(-1,2,1); scene.add(moon);
+  const glow=new THREE.PointLight(0xaaccdd,1.6,30,2); camera.add(glow); scene.add(camera);
+
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(WORLD*2,WORLD*2),
+    new THREE.MeshLambertMaterial({ color:0x26371b })); ground.rotation.x=-Math.PI/2; scene.add(ground);
+
+  const trunkGeo=new THREE.CylinderGeometry(0.4,0.6,7,6), trunkMat=new THREE.MeshLambertMaterial({color:0x3d2a1a});
+  const leafGeo=new THREE.ConeGeometry(3.2,7,7), leafMat=new THREE.MeshLambertMaterial({color:0x1d3a18});
+  treeColliders=[];
+  for(const t of trees){
+    const a=new THREE.Mesh(trunkGeo,trunkMat); a.position.set(t.x,3.5,t.z);
+    const b=new THREE.Mesh(leafGeo,leafMat);   b.position.set(t.x,8.5,t.z);
+    scene.add(a); scene.add(b); treeColliders.push({x:t.x,z:t.z,r:1.1});
+  }
+  scene._berryGeo=new THREE.SphereGeometry(0.5,8,6);
+  scene._berryMat=new THREE.MeshStandardMaterial({color:0x8a2030,emissive:0x440812,emissiveIntensity:0.6});
+  for(const p of plants) addPlantMesh(p);
+}
+function addPlantMesh(p){
+  const m=new THREE.Mesh(scene._berryGeo, scene._berryMat); m.position.set(p.x,0.5,p.z);
+  scene.add(m); plantMeshes.set(p.id,m);
+}
+function makeAnimalMesh(diet,size){
+  const d=clientDIETS[diet], g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(size*0.9,size*0.8,size*1.6),
+    new THREE.MeshLambertMaterial({color:d.color})); body.position.y=size*0.6; g.add(body);
+  const eyeGeo=new THREE.SphereGeometry(0.13,6,6), eyeMat=new THREE.MeshBasicMaterial({color:d.eyes});
+  for(const sx of [-0.22,0.22]){ const e=new THREE.Mesh(eyeGeo,eyeMat); e.position.set(sx,size*0.8,size*0.85); g.add(e); }
+  return g;
+}
+function makeLabel(text){
+  const c=document.createElement("canvas"); c.width=256; c.height=64;
+  const x=c.getContext("2d"); x.fillStyle="rgba(0,0,0,.5)"; x.fillRect(0,0,256,64);
+  x.font="bold 30px sans-serif"; x.fillStyle="#fff"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(text,128,34);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),depthTest:false}));
+  sp.scale.set(4,1,1); sp.position.y=4; return sp;
+}
+
+// ---------- 网络（Firebase Realtime DB）----------
+// 服务器权威逻辑（生物 AI、饥饿、捕食、植物刷新）由"房主"客户端跑。
+// 第一个加入的玩家用 transaction 抢成房主；房主断线 5 秒后任何客户端可重抢。
+
+// 树木确定性生成 — 所有客户端用同一 seed 得到完全相同的森林布局
+function genTrees(seed){
+  let s = seed >>> 0;
+  function rng(){ s = (s * 1664525 + 1013904223) >>> 0; return s / 0x100000000; }
+  const ts = [];
+  for (let i=0;i<340;i++){
+    const x = (rng() * 2 - 1) * WORLD;
+    const z = (rng() * 2 - 1) * WORLD;
+    if (Math.hypot(x,z) < 8) continue;
+    ts.push({ x:+x.toFixed(1), z:+z.toFixed(1) });
+  }
+  return ts;
+}
+
+function connect(name, diet){
+  const playersRef = fdb.ref(RPATH + "/players");
+  const myRef = playersRef.push();
+  MP.myId = myRef.key;
+  MP.myRef = myRef;
+  myId = MP.myId;
+
+  // Random spawn
+  do { px = (Math.random()*2-1)*WORLD; pz = (Math.random()*2-1)*WORLD; } while (Math.hypot(px,pz) < 6);
+
+  myRef.set({
+    name: (name||"无名").slice(0,12), diet,
+    x:+px.toFixed(2), z:+pz.toFixed(2), yaw:0,
+    size: clientDIETS[diet].size * 1.05,
+    hunger: 100, score: 0, alive: true,
+    joinedAt: TS,
+  }).then(()=>{
+    myRef.onDisconnect().remove();
+    tryClaimHost();
+    buildScene(genTrees(0xF07E57), []);   // fixed seed → everyone sees same trees
+    startGame();
+  }).catch(err=>{
+    document.getElementById("loadErr").textContent = "⚠ 连不上 Firebase：" + err.message;
+  });
+
+  // Listen: all players
+  playersRef.on("value", snap=>{
+    const data = snap.val() || {};
+    const list = Object.entries(data).map(([id,p])=>({ id, ...p }));
+    lastState.players = list;
+    const mine = data[MP.myId];
+    if (mine){
+      me = { id: MP.myId, ...mine };
+      if (!mine.alive && running) gameOver(mine.deadReason || "你倒在了森林里 💀");
+    } else if (running){
+      gameOver("断线了 🌐");
+    }
+  });
+
+  // Listen: creatures (host writes, others read)
+  fdb.ref(RPATH + "/creatures").on("value", snap=>{
+    const data = snap.val() || {};
+    lastState.creatures = Object.entries(data).map(([id,c])=>({ id, ...c }));
+  });
+
+  // Listen: plants
+  fdb.ref(RPATH + "/plants").on("value", snap=>{
+    const data = snap.val() || {};
+    // Reconcile plant meshes incrementally
+    const seen = new Set();
+    for (const [id,p] of Object.entries(data)){
+      seen.add(id);
+      if (!plantMeshes.has(id)) addPlantMesh({ id, x:p.x, z:p.z });
+    }
+    for (const [id,mesh] of plantMeshes){
+      if (!seen.has(id)){ scene.remove(mesh); plantMeshes.delete(id); }
+    }
+  });
+}
+
+// ---------- 房主选举 + 心跳 ----------
+function tryClaimHost(){
+  const hostRef = fdb.ref(RPATH + "/host");
+  hostRef.transaction(cur=>{
+    if (!cur || !cur.heartbeat || (Date.now() - cur.heartbeat) > 5000){
+      return { id: MP.myId, heartbeat: Date.now() };
+    }
+    return; // abort — someone else still hosts
+  }, (err, committed, snap)=>{
+    if (err) return;
+    const v = snap && snap.val();
+    if (committed && v && v.id === MP.myId){
+      MP.isHost = true;
+      MP.hostRef = hostRef;
+      hostRef.onDisconnect().remove();
+      hostBootstrap();
+    } else {
+      // Watch for host going stale; retry claim every 6s if we're not host
+      setTimeout(tryClaimHost, 6000);
+    }
+  });
+}
+
+// ---------- 房主：生成初始世界 + 启动 AI ----------
+function hostBootstrap(){
+  // Spawn creatures (28 of them, randomly distributed) + plants (140)
+  const critsRef  = fdb.ref(RPATH + "/creatures");
+  const plantsRef = fdb.ref(RPATH + "/plants");
+  // Wipe any stale state first
+  critsRef.set(null);
+  plantsRef.set(null);
+  MP.cs.clear(); MP.pls.clear();
+  MP.critSeq = 0; MP.plantSeq = 0;
+  const types = ["herbivore","herbivore","omnivore","carnivore"];
+  for (let i=0;i<28;i++){
+    const diet = types[(Math.random()*4)|0];
+    const d = clientDIETS[diet];
+    let x,z; do{ x=rand(-WORLD,WORLD); z=rand(-WORLD,WORLD);}while(Math.hypot(x,z)<22);
+    const id = "c"+(MP.critSeq++);
+    const c = { id, diet, x, z, size: d.size*(0.85+Math.random()*0.4),
+                vx:0, vz:0, ang:rand(0,6.28), wanderT:0, chasing:false, ry:0 };
+    MP.cs.set(id, c);
+    critsRef.child(id).set({ diet:c.diet, x:+c.x.toFixed(2), z:+c.z.toFixed(2),
+                              ry:0, size:+c.size.toFixed(2), chasing:false });
+  }
+  const plantsBulk = {};
+  for (let i=0;i<140;i++){
+    const id = "p"+(MP.plantSeq++);
+    const p = { x:rand(-WORLD,WORLD), z:rand(-WORLD,WORLD) };
+    MP.pls.set(id, p);
+    plantsBulk[id] = { x:+p.x.toFixed(2), z:+p.z.toFixed(2) };
+  }
+  plantsRef.set(plantsBulk);
+}
+
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+// ---------- 房主 tick：跑所有 AI、饥饿、捕食 ----------
+function hostTick(dt){
+  if (!MP.isHost) return;
+  // Heartbeat
+  MP.hostHeartbeatT -= dt;
+  if (MP.hostHeartbeatT <= 0){
+    MP.hostHeartbeatT = 1.5;
+    MP.hostRef.update({ heartbeat: Date.now() });
+  }
+  const ps = lastState.players.filter(p=>p.alive);
+  if (!ps.length) return;
+  const cs = [...MP.cs.values()];
+  const everyone = [...cs, ...ps];
+
+  // Creature AI
+  for (const c of cs){
+    const cd = clientDIETS[c.diet];
+    let tx=null, tz=null, chase=false;
+    const threat = nearestOf(c, everyone, o=>{
+      if (o===c) return false;
+      const od = clientDIETS[o.diet]; if (!od) return false;
+      return od.eats.includes(c.diet) && (o.size||1) >= c.size*0.85;
+    }, 16);
+    if (threat){ tx = c.x - (threat.x - c.x); tz = c.z - (threat.z - c.z); }
+    else {
+      const prey = nearestOf(c, everyone, o=>{
+        if (o===c) return false;
+        return cd.eats.includes(o.diet) && c.size >= (o.size||1)*0.85;
+      }, cd.vision);
+      if (prey){ tx=prey.x; tz=prey.z; chase = (prey.id && prey.id !== undefined && !MP.cs.has(prey.id)); }
+      else { c.wanderT-=dt; if (c.wanderT<=0){ c.ang+=rand(-1,1); c.wanderT=rand(2,5);} tx=c.x+Math.cos(c.ang)*5; tz=c.z+Math.sin(c.ang)*5; }
+    }
+    c.chasing = chase;
+    const ang = Math.atan2(tz-c.z, tx-c.x);
+    const spd = cd.speed * (threat?1.05:(chase?1.0:0.6));
+    c.vx += (Math.cos(ang)*spd - c.vx)*0.1;
+    c.vz += (Math.sin(ang)*spd - c.vz)*0.1;
+    c.x = Math.max(-WORLD, Math.min(WORLD, c.x + c.vx*dt));
+    c.z = Math.max(-WORLD, Math.min(WORLD, c.z + c.vz*dt));
+    c.ry = Math.atan2(c.vz, c.vx);
+  }
+
+  // Player hunger + plant eating
+  const playersRef = fdb.ref(RPATH + "/players");
+  const plantsRef  = fdb.ref(RPATH + "/plants");
+  for (const p of ps){
+    let newHunger = Math.max(0, p.hunger - 1.2*dt);
+    let newScore = p.score, ateOrDied = false;
+    if (newHunger <= 0){
+      playersRef.child(p.id).update({ alive:false, hunger:0, deadReason:"你饿死在森林里 🥀" });
+      continue;
+    }
+    if (clientDIETS[p.diet].plants){
+      for (const [pid, pl] of MP.pls){
+        if (Math.hypot(p.x-pl.x, p.z-pl.z) < 1.8){
+          MP.pls.delete(pid);
+          plantsRef.child(pid).remove();
+          newHunger = Math.min(100, newHunger + 16);
+          newScore++;
+          ateOrDied = true;
+          // Respawn one elsewhere
+          const nid = "p"+(MP.plantSeq++);
+          const np = { x:rand(-WORLD,WORLD), z:rand(-WORLD,WORLD) };
+          MP.pls.set(nid, np);
+          plantsRef.child(nid).set({ x:+np.x.toFixed(2), z:+np.z.toFixed(2) });
+          break;
+        }
+      }
+    }
+    if (newHunger !== p.hunger || ateOrDied){
+      playersRef.child(p.id).update({ hunger:+newHunger.toFixed(1), score:newScore });
+    }
+  }
+
+  // Predation: creature vs player
+  for (const c of cs){
+    for (const p of ps){
+      const d = Math.hypot(p.x-c.x, p.z-c.z);
+      if (d < (c.size + (p.size||1)) * 0.8){
+        const cd = clientDIETS[c.diet], pd = clientDIETS[p.diet];
+        if (cd.eats.includes(p.diet) && c.size >= (p.size||1)*0.85){
+          playersRef.child(p.id).update({ alive:false, deadReason:"黑暗中有什么扑了上来 💀" });
+        } else if (pd.eats.includes(c.diet) && (p.size||1) >= c.size*0.85){
+          MP.cs.delete(c.id);
+          fdb.ref(RPATH + "/creatures/" + c.id).remove();
+          playersRef.child(p.id).update({
+            hunger: Math.min(100, p.hunger + 40),
+            size: (p.size||1) + c.size * 0.1,
+            score: (p.score||0) + 1,
+          });
+          break;
+        }
+      }
+    }
+  }
+
+  // Predation: player vs player
+  for (const a of ps){
+    for (const b of ps){
+      if (a.id === b.id) continue;
+      if (Math.hypot(a.x-b.x, a.z-b.z) < ((a.size||1)+(b.size||1))*0.8){
+        const ad = clientDIETS[a.diet];
+        if (ad.eats.includes(b.diet) && (a.size||1) >= (b.size||1)*0.85){
+          playersRef.child(b.id).update({ alive:false, deadReason:`你被 ${a.name} 吃掉了 💀` });
+          playersRef.child(a.id).update({
+            hunger: Math.min(100, a.hunger + 50),
+            size: (a.size||1) + (b.size||1) * 0.12,
+            score: (a.score||0) + 1,
+          });
+        }
+      }
+    }
+  }
+
+  // Keep creature count
+  while (MP.cs.size < 28){
+    const types = ["herbivore","herbivore","omnivore","carnivore"];
+    const diet = types[(Math.random()*4)|0];
+    const d = clientDIETS[diet];
+    let x,z; do{ x=rand(-WORLD,WORLD); z=rand(-WORLD,WORLD);}while(Math.hypot(x,z)<22);
+    const id = "c"+(MP.critSeq++);
+    const c = { id, diet, x, z, size: d.size*(0.85+Math.random()*0.4),
+                vx:0, vz:0, ang:rand(0,6.28), wanderT:0, chasing:false, ry:0 };
+    MP.cs.set(id, c);
+  }
+
+  // Write creature state batch
+  MP._writeCritT = (MP._writeCritT||0) - dt;
+  if (MP._writeCritT <= 0){
+    MP._writeCritT = 0.1;
+    const batch = {};
+    for (const c of MP.cs.values()){
+      batch[c.id] = { diet:c.diet, x:+c.x.toFixed(2), z:+c.z.toFixed(2),
+                     ry:+c.ry.toFixed(2), size:+c.size.toFixed(2), chasing:!!c.chasing };
+    }
+    fdb.ref(RPATH + "/creatures").set(batch);
+  }
+}
+
+function nearestOf(self, list, pred, maxD){
+  let best=null, bd=maxD*maxD;
+  for (const o of list){
+    if (!pred(o)) continue;
+    const dd=(self.x-o.x)**2 + (self.z-o.z)**2;
+    if (dd<bd){ bd=dd; best=o; }
+  }
+  return best;
+}
+
+// Old-style applyState retained because the inner loop expects it on
+// every state change (rendering remote players + creatures + plants).
+function applyState(){
+  document.getElementById("hudOnline").textContent = lastState.players.length;
+  // 我的属性 HUD
+  if (me){
+    document.getElementById("hungerBar").style.width = Math.max(0,me.hunger)+"%";
+    document.getElementById("hungerBar").style.background = me.hunger<25?"#ff4d4d":"#ff9d4d";
+    document.getElementById("hudScore").textContent = me.score;
+  }
+  // 其他玩家
+  const seen=new Set();
+  for(const p of lastState.players){
+    if(p.id===MP.myId || !p.alive) continue;
+    seen.add(p.id);
+    let o=otherPlayers.get(p.id);
+    if(!o){ const g=makeAnimalMesh(p.diet,p.size||1); const lb=makeLabel(p.name||"?"); g.add(lb);
+            scene.add(g); o={group:g,diet:p.diet}; otherPlayers.set(p.id,o); }
+    o.group.position.set(p.x,0,p.z); o.group.rotation.y=-(p.yaw||0);
+  }
+  for(const [id,o] of otherPlayers){ if(!seen.has(id)){ scene.remove(o.group); otherPlayers.delete(id); } }
+  // 怪物
+  const seenC=new Set();
+  for(const c of lastState.creatures){
+    seenC.add(c.id);
+    let o=critMeshes.get(c.id);
+    if(!o){ const g=makeAnimalMesh(c.diet,c.size||1); scene.add(g); o={group:g}; critMeshes.set(c.id,o); }
+    o.group.position.set(c.x,0,c.z); o.group.rotation.y=-(c.ry||0)+Math.PI/2;
+  }
+  for(const [id,o] of critMeshes){ if(!seenC.has(id)){ scene.remove(o.group); critMeshes.delete(id); } }
+}
+
+function applyState(m){
+  document.getElementById("hudOnline").textContent = m.players.length;
+  // 我的属性
+  me = m.players.find(p=>p.id===myId);
+  if (me){
+    document.getElementById("hungerBar").style.width=Math.max(0,me.hunger)+"%";
+    document.getElementById("hungerBar").style.background=me.hunger<25?"#ff4d4d":"#ff9d4d";
+    document.getElementById("hudScore").textContent=me.score;
+  }
+  // 其他玩家
+  const seen=new Set();
+  for(const p of m.players){
+    if(p.id===myId || !p.alive) continue;
+    seen.add(p.id);
+    let o=otherPlayers.get(p.id);
+    if(!o){ const g=makeAnimalMesh(p.diet,p.size); const lb=makeLabel(p.name); g.add(lb);
+            scene.add(g); o={group:g,diet:p.diet}; otherPlayers.set(p.id,o); }
+    o.group.position.set(p.x,0,p.z); o.group.rotation.y=-p.yaw;
+  }
+  for(const [id,o] of otherPlayers){ if(!seen.has(id)){ scene.remove(o.group); otherPlayers.delete(id); } }
+  // 怪物
+  const seenC=new Set();
+  for(const c of m.creatures){
+    seenC.add(c.id);
+    let o=critMeshes.get(c.id);
+    if(!o){ const g=makeAnimalMesh(c.diet,c.size); scene.add(g); o={group:g}; critMeshes.set(c.id,o); }
+    o.group.position.set(c.x,0,c.z); o.group.rotation.y=-c.ry+Math.PI/2;
+  }
+  for(const [id,o] of critMeshes){ if(!seenC.has(id)){ scene.remove(o.group); critMeshes.delete(id); } }
+}
+
+// ---------- 输入 ----------
+const KEY={w:"f",a:"l",s:"b",d:"r",arrowup:"f",arrowleft:"l",arrowdown:"b",arrowright:"r"};
+addEventListener("keydown",e=>{const k=e.key.toLowerCase(); if(KEY[k])move[KEY[k]]=true; if(k==="shift")move.sprint=true;});
+addEventListener("keyup",e=>{const k=e.key.toLowerCase(); if(KEY[k])move[KEY[k]]=false; if(k==="shift")move.sprint=false;});
+addEventListener("mousemove",e=>{ if(!running) return; if(!locked&&!dragging) return;
+  yaw-=e.movementX*0.0024; pitch-=e.movementY*0.0024; pitch=Math.max(-1.2,Math.min(1.2,pitch)); });
+addEventListener("mousedown",()=>{ if(running){dragging=true; document.body.style.cursor="grabbing";} });
+addEventListener("mouseup",()=>{ dragging=false; document.body.style.cursor="default"; });
+document.addEventListener("pointerlockchange",()=>{ locked=(document.pointerLockElement===renderer?.domElement);
+  document.getElementById("lockHint").classList.toggle("hidden", locked||!running); });
+function requestLock(){ try{ renderer.domElement.requestPointerLock?.(); }catch(_){} }
+
+// ---------- 开局 ----------
+document.querySelectorAll(".card").forEach(c=>{
+  c.onclick=()=>{
+    if(typeof THREE==="undefined") return;
+    const name=(document.getElementById("nameInput").value||"无名").trim();
+    myDiet=c.dataset.diet; initAudio(); connect(name, myDiet);
+  };
+});
+function startGame(){
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("hud").classList.remove("hidden");
+  document.getElementById("obj").classList.remove("hidden");
+  document.getElementById("crosshair").classList.remove("hidden");
+  document.getElementById("hudIcon").textContent=clientDIETS[myDiet].icon;
+  document.getElementById("hudName").textContent=(document.getElementById("nameInput").value||"无名");
+  running=true; startTime=performance.now(); clk=performance.now(); requestLock();
+  requestAnimationFrame(loop);
+}
+addEventListener("resize",()=>{ if(!renderer)return; camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+
+function gameOver(reason){
+  running=false; document.exitPointerLock?.();
+  document.getElementById("end").classList.remove("hidden");
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("obj").classList.add("hidden");
+  document.getElementById("crosshair").classList.add("hidden");
+  document.getElementById("endTitle").textContent=reason;
+  const survived=((performance.now()-startTime)/1000).toFixed(0);
+  document.getElementById("endStats").textContent=`存活 ${survived} 秒 · 进食 ${me?me.score:0} 次`;
+}
+
+// ---------- 主循环 ----------
+function loop(now){
+  if(!running) return;
+  const dt=Math.min(0.05,(now-clk)/1000); clk=now;
+  camera.rotation.set(pitch,yaw,0,"YXZ");
+
+  const pd=clientDIETS[myDiet];
+  let fx=0,fz=0;
+  if(move.f){fx-=Math.sin(yaw); fz-=Math.cos(yaw);}
+  if(move.b){fx+=Math.sin(yaw); fz+=Math.cos(yaw);}
+  if(move.l){fx-=Math.cos(yaw); fz+=Math.sin(yaw);}
+  if(move.r){fx+=Math.cos(yaw); fz-=Math.sin(yaw);}
+  const len=Math.hypot(fx,fz); if(len){fx/=len; fz/=len;}
+  const sprint=move.sprint&&stamina>0&&len>0;
+  if(sprint) stamina=Math.max(0,stamina-30*dt); else stamina=Math.min(100,stamina+15*dt);
+  const spd=pd.speed*(sprint?1.7:1);
+  px+=fx*spd*dt; pz+=fz*spd*dt;
+  px=Math.max(-WORLD,Math.min(WORLD,px)); pz=Math.max(-WORLD,Math.min(WORLD,pz));
+  for(const t of treeColliders){ const dx=px-t.x,dz=pz-t.z,rr=t.r+0.6,dd=Math.hypot(dx,dz);
+    if(dd<rr&&dd>0){ px+=dx/dd*(rr-dd); pz+=dz/dd*(rr-dd); } }
+  camera.position.set(px,1.6+Math.sin(now*0.008)*(len?0.06:0),pz);
+  document.getElementById("staminaBar").style.width=stamina+"%";
+
+  // Host runs the world sim (AI, hunger, predation, plant respawn)
+  hostTick(dt);
+  // Re-render remote players + creatures + plants from the cached state
+  applyState();
+
+  // 上报位置 (throttle to ~10 Hz to keep Firebase writes cheap)
+  sendT-=dt;
+  if(sendT<=0 && MP.myRef){
+    MP.myRef.update({ x:+px.toFixed(2), z:+pz.toFixed(2), yaw:+yaw.toFixed(2) });
+    sendT=0.1;
+  }
+
+  // 恐惧：从同步状态里找能吃我、且离我近的威胁
+  const mySize=me?me.size:pd.size;
+  let nearest=Infinity, chasingNow=false;
+  for(const c of lastState.creatures){
+    if(canEat(c.diet,c.size,myDiet,mySize)){
+      const d=Math.hypot(px-c.x,pz-c.z);
+      if(d<pd.vision){ nearest=Math.min(nearest,d); if(c.chasing) chasingNow=true; }
+    }
+  }
+  for(const p of lastState.players){
+    if(p.id===myId||!p.alive) continue;
+    if(canEat(p.diet,p.size,myDiet,mySize)){
+      const d=Math.hypot(px-p.x,pz-p.z); if(d<pd.vision){ nearest=Math.min(nearest,d); chasingNow=true; }
+    }
+  }
+  const fearEl=document.getElementById("fear");
+  spottedCD-=dt; heartTimer-=dt;
+  if(nearest<pd.vision){
+    const close=1-nearest/pd.vision;
+    fearEl.style.opacity=(0.2+close*0.65).toFixed(2);
+    if(chasingNow && spottedCD<=0){ stinger(); spottedCD=4; }
+    if(heartTimer<=0){ thump(0.25+close*0.5); heartTimer=0.95-close*0.55; if(close>0.55&&Math.random()<0.3) growl(); }
+    if(ambGain) ambGain.gain.value=0.18+close*0.15;
+  } else {
+    fearEl.style.opacity=0;
+    if(heartTimer<=0){ thump(0.12); heartTimer=1.4; }
+    if(ambGain) ambGain.gain.value=0.18;
+  }
+
+  document.getElementById("hudTime").textContent=((performance.now()-startTime)/1000).toFixed(0);
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>
