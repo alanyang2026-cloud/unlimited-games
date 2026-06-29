@@ -113,7 +113,9 @@ firebase.initializeApp({
 });
 const fdb = firebase.database();
 const ROOM = "lobby";
-const RPATH = "/animal-survival/" + ROOM;
+// Match the existing snake-battle / arcade-brawl path convention so
+// the shared Firebase rules (which allow `room/$id/*`) cover us too.
+const RPATH = "room/survival-" + ROOM;
 const TS = firebase.database.ServerValue.TIMESTAMP;
 
 const MP = {
