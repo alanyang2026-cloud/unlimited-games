@@ -2,28 +2,30 @@
 // `w`/`h` is the size of the floating overlay window shown on the
 // user's current page when the game is launched.
 const SITE = 'https://unlimitedgames.vercel.app';
-// `w`/`h` are now compact "minigame popup" sizes — small enough that
-// even on a 1440px laptop the host page stays usable underneath. The
-// overlay's +/- buttons let the user scale up if a game needs more room.
+// Every game opens in the same fixed 764×528 frame (matches the
+// reference CrazyGames/Poki popup size the user asked for). Users can
+// still scale up/down live with the overlay's +/− buttons.
+const FRAME_W = 764, FRAME_H = 528;
 const GAMES = [
-  { id:'snake',         title:'Snake',         emoji:'🐍', url:'/games/snake.html',          c1:'#16a34a', c2:'#0d9488', w:480, h:520 },
-  { id:'2048',          title:'2048',          emoji:'🔢', url:'/games/2048.html',           c1:'#a855f7', c2:'#6d28d9', w:420, h:560 },
-  { id:'tetris',        title:'Tetris',        emoji:'🧱', url:'/games/tetris.html',         c1:'#06b6d4', c2:'#1e40af', w:400, h:580 },
-  { id:'flappy',        title:'Flappy',        emoji:'🐦', url:'/games/flappy.html',         c1:'#facc15', c2:'#ea580c', w:380, h:540 },
-  { id:'breakout',      title:'Breakout',      emoji:'🏓', url:'/games/breakout.html',       c1:'#f43f5e', c2:'#b91c1c', w:580, h:500 },
-  { id:'memory',        title:'Memory',        emoji:'🃏', url:'/games/memory.html',         c1:'#ec4899', c2:'#a21caf', w:520, h:560 },
-  { id:'snake-battle',  title:'Snake Battle',  emoji:'⚔️', url:'/games/snake-battle.html',  c1:'#7c3aed', c2:'#581c87', w:760, h:540, live:true },
-  { id:'arcade-brawl',  title:'Arcade Brawl',  emoji:'🥊', url:'/games/arcade-brawl.html',  c1:'#e11d48', c2:'#b45309', w:720, h:460, live:true },
-  { id:'doorman',       title:'Night Watch',   emoji:'🚪', url:'/games/doorman.html',        c1:'#7f1d1d', c2:'#1c1917', w:660, h:500 },
-  { id:'door-escape',   title:'Find Door',     emoji:'🏃', url:'/games/door-escape.html',    c1:'#4338ca', c2:'#581c87', w:660, h:500 },
-  { id:'downhill',      title:'Downhill',      emoji:'🚵', url:'/games/downhill-brawl.html', c1:'#15803d', c2:'#b45309', w:720, h:520 },
-  { id:'chess',         title:'Rated Chess',   emoji:'♔', url:'/games/chess.html',           c1:'#d97706', c2:'#292524', w:640, h:600 },
-  { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',          c1:'#f472b6', c2:'#a855f7', w:480, h:520 },
-  { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',   c1:'#78350f', c2:'#0c0a09', w:760, h:520, live:true },
-  { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',     c1:'#059669', c2:'#b45309', w:780, h:520 },
-  { id:'potato-bros',   title:'Potato Bros',   emoji:'🥔', url:'/games/potato-bros.html',    c1:'#b45309', c2:'#65a30d', w:760, h:540 },
-  { id:'animal-survival', title:'Animal Survival', emoji:'🦌', url:'/games/animal-survival.html', c1:'#14532d', c2:'#0c0a09', w:820, h:560, live:true },
+  { id:'snake',         title:'Snake',         emoji:'🐍', url:'/games/snake.html',           c1:'#16a34a', c2:'#0d9488' },
+  { id:'2048',          title:'2048',          emoji:'🔢', url:'/games/2048.html',            c1:'#a855f7', c2:'#6d28d9' },
+  { id:'tetris',        title:'Tetris',        emoji:'🧱', url:'/games/tetris.html',          c1:'#06b6d4', c2:'#1e40af' },
+  { id:'flappy',        title:'Flappy',        emoji:'🐦', url:'/games/flappy.html',          c1:'#facc15', c2:'#ea580c' },
+  { id:'breakout',      title:'Breakout',      emoji:'🏓', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c' },
+  { id:'memory',        title:'Memory',        emoji:'🃏', url:'/games/memory.html',          c1:'#ec4899', c2:'#a21caf' },
+  { id:'snake-battle',  title:'Snake Battle',  emoji:'⚔️', url:'/games/snake-battle.html',   c1:'#7c3aed', c2:'#581c87', live:true },
+  { id:'arcade-brawl',  title:'Arcade Brawl',  emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true },
+  { id:'doorman',       title:'Night Watch',   emoji:'🚪', url:'/games/doorman.html',         c1:'#7f1d1d', c2:'#1c1917' },
+  { id:'door-escape',   title:'Find Door',     emoji:'🏃', url:'/games/door-escape.html',     c1:'#4338ca', c2:'#581c87' },
+  { id:'downhill',      title:'Downhill',      emoji:'🚵', url:'/games/downhill-brawl.html',  c1:'#15803d', c2:'#b45309' },
+  { id:'chess',         title:'Rated Chess',   emoji:'♔', url:'/games/chess.html',            c1:'#d97706', c2:'#292524' },
+  { id:'squish',        title:'Squishy',       emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7' },
+  { id:'liars-tavern',  title:"Liar's Tavern", emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true },
+  { id:'hero-brawl',    title:'Hero Brawl',    emoji:'🦸', url:'/games/hero-brawl.html',      c1:'#059669', c2:'#b45309' },
+  { id:'potato-bros',   title:'Potato Bros',   emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d' },
+  { id:'animal-survival', title:'Animal Survival', emoji:'🦌', url:'/games/animal-survival.html', c1:'#14532d', c2:'#0c0a09', live:true },
 ];
+for(const g of GAMES){ g.w = FRAME_W; g.h = FRAME_H; }
 
 // ─ Injected into the page: builds the floating game window ─────
 // This whole function ships across as a string to the host page, so
@@ -34,15 +36,17 @@ function injectGameOverlay(url, title, w, h, accent){
   const old = document.getElementById('__ug_overlay');
   if(old) old.remove();
 
-  // Cap window to roughly the size of a "minigame popup" — about 60% of
-  // viewport width and 70% of viewport height. Preserves the original
-  // aspect ratio if both dimensions would otherwise need to shrink.
-  const maxW = Math.max(360, Math.floor(window.innerWidth  * 0.60));
-  const maxH = Math.max(360, Math.floor(window.innerHeight * 0.70));
-  let ww = Math.min(w, maxW);
-  let hh = Math.min(h, maxH);
-  const scale = Math.min(maxW / w, maxH / h, 1);
-  if(scale < 1){ ww = Math.floor(w * scale); hh = Math.floor(h * scale); }
+  // Open at the exact requested size (764×528 by default). Only shrink
+  // if the current window is genuinely too small to fit it — otherwise
+  // preserve the fixed frame the user asked for.
+  let ww = w, hh = h;
+  const maxW = Math.max(360, window.innerWidth  - 40);
+  const maxH = Math.max(360, window.innerHeight - 40);
+  if(ww > maxW || hh > maxH){
+    const scale = Math.min(maxW / w, maxH / h);
+    ww = Math.floor(w * scale);
+    hh = Math.floor(h * scale);
+  }
 
   // Anchor to the right edge — user-preferred position per feedback.
   // Vertical centering preserved.
