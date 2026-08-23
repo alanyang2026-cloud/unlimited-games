@@ -6,51 +6,87 @@
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{
-    width:380px;
+    width:764px;
+    height:528px;
     background:#07070d;
     color:#fff;
     font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;
     user-select:none;
   }
   body{
-    padding:14px;
+    display:flex;
+    flex-direction:column;
     background:
       radial-gradient(circle at 30% 0%, rgba(168,85,247,.35), transparent 60%),
       radial-gradient(circle at 100% 100%, rgba(236,72,153,.25), transparent 50%),
       #07070d;
   }
-  .hdr{text-align:center;margin-bottom:10px}
-  .hdr h1{
-    font-size:20px;
-    font-weight:900;
-    letter-spacing:1.5px;
+
+  /* ─── Top bar (persistent) ─── */
+  .bar{
+    flex-shrink:0;
+    height:36px;
+    display:flex;
+    align-items:center;
+    padding:0 12px;
+    background:linear-gradient(180deg, #1e1b4b, #0a0612);
+    border-bottom:1px solid rgba(168,85,247,.3);
+    gap:8px;
+  }
+  .bar .title{
+    flex:1;
+    font-size:13px;
+    font-weight:800;
+    letter-spacing:1px;
     background:linear-gradient(90deg,#fef3c7,#fbbf24);
     -webkit-background-clip:text;background-clip:text;
     color:transparent;
-    display:inline-block;
   }
-  .hdr h1 .g{
+  .bar .title .g{
     background:linear-gradient(90deg,#c4b5fd,#a855f7);
     -webkit-background-clip:text;background-clip:text;
     color:transparent;
   }
-  .hdr .sub{
-    font-size:9.5px;
-    letter-spacing:3px;
-    color:#94a3b8;
-    margin-top:2px;
+  .bar button{
+    all:unset;
+    cursor:pointer;
+    width:24px;height:24px;
+    border-radius:5px;
+    background:rgba(255,255,255,.1);
+    color:#fef3c7;
+    font-size:14px;font-weight:700;
+    text-align:center;line-height:24px;
+    transition:background .15s;
   }
+  .bar button:hover{background:rgba(255,255,255,.2)}
+  .bar button.close{background:#dc2626;color:#fff}
+  .bar button.close:hover{background:#ef4444}
+  .bar .back{display:none}
+  body.playing .bar .back{display:inline-block}
+  body.playing .bar .title{display:none}
+  .bar .game-title{
+    display:none;flex:1;
+    font-size:13px;font-weight:700;color:#fef3c7;
+  }
+  body.playing .bar .game-title{display:block}
 
+  /* ─── Menu view ─── */
+  .menu{
+    flex:1;
+    overflow:auto;
+    padding:14px;
+  }
+  body.playing .menu{display:none}
   .grid{
     display:grid;
-    grid-template-columns:repeat(3,1fr);
-    gap:7px;
-    margin-top:10px;
+    grid-template-columns:repeat(6,1fr);
+    gap:10px;
   }
   .card{
     position:relative;
     aspect-ratio:1/1;
-    border-radius:10px;
+    border-radius:12px;
     cursor:pointer;
     overflow:hidden;
     border:1px solid rgba(255,255,255,.06);
@@ -58,7 +94,7 @@
   }
   .card:hover{
     transform:translateY(-3px) scale(1.05);
-    box-shadow:0 6px 14px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.18);
+    box-shadow:0 6px 14px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.2);
     z-index:2;
   }
   .card:active{transform:translateY(-1px) scale(1.02)}
@@ -79,16 +115,13 @@
     text-align:center;
   }
   .card .emoji{
-    font-size:26px;
-    line-height:1;
-    margin-bottom:4px;
+    font-size:30px;line-height:1;
+    margin-bottom:5px;
     filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));
   }
   .card .name{
-    font-size:9.5px;
-    font-weight:800;
-    letter-spacing:.5px;
-    color:#fff;
+    font-size:10px;font-weight:800;
+    letter-spacing:.4px;color:#fff;
     line-height:1.1;
     text-shadow:0 1px 2px rgba(0,0,0,.7);
   }
@@ -96,13 +129,13 @@
     content:"LIVE";
     position:absolute;top:4px;right:4px;
     background:#ec4899;color:#fff;
-    font-size:7px;font-weight:900;letter-spacing:.5px;
+    font-size:8px;font-weight:900;letter-spacing:.5px;
     padding:1.5px 4px;border-radius:3px;
     box-shadow:0 0 6px rgba(236,72,153,.6);
   }
 
   .ftr{
-    margin-top:12px;
+    margin-top:14px;
     text-align:center;
     border-top:1px solid rgba(255,255,255,.07);
     padding-top:10px;
@@ -115,22 +148,47 @@
     padding:5px 12px;
     border-radius:6px;
     transition:background .15s;
+    cursor:pointer;
   }
   .ftr a:hover{background:rgba(168,85,247,.15);color:#fff}
   .ftr .sep{color:#374151;margin:0 4px}
+
+  /* ─── Game view ─── */
+  .game{
+    flex:1;
+    display:none;
+    background:#07070d;
+  }
+  body.playing .game{display:flex}
+  .game iframe{
+    flex:1;width:100%;
+    border:0;
+    background:#07070d;
+  }
 </style>
 </head>
 <body>
-  <div class="hdr">
-    <h1>🎮 Unlimited <span class="g">Games</span></h1>
-    <div class="sub">PICK · CLICK · PLAY</div>
+  <div class="bar">
+    <button class="back" id="back" title="Back to games">←</button>
+    <div class="title">🎮 Unlimited <span class="g">Games</span></div>
+    <div class="game-title" id="gameTitle"></div>
+    <button id="newTab" title="Open in new tab">⤢</button>
+    <button class="close" id="close" title="Close">×</button>
   </div>
-  <div class="grid" id="grid"></div>
-  <div class="ftr">
-    <a href="#" data-action="full">🌐 Full site</a>
-    <span class="sep">·</span>
-    <a href="#" data-action="privacy">Privacy</a>
+
+  <div class="menu">
+    <div class="grid" id="grid"></div>
+    <div class="ftr">
+      <a data-action="full">🌐 Full site</a>
+      <span class="sep">·</span>
+      <a data-action="privacy">Privacy</a>
+    </div>
   </div>
+
+  <div class="game">
+    <iframe id="gameFrame" allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"></iframe>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>
