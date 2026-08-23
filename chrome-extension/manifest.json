@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
-  "version": "1.5.5",
-  "description": "15 free browser games: snake, chess, tetris, hero arena, 3D liar's bar & more. Pick & play in a floating window.",
+  "version": "1.5.6",
+  "description": "17 free browser games in your new tab: snake, chess, tetris, hero arena, 3D liar's bar & more. Search + play.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
     "16":  "icons/icon-16.png",
@@ -18,6 +18,9 @@
     },
     "default_title": "Unlimited Games — pick & play",
     "default_popup": "popup.html"
+  },
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
   },
   "permissions": ["activeTab", "scripting"],
   "host_permissions": []
