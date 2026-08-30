@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
-  "version": "1.5.8",
-  "description": "17 free browser games in a 764×528 popup: snake, chess, tetris, hero arena, 3D liar's bar & more. One-click play.",
+  "version": "1.5.9",
+  "description": "A mini game center that opens right below your toolbar icon. One click to play, no downloads or sign-in needed.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
     "16":  "icons/icon-16.png",
