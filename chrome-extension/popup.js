@@ -27,7 +27,6 @@ const GAMES = [
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true },
   { id:'hero-brawl',      title:'Hero Brawl',      emoji:'🦸', url:'/games/hero-brawl.html',      c1:'#059669', c2:'#b45309' },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d' },
-  { id:'animal-survival', title:'Animal Survival', emoji:'🦌', url:'/games/animal-survival.html', c1:'#14532d', c2:'#0c0a09', live:true },
 ];
 
 // ─── Render the grid ───────────────────────────────────────

@@ -1,11 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="width:764px;height:528px;min-width:764px;min-height:528px;max-width:764px;max-height:528px;overflow:hidden">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=764,initial-scale=1">
 <title>Unlimited Games</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{
+  /* Chrome sizes the popup to the <html> element; forcing both html
+     and body to exactly 764×528 (no min/max variance) prevents Chrome
+     from auto-shrinking to fit content when the grid doesn't fill
+     the whole box. */
+  html{
+    width:764px !important;
+    height:528px !important;
+    min-width:764px;
+    min-height:528px;
+    overflow:hidden;
+  }
+  body{
     width:764px;
     height:528px;
     background:#07070d;
