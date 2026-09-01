@@ -69,6 +69,15 @@ function backToMenu(){
 }
 
 document.getElementById('back').addEventListener('click', backToMenu);
+
+// If the iframe navigates back to the site homepage (user hit the
+// "← Games" link inside a game), the site posts us a message and we
+// swap the popup back to the compact game menu — otherwise the user
+// would see the full 3-column site homepage inside 764×528 instead
+// of our little grid.
+window.addEventListener('message', ev => {
+  if (ev && ev.data && ev.data.type === 'ug-back-to-menu') backToMenu();
+});
 document.getElementById('close').addEventListener('click', () => window.close());
 document.getElementById('newTab').addEventListener('click', () => {
   const url = currentGame ? SITE + currentGame.url : SITE;

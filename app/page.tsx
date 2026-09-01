@@ -53,6 +53,22 @@ export default function HomePage() {
         🇳🇿 Built in New Zealand · {GAMES.length} games · {" "}
         <a href="/privacy" className="hover:text-slate-500 underline underline-offset-2">Privacy</a>
       </p>
+
+      {/*
+        When this homepage is loaded inside our Chrome-extension popup
+        (user hit a game's "← Games" link, which navigates the iframe
+        to `/`), tell the parent popup to swap back to its own compact
+        game menu instead of showing the site homepage inside 764×528.
+      */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            if (window.self !== window.top) {
+              try { window.parent.postMessage({ type: 'ug-back-to-menu' }, '*'); } catch(_){}
+            }
+          `,
+        }}
+      />
     </div>
   );
 }
