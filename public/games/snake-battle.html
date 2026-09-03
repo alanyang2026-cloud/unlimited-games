@@ -55,6 +55,9 @@ canvas{display:block;cursor:none}
 </div>
 <div id="lb"><div class="lbt">🏆 Leaderboard</div><div id="lbr"></div></div>
 <div id="kf"></div>
+<div id="room-badge" style="display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:60;background:rgba(15,15,25,.85);border:1px solid rgba(168,85,247,.5);color:#fef3c7;font-family:system-ui,-apple-system,sans-serif;font-size:12px;font-weight:700;letter-spacing:1.5px;padding:6px 14px;border-radius:999px;pointer-events:none;backdrop-filter:blur(6px)">
+  🌐 ROOM · <span id="room-badge-id"></span>
+</div>
 
 <div class="ov" id="ov-s">
   <h1 style="color:#a855f7;text-shadow:0 0 30px rgba(168,85,247,.5)">🐍 Snake Battle</h1>
@@ -238,6 +241,14 @@ function mpJoinRoom(){
   // ignores entries whose roomId doesn't match ours.
   const ROOM = 'room/hard';
   console.log('[MP] Joining room', MP.roomId, 'as', MP.playerId, '(', MP.playerName, ')', 'host?', MP.isHost);
+  // Show the room badge so both players can verify they're in the
+  // same room at a glance (avoids the earlier confusion where two
+  // people were in different rooms without realising).
+  const badge = document.getElementById('room-badge');
+  if(badge){
+    document.getElementById('room-badge-id').textContent = MP.roomId;
+    badge.style.display = 'block';
+  }
 
   // Announce ourselves + include all room metadata on our player entry.
   // Only the host stamps room-descriptor fields (name/isPublic/pw/etc);
@@ -255,7 +266,12 @@ function mpJoinRoom(){
     memberData.maxPlayers = MP.roomMeta.maxPlayers || 8;
     if(MP.roomMeta.pw) memberData.pw = MP.roomMeta.pw;
   }
-  console.log('[MP] writing member entry', MP.playerId, memberData);
+  // Log a redacted copy — the raw memberData contains the plaintext
+  // room password, and console.log shows Firebase objects expandably
+  // so it'd otherwise leak in dev tools screenshots.
+  const _log = Object.assign({}, memberData);
+  if(_log.pw) _log.pw = '***';
+  console.log('[MP] writing member entry', MP.playerId, _log);
   MP.myMemberRef.set(memberData)
     .then(() => console.log('[MP] member entry write OK', MP.playerId))
     .catch(err => console.error('[MP] member entry write FAILED', err));
@@ -529,6 +545,8 @@ function mpLeaveAll(){
   MP.roomId = null;
   MP.isHost = false;
   MP.roomMeta = null;
+  const _badge = document.getElementById('room-badge');
+  if(_badge) _badge.style.display = 'none';
   // Reset bandwidth trackers so the next room's first broadcast
   // re-sends the name (rather than assuming it's still cached upstream)
   MP.lastSentName=null;
@@ -1039,6 +1057,9 @@ function createRoom(){
   MP.roomMeta = { roomName: name, isPublic, maxPlayers: maxP, pw: isPublic ? null : pw };
   MP.playerName = nick;
   document.getElementById('ni').value = nick;
+  // Clear password field so it doesn't linger for next dialog or leak
+  // over-shoulder. Room name stays; users often reuse the same one.
+  document.getElementById('ri-pw').value = '';
   document.getElementById('ov-rooms').style.display = 'none';
   stopBrowseRooms();
   go(12, 'hard');
