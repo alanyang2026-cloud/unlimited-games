@@ -146,6 +146,22 @@ canvas{display:block;cursor:none}
   </div>
 </div>
 
+<!-- Password prompt modal (used instead of the ugly browser prompt) -->
+<div id="pw-modal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif">
+  <div style="width:min(88vw,380px);background:linear-gradient(180deg,#1e1b4b,#0a0612);border:1px solid rgba(168,85,247,.35);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);padding:22px">
+    <div style="font-size:14px;color:#94a3b8;letter-spacing:.05em;margin-bottom:6px">🔒 PRIVATE ROOM</div>
+    <div id="pw-modal-title" style="font-size:18px;font-weight:800;color:#fef3c7;margin-bottom:16px">Enter password</div>
+    <input id="pw-modal-input" type="password" maxlength="24" autocomplete="new-password" placeholder="Password"
+           style="width:100%;padding:11px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:15px;outline:none;transition:border-color .15s"
+           onfocus="this.style.borderColor='#a855f7'" onblur="this.style.borderColor='rgba(255,255,255,.15)'"/>
+    <div id="pw-modal-error" style="display:none;color:#ff8a8a;font-size:12px;margin-top:6px">Wrong password.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" style="background:#1e1e3a;font-size:13px;padding:8px 18px" onclick="pwModalCancel()">Cancel</button>
+      <button class="btn bn" style="font-size:13px;padding:8px 18px" onclick="pwModalOk()">Join</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Canvas ───────────────────────────────────────────────────────
 const C=document.getElementById('c'),ctx=C.getContext('2d');
@@ -1192,34 +1208,87 @@ function joinRoomBtn(roomId, needsPassword, hostPid){
     go(12, 'hard');
   };
   if(!needsPassword){ proceed(); return; }
-  const pw = prompt('Enter room password:');
-  if(pw === null) return;
-  // Verify against the host's own entry — where the room's password
-  // lives. If the host disconnected between browse and join, the entry
-  // is gone (and so is the room), so we reject with a helpful message.
-  MP.db.ref('room/hard/players/' + hostPid + '/pw').once('value')
-    .then(snap => {
-      const stored = snap.val();
-      if(stored == null){
-        // Host may have joined a public room by mistake (no pw) or
-        // dropped out just before we clicked Join — either way, let
-        // them in rather than blocking a legitimate join.
-        console.warn('[Rooms] no password stored, proceeding anyway');
+  // Look up the room's display name so the modal can show it.
+  const roomEl = document.querySelector('#ri-list button[onclick*="'+roomId+'"]');
+  const displayName = roomEl ? roomEl.closest('div').querySelector('div').textContent.replace(/^[🔒🌐]\s*/,'').trim() : ('Room ' + roomId);
+  pwModalOpen(displayName, pw => {
+    if(pw === null) return;  // cancelled
+    // Verify against the host's own entry — where the room's password
+    // lives. Wrong pw re-opens the modal with an inline error rather
+    // than dismissing it (much friendlier than an alert box).
+    MP.db.ref('room/hard/players/' + hostPid + '/pw').once('value')
+      .then(snap => {
+        const stored = snap.val();
+        if(stored == null){
+          // Host may have joined a public room by mistake (no pw) or
+          // dropped out just before we clicked Join — either way, let
+          // them in rather than blocking a legitimate join.
+          console.warn('[Rooms] no password stored, proceeding anyway');
+          pwModalClose();
+          proceed();
+          return;
+        }
+        if(stored === pw){
+          pwModalClose();
+          proceed();
+        } else {
+          pwModalShowError('Wrong password.');
+        }
+      })
+      .catch(err => {
+        // Surface the actual reason instead of the generic message, and
+        // let the user proceed anyway since the roster listener will
+        // reject them if they truly don't belong.
+        console.error('[Rooms] pw read failed:', err);
+        pwModalClose();
+        alert('Password check failed (' + (err && err.code || 'unknown') + '), joining anyway.');
         proceed();
-        return;
-      }
-      if(stored === pw) proceed();
-      else alert('Wrong password.');
-    })
-    .catch(err => {
-      // Surface the actual reason instead of the generic message, and
-      // let the user proceed anyway since the roster listener will
-      // reject them if they truly don't belong.
-      console.error('[Rooms] pw read failed:', err);
-      alert('Password check failed (' + (err && err.code || 'unknown') + '), joining anyway.');
-      proceed();
-    });
+      });
+  });
 }
+
+// ─── Custom password modal (replaces browser prompt) ────────
+let _pwCallback = null;
+function pwModalOpen(roomTitle, cb){
+  _pwCallback = cb;
+  document.getElementById('pw-modal-title').textContent = 'Join "' + roomTitle + '"';
+  const inp = document.getElementById('pw-modal-input');
+  inp.value = '';
+  document.getElementById('pw-modal-error').style.display = 'none';
+  document.getElementById('pw-modal').style.display = 'flex';
+  // Focus after the display flip lands
+  setTimeout(() => inp.focus(), 30);
+}
+function pwModalClose(){
+  document.getElementById('pw-modal').style.display = 'none';
+  document.getElementById('pw-modal-input').value = '';
+  _pwCallback = null;
+}
+function pwModalCancel(){
+  const cb = _pwCallback;
+  pwModalClose();
+  if(cb) cb(null);
+}
+function pwModalOk(){
+  const pw = document.getElementById('pw-modal-input').value;
+  const cb = _pwCallback;
+  // Keep modal open — the callback closes it on success or shows an
+  // error on failure. This way the user can retry without re-opening.
+  if(cb) cb(pw);
+}
+function pwModalShowError(msg){
+  const el = document.getElementById('pw-modal-error');
+  el.textContent = msg;
+  el.style.display = 'block';
+  const inp = document.getElementById('pw-modal-input');
+  inp.select();
+}
+// Enter submits, Esc cancels — set up once on load below.
+document.addEventListener('keydown', e => {
+  if(document.getElementById('pw-modal').style.display !== 'flex') return;
+  if(e.key === 'Enter'){ e.preventDefault(); pwModalOk(); }
+  else if(e.key === 'Escape'){ e.preventDefault(); pwModalCancel(); }
+});
 
 // ── AI ───────────────────────────────────────────────────────────
 
