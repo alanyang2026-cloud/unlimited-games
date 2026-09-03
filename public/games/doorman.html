@@ -14,7 +14,7 @@ canvas{display:block}
 .ov h1{font-size:3.6rem;font-weight:900;color:#dc2626;letter-spacing:.08em;text-shadow:0 0 24px rgba(220,38,38,.6),0 0 6px rgba(220,38,38,.8);margin-bottom:6px}
 .ov h2{font-size:1rem;color:#7c2d12;letter-spacing:.4em;margin-bottom:24px;text-transform:uppercase}
 .ov p{color:#9ca3af;font-size:14px;text-align:center;line-height:1.8;max-width:540px;margin-bottom:8px}
-.rules{background:rgba(127,29,29,.08);border:1px solid rgba(127,29,29,.4);border-radius:6px;padding:18px 24px;margin:14px 0 22px;font-size:13px;line-height:1.9;color:#cbd5e1;max-width:560px}
+.rules{background:rgba(127,29,29,.08);border:1px solid rgba(127,29,29,.4);border-radius:6px;padding:18px 24px;margin:14px 0 22px;font-size:15px;line-height:1.8;color:#cbd5e1;max-width:520px}
 .rules b{color:#f87171}
 .rules .ok{color:#86efac}
 .btn{background:#7f1d1d;color:#fff;border:none;padding:14px 38px;border-radius:4px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.15em;transition:.2s;font-family:'Courier New',monospace;text-transform:uppercase;border:1px solid #dc2626}
@@ -38,15 +38,10 @@ canvas{display:block}
   <h2>· The Doorman ·</h2>
   <p style="color:#7c2d12;font-style:italic;margin-bottom:18px">Something is wearing their faces.</p>
   <div class="rules">
-    <b>YOUR JOB:</b> Check every visitor's ID against the resident book.<br>
-    <span class="ok">✓ APPROVE</span> a real resident → safe.<br>
-    <b>✗ REJECT</b> (call the cleaner) an imposter → safe.<br><br>
-    <b>WATCH FOR:</b><br>
-    • Black eyes, extra features, unnatural smiles, pale skin<br>
-    • Photo on ID doesn't match the face at the door<br>
-    • Name / apt / age not in the resident book<br><br>
-    <span style="color:#dc2626">If you let an imposter in — <b>you die.</b><br>
-    If you call cleaners on innocents too often — <b>you also die.</b></span>
+    <b>Match every face to the resident book.</b><br>
+    <span class="ok">✓ APPROVE</span> real residents · <b>✗ REJECT</b> imposters.<br><br>
+    <b>TELLS:</b> black eyes · odd skin · wrong photo · not in book.<br><br>
+    <span style="color:#dc2626">Let an imposter in <b>or</b> call cleaners on an innocent — <b>you die.</b></span>
   </div>
   <button class="btn" onclick="startGame()">BEGIN SHIFT</button>
 </div>
