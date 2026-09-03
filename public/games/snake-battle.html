@@ -997,7 +997,11 @@ function createRoom(){
   go(12, 'hard');
 }
 
-let _browseRef = null;
+// Firebase rules on this project allow per-child reads but NOT a bulk
+// .on('value') read of the whole players collection. So we build the
+// browse view from child_added / child_changed / child_removed events
+// — the same pattern the main game roster listener uses successfully.
+let _browseHandlers = null;
 function startBrowseRooms(){
   if(!MP.ready){
     document.getElementById('ri-list').innerHTML =
@@ -1007,15 +1011,19 @@ function startBrowseRooms(){
   stopBrowseRooms();
   document.getElementById('ri-list').innerHTML =
     '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
-  // Rooms are derived from host entries in room/hard/players — each
-  // host advertises their room via the roomId / roomName / isPublic /
-  // pw / maxPlayers fields on their own player record.
-  console.log('[Rooms] subscribing to room/hard/players');
-  _browseRef = MP.db.ref('room/hard/players');
-  _browseRef.on('value',
-    snap => {
-      const raw = snap.val() || {};
-      const players = Object.entries(raw).map(([pid,p]) => ({pid, ...(p||{})}));
+  console.log('[Rooms] subscribing to room/hard/players via child events');
+
+  const cache = {};          // pid → player entry
+  const ref = MP.db.ref('room/hard/players');
+
+  // Coalesce rapid child events into one render per animation frame
+  let scheduled = false;
+  const scheduleRender = () => {
+    if(scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => {
+      scheduled = false;
+      const players = Object.entries(cache).map(([pid,p]) => ({pid, ...(p||{})}));
       const hosts = players.filter(p => p.isHost && p.roomId);
       const rooms = hosts.map(h => ({
         id: h.roomId,
@@ -1027,19 +1035,33 @@ function startBrowseRooms(){
         maxPlayers: h.maxPlayers || 8,
         playerCount: players.filter(p => p.roomId === h.roomId).length,
       })).sort((a,b) => (b.id||'').localeCompare(a.id||''));
-      console.log('[Rooms] snapshot', rooms.length, 'rooms:', rooms.map(r => r.id));
+      console.log('[Rooms] render', rooms.length, 'rooms:', rooms.map(r => r.id));
       renderRoomList(rooms);
-    },
-    err => {
-      console.error('[Rooms] browse listener error', err);
-      document.getElementById('ri-list').innerHTML =
-        '<div style="text-align:center;color:#f87171;padding:24px 12px">Failed to load rooms: '
-        + _escHtml(err && err.message || err) + '</div>';
-    }
-  );
+    });
+  };
+
+  const onAdded   = snap => { cache[snap.key] = snap.val() || {}; scheduleRender(); };
+  const onChanged = snap => { cache[snap.key] = snap.val() || {}; scheduleRender(); };
+  const onRemoved = snap => { delete cache[snap.key]; scheduleRender(); };
+  const onErr = err => {
+    console.error('[Rooms] browse listener error', err);
+    document.getElementById('ri-list').innerHTML =
+      '<div style="text-align:center;color:#f87171;padding:24px 12px">Failed to load rooms: '
+      + _escHtml(err && err.message || err) + '</div>';
+  };
+
+  ref.on('child_added',   onAdded,   onErr);
+  ref.on('child_changed', onChanged, onErr);
+  ref.on('child_removed', onRemoved, onErr);
+  _browseHandlers = { ref, onAdded, onChanged, onRemoved };
 }
 function stopBrowseRooms(){
-  if(_browseRef){ _browseRef.off(); _browseRef = null; }
+  if(_browseHandlers){
+    _browseHandlers.ref.off('child_added',   _browseHandlers.onAdded);
+    _browseHandlers.ref.off('child_changed', _browseHandlers.onChanged);
+    _browseHandlers.ref.off('child_removed', _browseHandlers.onRemoved);
+    _browseHandlers = null;
+  }
 }
 
 function renderRoomList(rooms){
