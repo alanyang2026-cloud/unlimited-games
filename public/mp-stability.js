@@ -39,7 +39,7 @@
     connected: false,
     latencyMs: null,
     heartbeatTimer: null,
-    pingTimer: null,
+    // (pingTimer was here — removed with the ping loop)
     chipEl: null,
     dotEl: null,
     txtEl: null,
