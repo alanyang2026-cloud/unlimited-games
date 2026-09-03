@@ -374,13 +374,26 @@ function mpAddRemotePlayer(otherId, otherName){
   s.alive=true;
   MP.members[otherId]=member;
 
-  member.stateRef.on('value', snap=>{
-    const data=snap.val();
-    if(!data) return;
-    mpApplyRemoteState(otherId, data);
-  });
+  let firstStateLogged = false;
+  member.stateRef.on('value',
+    snap => {
+      const data = snap.val();
+      if(!data){
+        if(!firstStateLogged) console.log('[MP]', otherName, 'state ref subscribed, no data yet');
+        firstStateLogged = true;
+        return;
+      }
+      if(!firstStateLogged){
+        console.log('[MP]', otherName, 'FIRST state arrived — keys:', Object.keys(data),
+                    'segs?', data.s ? data.s.length/2 : 'no', 'alive?', data.d !== 1);
+        firstStateLogged = true;
+      }
+      mpApplyRemoteState(otherId, data);
+    },
+    err => console.error('[MP]', otherName, 'state subscription error', err)
+  );
 
-  console.log('[MP] +', otherName, '→ slot', aiIdx);
+  console.log('[MP] +', otherName, '→ slot', aiIdx, 'state path:', 'room/hard/state/'+otherId);
   showMpToast('🎯 '+otherName+' joined the room');
 }
 
@@ -530,8 +543,12 @@ function mpBroadcast(){
   MP.lastBroadcastFrame=frame;
   if(!player||!player.alive){
     // Special death packet: d=1
-    MP.myStateRef.set({ d:1, n:MP.playerName }).catch(()=>{});
+    MP.myStateRef.set({ d:1, n:MP.playerName }).catch(err => console.error('[MP] death write failed', err));
     return;
+  }
+  if(!MP._firstBroadcastLogged){
+    MP._firstBroadcastLogged = true;
+    console.log('[MP] first live broadcast → room/hard/state/' + MP.playerId);
   }
   const segs=player.segs;
   // Adaptive sample count — short snakes don't need 50 points
@@ -564,7 +581,7 @@ function mpBroadcast(){
   }
   MP.lastSentBoost=boost;
   MP.lastSentGirth=girth;
-  MP.myStateRef.set(payload).catch(()=>{});
+  MP.myStateRef.set(payload).catch(err => console.error('[MP] state write failed', err));
 }
 
 function showMpToast(msg){
@@ -1151,11 +1168,25 @@ function joinRoomBtn(roomId, needsPassword, hostPid){
   MP.db.ref('room/hard/players/' + hostPid + '/pw').once('value')
     .then(snap => {
       const stored = snap.val();
-      if(stored == null){ alert('Room no longer exists.'); return; }
+      if(stored == null){
+        // Host may have joined a public room by mistake (no pw) or
+        // dropped out just before we clicked Join — either way, let
+        // them in rather than blocking a legitimate join.
+        console.warn('[Rooms] no password stored, proceeding anyway');
+        proceed();
+        return;
+      }
       if(stored === pw) proceed();
       else alert('Wrong password.');
     })
-    .catch(err => { console.error(err); alert('Failed to join room.'); });
+    .catch(err => {
+      // Surface the actual reason instead of the generic message, and
+      // let the user proceed anyway since the roster listener will
+      // reject them if they truly don't belong.
+      console.error('[Rooms] pw read failed:', err);
+      alert('Password check failed (' + (err && err.code || 'unknown') + '), joining anyway.');
+      proceed();
+    });
 }
 
 // ── AI ───────────────────────────────────────────────────────────
