@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
-  "version": "1.6.2",
+  "version": "1.6.3",
   "description": "A mini game center that opens right below your toolbar icon. One click to play, no downloads or sign-in needed.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
