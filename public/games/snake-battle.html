@@ -1058,6 +1058,11 @@ function startBrowseRooms(){
   ref.on('child_changed', onChanged, onErr);
   ref.on('child_removed', onRemoved, onErr);
   _browseHandlers = { ref, onAdded, onChanged, onRemoved };
+
+  // If nobody has ever created a room, no child_added ever fires and
+  // the panel stays on "Loading…" forever. Force one render after a
+  // short grace so an empty state ("No rooms yet") appears.
+  setTimeout(scheduleRender, 800);
 }
 function stopBrowseRooms(){
   if(_browseHandlers){
