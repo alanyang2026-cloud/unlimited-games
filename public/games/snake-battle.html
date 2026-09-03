@@ -1011,10 +1011,14 @@ function startBrowseRooms(){
   stopBrowseRooms();
   document.getElementById('ri-list').innerHTML =
     '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
-  console.log('[Rooms] subscribing to room/hard/players via child events');
+  console.log('[Rooms] subscribing to room/hard/players via child events (limitToLast=200)');
 
   const cache = {};          // pid → player entry
-  const ref = MP.db.ref('room/hard/players');
+  // Some Firebase rule setups only allow reading collections with a
+  // bounded query — plain .on() on a parent gets denied. Attaching
+  // limitToLast(200) tells the rules "this is a query, not a full
+  // dump" and is enough to pass those setups.
+  const ref = MP.db.ref('room/hard/players').orderByKey().limitToLast(200);
 
   // Coalesce rapid child events into one render per animation frame
   let scheduled = false;
