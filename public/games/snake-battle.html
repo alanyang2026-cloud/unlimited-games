@@ -110,14 +110,17 @@ canvas{display:block;cursor:none}
     <input id="ri-nick" placeholder="Player" maxlength="12"
            style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:14px"/>
 
-    <div style="margin:14px 0 6px;display:flex;gap:16px">
-      <label style="cursor:pointer;font-size:14px"><input type="radio" name="ri-type" value="public" checked onchange="onRoomTypeChange()"/> 🌐 Public</label>
-      <label style="cursor:pointer;font-size:14px"><input type="radio" name="ri-type" value="private" onchange="onRoomTypeChange()"/> 🔒 Private</label>
+    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin:14px 0 4px">Visibility</label>
+    <div style="display:flex;gap:0;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:4px">
+      <input type="radio" name="ri-type" value="public" id="ri-type-public" checked onchange="onRoomTypeChange()" style="display:none"/>
+      <input type="radio" name="ri-type" value="private" id="ri-type-private" onchange="onRoomTypeChange()" style="display:none"/>
+      <label for="ri-type-public" id="ri-type-public-lbl" style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700;letter-spacing:.5px;transition:background .15s,color .15s">🌐 Public</label>
+      <label for="ri-type-private" id="ri-type-private-lbl" style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700;letter-spacing:.5px;transition:background .15s,color .15s">🔒 Private</label>
     </div>
 
-    <div id="ri-pw-row" style="display:none;margin-top:8px">
+    <div id="ri-pw-row" style="display:none;margin-top:12px">
       <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin-bottom:4px">Password</label>
-      <input id="ri-pw" placeholder="Any characters" maxlength="24"
+      <input id="ri-pw" type="password" placeholder="Any characters" maxlength="24" autocomplete="new-password"
              style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:14px"/>
     </div>
 
@@ -1008,6 +1011,7 @@ function openRoomLobby(){
   const n = document.getElementById('ni').value.trim();
   if(n) document.getElementById('ri-nick').value = n;
   showRoomTab('browse');
+  onRoomTypeChange();  // sync the public/private pill highlight
 }
 
 function showRoomTab(which){
@@ -1021,6 +1025,13 @@ function showRoomTab(which){
 function onRoomTypeChange(){
   const priv = document.querySelector('input[name="ri-type"]:checked').value === 'private';
   document.getElementById('ri-pw-row').style.display = priv ? 'block' : 'none';
+  const pub = document.getElementById('ri-type-public-lbl');
+  const prv = document.getElementById('ri-type-private-lbl');
+  // Highlight the active pill; the inactive one is muted.
+  pub.style.background = priv ? 'transparent' : '#a855f7';
+  pub.style.color      = priv ? '#94a3b8'    : '#fff';
+  prv.style.background = priv ? '#a855f7'    : 'transparent';
+  prv.style.color      = priv ? '#fff'       : '#94a3b8';
 }
 
 function newRoomId(){
