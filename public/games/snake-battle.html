@@ -277,8 +277,12 @@ function mpJoinRoom(){
     const id=snap.key;
     if(id===MP.playerId) return;
     const info=snap.val()||{};
+    console.log('[MP] child_added', id, 'their roomId:', info.roomId, 'my roomId:', MP.roomId, 'name:', info.name);
     // Room isolation — ignore anyone not in the room we picked
-    if((info.roomId||null) !== (MP.roomId||null)) return;
+    if((info.roomId||null) !== (MP.roomId||null)){
+      console.log('[MP] → filtered out (different room)');
+      return;
+    }
     const existing=MP.members[id];
     if(existing){
       // They're back within the grace window — cancel pending removal
@@ -289,6 +293,7 @@ function mpJoinRoom(){
       }
       return;
     }
+    console.log('[MP] → adding remote player', info.name);
     mpAddRemotePlayer(id, info.name||'Player');
   });
   MP.membersRef.on('child_removed', snap=>{
@@ -311,6 +316,21 @@ function mpJoinRoom(){
     if(id===MP.playerId) return;
     const info=snap.val()||{};
     const m=MP.members[id];
+    const inOurRoom = (info.roomId||null) === (MP.roomId||null);
+    // Room membership can flip after we already subscribed — e.g. a
+    // friend was watching Browse (no roomId) and then joined our room,
+    // or an old entry got updated with roomId. child_added won't fire
+    // again in that case, so we upgrade them here.
+    if(!m && inOurRoom){
+      console.log('[MP] child_changed → new member appearing', info.name);
+      mpAddRemotePlayer(id, info.name||'Player');
+      return;
+    }
+    if(m && !inOurRoom){
+      console.log('[MP] child_changed → member left our room', m.name);
+      mpRemoveRemotePlayer(id);
+      return;
+    }
     if(m && info.name && info.name!==m.name){
       m.name=info.name;
       const s=snakes[m.snakeIdx];
