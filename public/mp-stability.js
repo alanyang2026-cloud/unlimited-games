@@ -113,35 +113,23 @@
     });
   }
 
-  function pingOnce(){
-    if (!STATE.db || !STATE.connected) return;
-    const id = STATE.playerId || ('p' + Math.random().toString(36).slice(2, 8));
-    const ref = STATE.db.ref('.ping/' + id);
-    const t0 = performance.now();
-    ref.set(firebase.database.ServerValue.TIMESTAMP)
-      .then(() => {
-        const rtt = Math.round(performance.now() - t0);
-        STATE.latencyMs = rtt;
-        paint();
-        // Best-effort cleanup; don't block on this.
-        ref.remove().catch(()=>{});
-      })
-      .catch(() => { /* ignore; next tick will retry */ });
-  }
-
-  function startPingLoop(){
-    if (STATE.pingTimer) clearInterval(STATE.pingTimer);
-    pingOnce();
-    STATE.pingTimer = setInterval(pingOnce, 5000);
-  }
-
+  // Latency is measured piggy-back on the heartbeat write — we already
+  // pay for that round-trip, so timing it costs nothing extra and,
+  // crucially, doesn't require a separate writable path (Firebase
+  // rejects paths containing '.', and any new top-level path would
+  // need matching rules that the games don't have).
   function startHeartbeat(){
     if (STATE.heartbeatTimer) clearInterval(STATE.heartbeatTimer);
     const beat = () => {
       const ref = STATE.myRef;
       if (!ref || !STATE.connected) return;
+      const t0 = performance.now();
       ref.update({ lastSeen: firebase.database.ServerValue.TIMESTAMP })
-        .catch(()=>{});
+        .then(() => {
+          STATE.latencyMs = Math.round(performance.now() - t0);
+          paint();
+        })
+        .catch(()=>{ /* ignore */ });
     };
     beat();
     STATE.heartbeatTimer = setInterval(beat, 3000);
@@ -154,7 +142,6 @@
       if (opts.myRef !== undefined) STATE.myRef = opts.myRef;
       ensureChip();
       startConnectionWatch();
-      startPingLoop();
       startHeartbeat();
     },
     // Let a game hide the chip if it needs the top-right corner

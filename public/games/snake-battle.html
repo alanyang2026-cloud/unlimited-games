@@ -193,6 +193,7 @@ const MP={
   playerId:null, playerName:null,
   roomId:null,           // set by the room lobby before mpJoinRoom is called
   isHost:false,          // creator of the room (cleans up index on leave)
+  roomMeta:null,         // {roomName, isPublic, maxPlayers, pw} — set only for host
   inRoom:false,
   // members: pid -> { name, snakeIdx, savedAI, stateRef, stateListener, color }
   members:{},
@@ -228,20 +229,33 @@ try{
 
 function mpJoinRoom(){
   if(!MP.ready||MP.inRoom) return;
-  // Fallback: if somehow entered Hard mode without picking a room, drop
-  // everyone into a shared "quick" room so the game still works.
-  if(!MP.roomId) MP.roomId = 'quick';
   MP.inRoom=true;
   MP.members={};
-  const ROOM = 'room/snake-' + MP.roomId;
-  console.log('[MP] Joining', ROOM, 'as', MP.playerId, '(', MP.playerName, ')');
+  // All players continue to live under the existing `room/hard/*` path
+  // (Firebase rules only allow that path — we can't create new
+  // top-level branches). Room isolation is done in software: each
+  // player entry carries its `roomId`, and the roster listener below
+  // ignores entries whose roomId doesn't match ours.
+  const ROOM = 'room/hard';
+  console.log('[MP] Joining room', MP.roomId, 'as', MP.playerId, '(', MP.playerName, ')', 'host?', MP.isHost);
 
-  // Announce ourselves
+  // Announce ourselves + include all room metadata on our player entry.
+  // Only the host stamps room-descriptor fields (name/isPublic/pw/etc);
+  // non-hosts just carry their roomId so listeners can group them.
   MP.myMemberRef=MP.db.ref(ROOM + '/players/'+MP.playerId);
-  MP.myMemberRef.set({
+  const memberData = {
     name:MP.playerName||'Player',
     joinedAt:firebase.database.ServerValue.TIMESTAMP,
-  });
+    roomId: MP.roomId || null,
+    isHost: !!MP.isHost,
+  };
+  if(MP.isHost && MP.roomMeta){
+    memberData.roomName   = MP.roomMeta.roomName;
+    memberData.isPublic   = !!MP.roomMeta.isPublic;
+    memberData.maxPlayers = MP.roomMeta.maxPlayers || 8;
+    if(MP.roomMeta.pw) memberData.pw = MP.roomMeta.pw;
+  }
+  MP.myMemberRef.set(memberData);
   MP.myMemberRef.onDisconnect().remove();
   if(window.MPStability) MPStability.attach({ db:MP.db, playerId:MP.playerId, myRef:MP.myMemberRef });
 
@@ -259,6 +273,9 @@ function mpJoinRoom(){
   MP.membersRef.on('child_added', snap=>{
     const id=snap.key;
     if(id===MP.playerId) return;
+    const info=snap.val()||{};
+    // Room isolation — ignore anyone not in the room we picked
+    if((info.roomId||null) !== (MP.roomId||null)) return;
     const existing=MP.members[id];
     if(existing){
       // They're back within the grace window — cancel pending removal
@@ -269,7 +286,6 @@ function mpJoinRoom(){
       }
       return;
     }
-    const info=snap.val()||{};
     mpAddRemotePlayer(id, info.name||'Player');
   });
   MP.membersRef.on('child_removed', snap=>{
@@ -325,7 +341,7 @@ function mpAddRemotePlayer(otherId, otherName){
     snakeIdx:aiIdx,
     color:MP_COLORS[colorIdx],
     savedAI:createdNew ? null : { name:s.name, color:s.color, difficulty:s.difficulty },
-    stateRef:MP.db.ref('room/snake-' + (MP.roomId||'quick') + '/state/'+otherId),
+    stateRef:MP.db.ref('room/hard/state/'+otherId),
     lastSeenAlive:false,  // gates corpse spawning on death
   };
   s.isRemote=true;
@@ -469,29 +485,14 @@ function mpLeaveAll(){
   }
   MP.members={};
   MP.inRoom=false;
-  // If we were the room's host, decrement the browse-index count.
-  // When empty, we also delete the room's index entry so it stops
-  // showing up in the browse list.
-  if(MP.roomId){
-    const idxRef = MP.db.ref('room/snake-idx/' + MP.roomId);
-    idxRef.transaction(cur => {
-      if(!cur) return cur;
-      cur.playerCount = Math.max(0, (cur.playerCount||1) - 1);
-      cur.lastActive = Date.now();
-      return cur;
-    }).then(() => {
-      // Best-effort: delete the whole entry when the room empties out
-      idxRef.once('value', s => {
-        const v = s.val();
-        if(v && (v.playerCount||0) === 0){
-          idxRef.remove().catch(()=>{});
-          MP.db.ref('room/snake-' + MP.roomId).remove().catch(()=>{});
-        }
-      });
-    }).catch(()=>{});
-  }
+  // Room membership is derived from each player's own entry (isHost /
+  // roomId on room/hard/players/<pid>). Since myMemberRef.remove() above
+  // already removed our entry, the room's playerCount for others drops
+  // by 1 automatically. If we were the host and this was the last player,
+  // the room simply disappears from every browse listener's snapshot.
   MP.roomId = null;
   MP.isHost = false;
+  MP.roomMeta = null;
   // Reset bandwidth trackers so the next room's first broadcast
   // re-sends the name (rather than assuming it's still cached upstream)
   MP.lastSentName=null;
@@ -981,38 +982,19 @@ function createRoom(){
   const maxP = parseInt(document.getElementById('ri-max').value, 10) || 8;
   if(!isPublic && !pw){ alert('Private rooms need a password.'); return; }
 
+  // No dedicated Firebase path — the room is defined entirely by the
+  // host's own entry under room/hard/players/<pid>. mpJoinRoom() will
+  // write it a moment later inside go().
   const roomId = newRoomId();
   console.log('[Rooms] creating', roomId, 'public?', isPublic, 'max', maxP);
-
-  // Wait for the index write to succeed before letting the host into
-  // the game — otherwise the room silently doesn't exist in Firebase
-  // and the other user sees an empty browse list.
-  const payload = {
-    name, hostName:nick, isPublic, hasPassword:!isPublic,
-    maxPlayers:maxP, playerCount:1,
-    createdAt: firebase.database.ServerValue.TIMESTAMP,
-    lastActive: firebase.database.ServerValue.TIMESTAMP,
-  };
-  MP.db.ref('room/snake-idx/' + roomId).set(payload)
-    .then(() => {
-      console.log('[Rooms] index write OK', roomId);
-      if(!isPublic){
-        return MP.db.ref('room/snake-' + roomId + '/pw').set(pw);
-      }
-    })
-    .then(() => {
-      MP.roomId = roomId;
-      MP.isHost = true;
-      MP.playerName = nick;
-      document.getElementById('ni').value = nick;
-      document.getElementById('ov-rooms').style.display = 'none';
-      stopBrowseRooms();
-      go(12, 'hard');
-    })
-    .catch(err => {
-      console.error('[Rooms] create failed', err);
-      alert('Failed to create room: ' + (err && err.message ? err.message : err));
-    });
+  MP.roomId = roomId;
+  MP.isHost = true;
+  MP.roomMeta = { roomName: name, isPublic, maxPlayers: maxP, pw: isPublic ? null : pw };
+  MP.playerName = nick;
+  document.getElementById('ni').value = nick;
+  document.getElementById('ov-rooms').style.display = 'none';
+  stopBrowseRooms();
+  go(12, 'hard');
 }
 
 let _browseRef = null;
@@ -1025,20 +1007,27 @@ function startBrowseRooms(){
   stopBrowseRooms();
   document.getElementById('ri-list').innerHTML =
     '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
-  console.log('[Rooms] subscribing to room/snake-idx');
-  _browseRef = MP.db.ref('room/snake-idx');
+  // Rooms are derived from host entries in room/hard/players — each
+  // host advertises their room via the roomId / roomName / isPublic /
+  // pw / maxPlayers fields on their own player record.
+  console.log('[Rooms] subscribing to room/hard/players');
+  _browseRef = MP.db.ref('room/hard/players');
   _browseRef.on('value',
     snap => {
       const raw = snap.val() || {};
-      const ids = Object.keys(raw);
-      console.log('[Rooms] snapshot', ids.length, 'rooms:', ids);
-      const now = Date.now();
-      // 30-minute stale filter — generous so clock skew between clients
-      // doesn't accidentally hide fresh rooms
-      const rooms = Object.entries(raw)
-        .map(([id,r]) => ({id, ...r}))
-        .filter(r => r && (r.lastActive||0) > now - 30*60*1000)
-        .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+      const players = Object.entries(raw).map(([pid,p]) => ({pid, ...(p||{})}));
+      const hosts = players.filter(p => p.isHost && p.roomId);
+      const rooms = hosts.map(h => ({
+        id: h.roomId,
+        hostPid: h.pid,
+        name: h.roomName || 'Untitled',
+        hostName: h.name || 'Player',
+        isPublic: h.isPublic !== false,
+        hasPassword: h.isPublic === false,
+        maxPlayers: h.maxPlayers || 8,
+        playerCount: players.filter(p => p.roomId === h.roomId).length,
+      })).sort((a,b) => (b.id||'').localeCompare(a.id||''));
+      console.log('[Rooms] snapshot', rooms.length, 'rooms:', rooms.map(r => r.id));
       renderRoomList(rooms);
     },
     err => {
@@ -1063,7 +1052,7 @@ function renderRoomList(rooms){
     const full = (r.playerCount||0) >= (r.maxPlayers||8);
     const btn = full
       ? '<span style="color:#94a3b8;font-size:12px;padding:6px 12px">FULL</span>'
-      : `<button class="btn bn" style="padding:6px 14px;font-size:12px;font-weight:700" onclick="joinRoomBtn('${r.id}',${r.hasPassword?1:0})">Join</button>`;
+      : `<button class="btn bn" style="padding:6px 14px;font-size:12px;font-weight:700" onclick="joinRoomBtn('${r.id}',${r.hasPassword?1:0},'${r.hostPid}')">Join</button>`;
     return `
       <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid rgba(255,255,255,.08)">
         <div style="flex:1;min-width:0">
@@ -1077,22 +1066,16 @@ function renderRoomList(rooms){
   }).join('');
 }
 
-function joinRoomBtn(roomId, needsPassword){
+function joinRoomBtn(roomId, needsPassword, hostPid){
   if(!MP.ready){ alert('Multiplayer offline'); return; }
   const nick = document.getElementById('ri-nick').value.trim()
             || document.getElementById('ni').value.trim() || 'Player';
   const proceed = () => {
     MP.roomId = roomId;
     MP.isHost = false;
+    MP.roomMeta = null;
     MP.playerName = nick;
     document.getElementById('ni').value = nick;
-    // Bump the index count so others see the room fill up.
-    MP.db.ref('room/snake-idx/' + roomId).transaction(cur => {
-      if(!cur) return cur;
-      cur.playerCount = (cur.playerCount||0) + 1;
-      cur.lastActive = Date.now();
-      return cur;
-    }).catch(()=>{});
     document.getElementById('ov-rooms').style.display = 'none';
     stopBrowseRooms();
     go(12, 'hard');
@@ -1100,9 +1083,14 @@ function joinRoomBtn(roomId, needsPassword){
   if(!needsPassword){ proceed(); return; }
   const pw = prompt('Enter room password:');
   if(pw === null) return;
-  MP.db.ref('room/snake-' + roomId + '/pw').once('value')
+  // Verify against the host's own entry — where the room's password
+  // lives. If the host disconnected between browse and join, the entry
+  // is gone (and so is the room), so we reject with a helpful message.
+  MP.db.ref('room/hard/players/' + hostPid + '/pw').once('value')
     .then(snap => {
-      if(snap.val() === pw) proceed();
+      const stored = snap.val();
+      if(stored == null){ alert('Room no longer exists.'); return; }
+      if(stored === pw) proceed();
       else alert('Wrong password.');
     })
     .catch(err => { console.error(err); alert('Failed to join room.'); });
