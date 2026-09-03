@@ -63,10 +63,13 @@ canvas{display:block;cursor:none}
   <div class="br">
     <button class="btn be" onclick="go(5,'easy')">😌 Easy<br><small style="font-weight:400;font-size:11px">5 slow snakes</small></button>
     <button class="btn bn" onclick="go(8,'normal')">😎 Normal<br><small style="font-weight:400;font-size:11px">8 opponents</small></button>
-    <button class="btn bh" onclick="openRoomLobby()">💀 Hard<br><small style="font-weight:400;font-size:11px" id="hard-sub">12 pros</small><br><small style="font-weight:600;font-size:10px;color:#fbbf24">🌐 LIVE PvP · Rooms</small></button>
+    <button class="btn bh" onclick="go(12,'hard')">💀 Hard<br><small style="font-weight:400;font-size:11px" id="hard-sub">12 pros</small></button>
+  </div>
+  <div class="br" style="margin-top:14px">
+    <button class="btn" style="background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;font-weight:800" onclick="openRoomLobby()">🌐 Online PvP Rooms</button>
   </div>
   <p class="hints">Mobile: drag one finger · two-finger to boost</p>
-  <p class="hints" style="color:#ec4899">🌐 Hard mode auto-matches you with another live player worldwide.<br>If alone, you face only AI until someone else joins.</p>
+  <p class="hints" style="color:#ec4899">🌐 Create or join a room to play against real players.<br>Hard mode is offline — 12 AI pros, no room needed.</p>
   <p id="learn-badge" style="margin-top:8px;font-size:11px;color:#fbbf24;letter-spacing:.08em;display:none">🧠 Hard AI has analyzed <span id="learn-rounds">0</span> of your fights</p>
 </div>
 
@@ -907,8 +910,10 @@ function go(bots,diff){
   mouse={x:C.width/2,y:C.height/2};
   running=true;
 
-  // Only Hard mode joins the shared multiplayer room
-  if(diff==='hard') mpJoinRoom();
+  // Only join a multiplayer room when one was picked from the room
+  // lobby (MP.roomId is set there). Offline Easy/Normal/Hard don't
+  // touch Firebase at all.
+  if(MP.roomId) mpJoinRoom();
 }
 
 function respawn(){
@@ -977,44 +982,72 @@ function createRoom(){
   if(!isPublic && !pw){ alert('Private rooms need a password.'); return; }
 
   const roomId = newRoomId();
-  MP.roomId = roomId;
-  MP.isHost = true;
-  MP.playerName = nick;
-  document.getElementById('ni').value = nick;
+  console.log('[Rooms] creating', roomId, 'public?', isPublic, 'max', maxP);
 
-  // Browsable index entry
-  MP.db.ref('room/snake-idx/' + roomId).set({
+  // Wait for the index write to succeed before letting the host into
+  // the game — otherwise the room silently doesn't exist in Firebase
+  // and the other user sees an empty browse list.
+  const payload = {
     name, hostName:nick, isPublic, hasPassword:!isPublic,
     maxPlayers:maxP, playerCount:1,
     createdAt: firebase.database.ServerValue.TIMESTAMP,
     lastActive: firebase.database.ServerValue.TIMESTAMP,
-  }).catch(e=>console.warn('[Rooms] index write failed', e));
-
-  // Password (stored plain — this is casual PvP, not banking)
-  if(!isPublic){
-    MP.db.ref('room/snake-' + roomId + '/pw').set(pw).catch(()=>{});
-  }
-
-  document.getElementById('ov-rooms').style.display = 'none';
-  stopBrowseRooms();
-  go(12, 'hard');
+  };
+  MP.db.ref('room/snake-idx/' + roomId).set(payload)
+    .then(() => {
+      console.log('[Rooms] index write OK', roomId);
+      if(!isPublic){
+        return MP.db.ref('room/snake-' + roomId + '/pw').set(pw);
+      }
+    })
+    .then(() => {
+      MP.roomId = roomId;
+      MP.isHost = true;
+      MP.playerName = nick;
+      document.getElementById('ni').value = nick;
+      document.getElementById('ov-rooms').style.display = 'none';
+      stopBrowseRooms();
+      go(12, 'hard');
+    })
+    .catch(err => {
+      console.error('[Rooms] create failed', err);
+      alert('Failed to create room: ' + (err && err.message ? err.message : err));
+    });
 }
 
 let _browseRef = null;
 function startBrowseRooms(){
-  if(!MP.ready) return;
+  if(!MP.ready){
+    document.getElementById('ri-list').innerHTML =
+      '<div style="text-align:center;color:#f87171;padding:24px 12px">Multiplayer is offline — refresh the page.</div>';
+    return;
+  }
   stopBrowseRooms();
+  document.getElementById('ri-list').innerHTML =
+    '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
+  console.log('[Rooms] subscribing to room/snake-idx');
   _browseRef = MP.db.ref('room/snake-idx');
-  _browseRef.on('value', snap => {
-    const raw = snap.val() || {};
-    const now = Date.now();
-    // 5-minute stale filter — dead rooms drop off automatically
-    const rooms = Object.entries(raw)
-      .map(([id,r]) => ({id, ...r}))
-      .filter(r => r && (r.lastActive||0) > now - 5*60*1000)
-      .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
-    renderRoomList(rooms);
-  });
+  _browseRef.on('value',
+    snap => {
+      const raw = snap.val() || {};
+      const ids = Object.keys(raw);
+      console.log('[Rooms] snapshot', ids.length, 'rooms:', ids);
+      const now = Date.now();
+      // 30-minute stale filter — generous so clock skew between clients
+      // doesn't accidentally hide fresh rooms
+      const rooms = Object.entries(raw)
+        .map(([id,r]) => ({id, ...r}))
+        .filter(r => r && (r.lastActive||0) > now - 30*60*1000)
+        .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+      renderRoomList(rooms);
+    },
+    err => {
+      console.error('[Rooms] browse listener error', err);
+      document.getElementById('ri-list').innerHTML =
+        '<div style="text-align:center;color:#f87171;padding:24px 12px">Failed to load rooms: '
+        + _escHtml(err && err.message || err) + '</div>';
+    }
+  );
 }
 function stopBrowseRooms(){
   if(_browseRef){ _browseRef.off(); _browseRef = null; }
