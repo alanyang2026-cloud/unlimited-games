@@ -255,7 +255,10 @@ function mpJoinRoom(){
     memberData.maxPlayers = MP.roomMeta.maxPlayers || 8;
     if(MP.roomMeta.pw) memberData.pw = MP.roomMeta.pw;
   }
-  MP.myMemberRef.set(memberData);
+  console.log('[MP] writing member entry', MP.playerId, memberData);
+  MP.myMemberRef.set(memberData)
+    .then(() => console.log('[MP] member entry write OK', MP.playerId))
+    .catch(err => console.error('[MP] member entry write FAILED', err));
   MP.myMemberRef.onDisconnect().remove();
   if(window.MPStability) MPStability.attach({ db:MP.db, playerId:MP.playerId, myRef:MP.myMemberRef });
 
@@ -872,8 +875,12 @@ setTimeout(updateMenuLearnedBadge, 0);
 
 // ── Game init ────────────────────────────────────────────────────
 function go(bots,diff){
-  // Cleanly drop any in-flight multiplayer state from a previous match
-  mpLeaveAll();
+  // Cleanly drop any in-flight multiplayer state from a previous match.
+  // Skip this when the room lobby just set up MP.roomId — otherwise
+  // mpLeaveAll would wipe the room id / isHost / roomMeta the lobby
+  // wrote a moment ago, and the resulting player entry would have no
+  // room-identifying fields for browse to key off.
+  if(!MP.roomId) mpLeaveAll();
   lastDiff=diff;lastBots=bots;
   document.getElementById('ov-s').style.display='none';
   const name=document.getElementById('ni').value.trim()||'Player';
@@ -985,6 +992,9 @@ function createRoom(){
   // No dedicated Firebase path — the room is defined entirely by the
   // host's own entry under room/hard/players/<pid>. mpJoinRoom() will
   // write it a moment later inside go().
+  // Clean up any previous game's MP state BEFORE we set new room fields
+  // (mpLeaveAll clears roomId/isHost/roomMeta as part of its cleanup).
+  mpLeaveAll();
   const roomId = newRoomId();
   console.log('[Rooms] creating', roomId, 'public?', isPublic, 'max', maxP);
   MP.roomId = roomId;
@@ -1102,6 +1112,7 @@ function joinRoomBtn(roomId, needsPassword, hostPid){
   const nick = document.getElementById('ri-nick').value.trim()
             || document.getElementById('ni').value.trim() || 'Player';
   const proceed = () => {
+    mpLeaveAll();  // clean any leftover MP state first (clears roomId etc)
     MP.roomId = roomId;
     MP.isHost = false;
     MP.roomMeta = null;
