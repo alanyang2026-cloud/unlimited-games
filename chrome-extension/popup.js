@@ -31,7 +31,6 @@ const GAMES = [
   { id:'chess',           title:'Rated Chess',     emoji:'♔', url:'/games/chess.html',            c1:'#d97706', c2:'#292524', nw:900, nh:820 },
   { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:520 },
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true, nw:760, nh:520 },
-  { id:'hero-brawl',      title:'Hero Brawl',      emoji:'🦸', url:'/games/hero-brawl.html',      c1:'#059669', c2:'#b45309', nw:780, nh:520 },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d', nw:820, nh:640 },
 ];
 

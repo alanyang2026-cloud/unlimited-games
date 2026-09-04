@@ -121,14 +121,6 @@ export const GAMES: Game[] = [
     controls: "Click cards · PLAY / CALL LIAR · Space to fire",
   },
   {
-    id: "hero-brawl",
-    title: "Hero Brawl",
-    emoji: "🦸",
-    description: "Pick a hero. Top-down arena shooter. Last brawler wins.",
-    color: "from-emerald-600 to-amber-600",
-    controls: "WASD move · Hold RMB / Ctrl to fire · R super · E aim super · F gadget · V/T charge",
-  },
-  {
     id: "potato-bros",
     title: "Potato Bros",
     emoji: "🥔",
@@ -153,7 +145,6 @@ const URL_MAP: Record<string, string> = {
   "chess": "/games/chess.html",
   "squish": "/games/squish.html",
   "liars-tavern": "/games/liars-tavern.html",
-  "hero-brawl": "/games/hero-brawl.html",
   "potato-bros": "/games/potato-bros.html",
 };
 
