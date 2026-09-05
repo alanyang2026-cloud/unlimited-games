@@ -159,13 +159,13 @@
   Anyone can call LIAR — wrong cards or wrong call sends someone to spin the cylinder.</p>
   <div style="display:flex;gap:14px;flex-wrap:wrap;justify-content:center">
     <button onclick="startGame('solo')">⚔️ SOLO (vs AI)</button>
-    <button onclick="startGame('mp')" style="background:linear-gradient(180deg,#7c2d12,#451a03);border-color:#fca5a5">🌐 LIVE PvP</button>
+    <button onclick="openRoomLobby()" style="background:linear-gradient(180deg,#7c2d12,#451a03);border-color:#fca5a5">🌐 PvP ROOMS</button>
   </div>
   <div class="rules">
     🎴 Deck: 6×A · 6×K · 6×Q · 2× Joker (wild)<br>
     🔫 Revolver: 1 bullet, 6 chambers. Survived clicks build the tension.<br>
     💀 Last one alive wins the tavern.<br>
-    <span style="color:#fca5a5">🌐 PvP auto-matches with another live player. Empty seats are AI.</span>
+    <span style="color:#fca5a5">🌐 PvP: create a room or browse public ones. Empty seats fill with AI when the host starts.</span>
   </div>
 </div>
 
@@ -196,9 +196,75 @@
 <div class="lobby" id="lobby">
   <h2>🍻 TAVERN LOBBY</h2>
   <div class="lobby-sub" id="lobby-sub">Waiting for players to join…</div>
-  <div class="lobby-count" id="lobby-count">15</div>
+  <div id="lobby-room-badge" style="display:none;font-size:14px;letter-spacing:4px;color:#fca5a5;margin-bottom:8px">🌐 ROOM · <span id="lobby-room-id"></span></div>
   <div class="lobby-players" id="lobby-players"></div>
-  <button class="cancel" onclick="lobbyCancel()">← Leave</button>
+  <div style="display:flex;gap:10px;justify-content:center;margin-top:14px">
+    <button class="cancel" onclick="lobbyCancel()">← Leave</button>
+    <button class="cancel" id="lobby-start-btn" style="display:none;background:#fca5a5;color:#000;font-weight:800" onclick="hostStartMatch()">START MATCH</button>
+  </div>
+</div>
+
+<!-- ─── PvP Rooms lobby (Create / Browse) ─── -->
+<div class="lobby" id="rooms-lobby" style="display:none;flex-direction:column;align-items:center;padding:22px;overflow-y:auto">
+  <h2 style="color:#fca5a5;margin-bottom:6px">🌐 PvP Rooms</h2>
+  <div style="display:flex;gap:10px;margin:6px 0 16px">
+    <button class="cancel" id="tv-tab-create" onclick="showRoomTab('create')" style="background:#fca5a5;color:#000">➕ Create</button>
+    <button class="cancel" id="tv-tab-browse" onclick="showRoomTab('browse')">📋 Browse</button>
+  </div>
+
+  <div id="tv-tab-create-body" style="width:min(90vw,400px);text-align:left;font-family:system-ui,-apple-system,sans-serif">
+    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin:6px 0 3px">Room name</label>
+    <input id="tv-ri-name" placeholder="Alan's Tavern" maxlength="24" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(252,165,165,.3);background:rgba(0,0,0,.4);color:#fff;font-size:14px"/>
+
+    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin:12px 0 3px">Your nickname</label>
+    <input id="tv-ri-nick" placeholder="Player" maxlength="12" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(252,165,165,.3);background:rgba(0,0,0,.4);color:#fff;font-size:14px"/>
+
+    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin:12px 0 3px">Visibility</label>
+    <div style="display:flex;gap:0;background:rgba(0,0,0,.4);border:1px solid rgba(252,165,165,.3);border-radius:10px;padding:4px">
+      <input type="radio" name="tv-ri-type" value="public" id="tv-ri-type-public" checked onchange="onRoomTypeChange()" style="display:none"/>
+      <input type="radio" name="tv-ri-type" value="private" id="tv-ri-type-private" onchange="onRoomTypeChange()" style="display:none"/>
+      <label for="tv-ri-type-public"  id="tv-ri-type-public-lbl"  style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700">🌐 Public</label>
+      <label for="tv-ri-type-private" id="tv-ri-type-private-lbl" style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700">🔒 Private</label>
+    </div>
+
+    <div id="tv-ri-pw-row" style="display:none;margin-top:10px">
+      <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin-bottom:3px">Password</label>
+      <input id="tv-ri-pw" type="password" placeholder="Any characters" maxlength="24" autocomplete="new-password" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(252,165,165,.3);background:rgba(0,0,0,.4);color:#fff;font-size:14px"/>
+    </div>
+
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
+      <button class="cancel" onclick="closeRoomLobby()">← Back</button>
+      <button class="cancel" style="background:#fca5a5;color:#000;font-weight:800" onclick="createRoom()">Create & Enter</button>
+    </div>
+  </div>
+
+  <div id="tv-tab-browse-body" style="width:min(90vw,460px);text-align:left;font-family:system-ui,-apple-system,sans-serif;display:none">
+    <div id="tv-ri-list" style="max-height:260px;overflow-y:auto;padding:4px">
+      <div style="text-align:center;color:#94a3b8;padding:20px">Loading rooms…</div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:center">
+      <button class="cancel" onclick="closeRoomLobby()">← Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Join modal ─── -->
+<div id="tv-pw-modal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif">
+  <div style="width:min(88vw,380px);background:linear-gradient(180deg,#451a03,#0a0612);border:1px solid rgba(252,165,165,.4);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);padding:22px">
+    <div id="tv-pw-kicker" style="font-size:14px;color:#fca5a5;letter-spacing:.05em;margin-bottom:6px">🌐 JOIN ROOM</div>
+    <div id="tv-pw-title" style="font-size:18px;font-weight:800;color:#fef3c7;margin-bottom:16px">Room</div>
+    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin-bottom:4px">Your nickname</label>
+    <input id="tv-pw-nick" type="text" maxlength="12" placeholder="Player" style="width:100%;padding:11px 14px;border-radius:9px;border:1px solid rgba(252,165,165,.3);background:rgba(0,0,0,.4);color:#fff;font-size:15px;outline:none"/>
+    <div id="tv-pw-pw-row" style="display:none;margin-top:12px">
+      <label style="display:block;font-size:12px;letter-spacing:.05em;color:#fca5a5;margin-bottom:4px">Password</label>
+      <input id="tv-pw-input" type="password" maxlength="24" autocomplete="new-password" placeholder="Password" style="width:100%;padding:11px 14px;border-radius:9px;border:1px solid rgba(252,165,165,.3);background:rgba(0,0,0,.4);color:#fff;font-size:15px;outline:none"/>
+    </div>
+    <div id="tv-pw-error" style="display:none;color:#ff8a8a;font-size:12px;margin-top:8px">Wrong password.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="cancel" style="font-size:13px" onclick="pwModalCancel()">Cancel</button>
+      <button class="cancel" style="font-size:13px;background:#fca5a5;color:#000;font-weight:800" onclick="pwModalOk()">Join</button>
+    </div>
+  </div>
 </div>
 
 <div class="rou" id="rou">
@@ -291,14 +357,18 @@ const MP = {
   mySlot:0,                     // 0..3 — slot you took in the room
   hostId:null,
   roomPlayers:{},               // pid → { name, slot, joinedAt }
-  startsAt:0,                   // ms timestamp when countdown ends
+  roomId:null,                  // 6-char short id, drives tavern/rooms/<id>
+  roomMeta:null,                // host-only: { roomName, isPublic, pw }
   roomRef:null, roomWatcher:null,
-  countdownTimer:null,
+  browseHandlers:null,          // listeners on tavern/rooms for Browse tab
   stateRef:null, actionsRef:null,
   lastAppliedRev:-1,
 };
 
-const LOBBY_COUNTDOWN_MS = 15000;
+// Countdown removed — host now presses Start (or the room auto-starts
+// when it hits 4 humans). Constant kept only to avoid touching any
+// unrelated log/copy that references it.
+const LOBBY_COUNTDOWN_MS = 0;
 const SLOT_LABELS = ['SOUTH (camera)', 'WEST · 🐷 Cyrus', 'NORTH · 🐄 Vela', 'EAST · 🦊 Mort'];
 try{
   if(typeof firebase!=='undefined'){
@@ -351,32 +421,42 @@ function mpUpdateIndicator(){
 // an existing one that hasn't started yet. After 15s (or when 4
 // humans are present), the host marks the room as started, fills any
 // empty seats with AI, and begins the game.
+// Enter a specific room, creating it if we're the host or joining it
+// if we're a guest. Room lives at `tavern/rooms/<MP.roomId>` and is
+// selected by the room lobby (create or browse) before this runs.
 function mpEnterLobby(){
   if(!MP.ready || MP.inLobby || MP.matched) return;
+  if(!MP.roomId){ console.warn('[MP] mpEnterLobby with no roomId'); return; }
   MP.inLobby = true;
-  MP.roomRef = MP.db.ref('tavern/openRoom');
-  console.log('[MP] Joining tavern open-room as', MP.playerId);
+  MP.mode = 'mp';
+  MP.roomRef = MP.db.ref('tavern/rooms/' + MP.roomId);
+  console.log('[MP] Entering room', MP.roomId, 'as', MP.playerId, 'host?', MP.isHost);
 
   MP.roomRef.transaction(current => {
     const now = Date.now();
-    const stale = current && current.startsAt && (now > current.startsAt + 6000);
-    if(!current || current.started || stale){
-      // Create a brand-new pending room
+    if(MP.isHost){
+      // Fresh room from Create Room. Overwrite anything stale.
+      const meta = MP.roomMeta || {};
       return {
         matchId: 'tav_' + now.toString(36) + Math.random().toString(36).slice(2,6),
         hostId: MP.playerId,
+        hostName: MP.playerName,
+        roomName: meta.roomName || 'Untitled',
+        isPublic: meta.isPublic !== false,
+        hasPassword: !!meta.pw,
+        pw: meta.pw || null,
         createdAt: now,
-        startsAt: now + LOBBY_COUNTDOWN_MS,
         started: false,
         players: {
           [MP.playerId]: { name: MP.playerName, slot: 0, joinedAt: now },
         },
       };
     }
-    // Join existing room — claim next free slot
+    // Guest joining an existing room
+    if(!current || current.started) return;              // room dead
     const players = current.players || {};
-    if(players[MP.playerId]) return;                 // already in
-    if(Object.keys(players).length >= 4) return;     // full → abort txn
+    if(players[MP.playerId]) return current;             // already in
+    if(Object.keys(players).length >= 4) return;         // full → abort txn
     const used = new Set(Object.values(players).map(p => p.slot));
     let slot = -1;
     for(let i=0; i<4; i++) if(!used.has(i)){ slot = i; break; }
@@ -386,12 +466,10 @@ function mpEnterLobby(){
     return current;
   }, (err, committed, snap) => {
     if(err || !committed){
-      console.warn('[MP] Failed to enter open room', err);
-      mpShowToast('⚠ Could not join lobby — try again');
+      console.warn('[MP] Failed to enter room', err);
+      mpShowToast('⚠ Could not join room — try again');
       MP.inLobby = false;
-      // Bounce back to title
-      document.getElementById('hud').classList.remove('on');
-      document.getElementById('title').style.display = 'flex';
+      openRoomLobby();
       return;
     }
     const room = snap.val();
@@ -399,21 +477,16 @@ function mpEnterLobby(){
     MP.hostId = room.hostId;
     MP.isHost = (room.hostId === MP.playerId);
     MP.mySlot = (room.players[MP.playerId] || {}).slot ?? 0;
-    MP.startsAt = room.startsAt;
     MP.roomPlayers = room.players;
 
-    // Clean up our entry on disconnect (so abandoned rooms don't stick)
-    MP.db.ref('tavern/openRoom/players/' + MP.playerId).onDisconnect().remove();
+    MP.db.ref('tavern/rooms/' + MP.roomId + '/players/' + MP.playerId).onDisconnect().remove();
 
-    // Watch room for joins/leaves/start
     if(MP.roomWatcher) MP.roomWatcher();
     const handler = snapR => mpOnRoomChange(snapR.val());
     MP.roomRef.on('value', handler);
     MP.roomWatcher = () => MP.roomRef.off('value', handler);
 
     mpShowLobbyOverlay();
-    mpTickCountdown();
-    // Chat lives at the match path — works during lobby too
     mpOpenChat();
   });
   mpUpdateIndicator();
@@ -422,67 +495,60 @@ function mpEnterLobby(){
 function mpOnRoomChange(room){
   if(!room){
     if(MP.matched) return;   // already moved to match, room cleanup is fine
-    mpShowToast('⚠ Lobby closed');
+    mpShowToast('⚠ Room closed');
     lobbyCancel();
     return;
   }
   MP.roomPlayers = room.players || {};
-  MP.startsAt = room.startsAt;
   MP.hostId = room.hostId;
   MP.isHost = (room.hostId === MP.playerId);
-  // If the host bailed before starting, the room is dead for everyone
   if(!MP.matched && room.hostId && !MP.roomPlayers[room.hostId]){
-    mpShowToast('⚠ Host left — lobby cancelled');
+    mpShowToast('⚠ Host left — room cancelled');
     lobbyCancel();
     return;
   }
   mpRenderLobbyPlayers();
+  updateLobbyControls();
   if(room.started && !MP.matched){
     mpEnterMatch();
-  }
-}
-
-function mpTickCountdown(){
-  if(MP.matched || !MP.inLobby) return;
-  const remaining = Math.max(0, Math.ceil((MP.startsAt - Date.now()) / 1000));
-  const el = document.getElementById('lobby-count');
-  if(el){
-    el.textContent = remaining + '';
-    el.classList.toggle('urgent', remaining <= 5);
-  }
-  const subEl = document.getElementById('lobby-sub');
-  if(subEl){
-    const n = Object.keys(MP.roomPlayers).length;
-    subEl.textContent = n >= 4
-      ? 'Room full!'
-      : n === 1
-        ? 'Waiting for more players… (' + n + '/4)'
-        : (n + '/4 players · empty seats will fill with AI');
-  }
-  if(remaining <= 0){
-    // Host triggers start; others wait for room.started=true to mirror it
-    if(MP.isHost && !MP.matched) mpHostStartMatch();
     return;
   }
-  // Also auto-start if room is full of humans (host only)
+  // Auto-start when the room fills to 4 humans (host does the write)
   if(MP.isHost && Object.keys(MP.roomPlayers).length >= 4 && !MP.matched){
-    mpHostStartMatch();
-    return;
+    hostStartMatch();
   }
-  clearTimeout(MP.countdownTimer);
-  MP.countdownTimer = setTimeout(mpTickCountdown, 200);
 }
 
-function mpHostStartMatch(){
+// Reflect host-only Start button + player-count subtitle in the lobby
+function updateLobbyControls(){
+  const n = Object.keys(MP.roomPlayers).length;
+  const sub = document.getElementById('lobby-sub');
+  if(sub){
+    sub.textContent = MP.isHost
+      ? (n >= 4 ? 'Room full — starting…'
+        : n >= 2 ? (n + '/4 players · press Start when ready')
+        : 'Waiting for at least one more player… (' + n + '/4)')
+      : (n + '/4 players · waiting for the host to start');
+  }
+  const badge = document.getElementById('lobby-room-badge');
+  if(badge){
+    badge.style.display = 'block';
+    document.getElementById('lobby-room-id').textContent = MP.roomId || '';
+  }
+  const startBtn = document.getElementById('lobby-start-btn');
+  if(startBtn) startBtn.style.display = (MP.isHost && n >= 2) ? 'inline-block' : 'none';
+}
+
+// Host clicks Start (or auto-fires at 4 humans)
+window.hostStartMatch = function(){
   if(!MP.isHost || MP.matched) return;
   MP.matched = true;
   console.log('[MP] Host starting match with', Object.keys(MP.roomPlayers).length, 'humans');
-  // Mark the open room as started, then nuke it shortly after so others see it
   MP.roomRef.update({ started: true }).then(() => {
     setTimeout(() => MP.roomRef.remove().catch(()=>{}), 1500);
   });
   mpEnterMatch();
-}
+};
 
 function mpEnterMatch(){
   if(MP.matched && MP.stateRef) return;     // already set up
@@ -556,17 +622,20 @@ function mpRenderLobbyPlayers(){
 }
 
 window.lobbyCancel = function(){
-  if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
   if(MP.roomWatcher){ MP.roomWatcher(); MP.roomWatcher = null; }
-  if(MP.roomRef){
-    // Remove myself from players; if I was last, remove whole room
-    MP.db.ref('tavern/openRoom/players/' + MP.playerId).remove().catch(()=>{});
+  if(MP.roomRef && MP.roomId){
+    // Remove myself from players; if I was the host, drop the whole room
+    if(MP.isHost) MP.db.ref('tavern/rooms/' + MP.roomId).remove().catch(()=>{});
+    else MP.db.ref('tavern/rooms/' + MP.roomId + '/players/' + MP.playerId).remove().catch(()=>{});
   }
   MP.inLobby = false;
   MP.matched = false;
   MP.matchId = null;
   MP.mySlot = 0;
   MP.mode = 'solo';
+  MP.roomId = null;
+  MP.roomMeta = null;
+  MP.isHost = false;
   mpHideLobbyOverlay();
   document.getElementById('hud').classList.remove('on');
   document.getElementById('title').style.display = 'flex';
@@ -704,7 +773,7 @@ function mpLeaveAll(){
   if(MP.countdownTimer){ clearTimeout(MP.countdownTimer); MP.countdownTimer = null; }
   if(MP.roomWatcher){ MP.roomWatcher(); MP.roomWatcher = null; }
   if(MP.roomRef){
-    MP.db.ref('tavern/openRoom/players/' + MP.playerId).remove().catch(()=>{});
+    if(MP.roomId) MP.db.ref('tavern/rooms/' + MP.roomId + '/players/' + MP.playerId).remove().catch(()=>{});
     MP.roomRef = null;
   }
   if(MP.stateRef){ MP.stateRef.off(); if(MP.isHost) MP.stateRef.remove().catch(()=>{}); MP.stateRef = null; }
@@ -2758,6 +2827,206 @@ addEventListener('keydown', e => {
     e.preventDefault();
     fireTrigger();
   }
+});
+
+// ══════════════════════════════════════════════════════════════
+//   Room lobby (Create / Browse / password modal)
+// ══════════════════════════════════════════════════════════════
+
+function _escHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
+}
+function newRoomId(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s=''; for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+
+window.openRoomLobby = function(){
+  document.getElementById('title').style.display = 'none';
+  document.getElementById('lobby').classList.remove('on');
+  document.getElementById('rooms-lobby').style.display = 'flex';
+  showRoomTab('browse');
+  onRoomTypeChange();
+};
+window.closeRoomLobby = function(){
+  document.getElementById('rooms-lobby').style.display = 'none';
+  document.getElementById('title').style.display = 'flex';
+  stopBrowseRooms();
+};
+window.showRoomTab = function(which){
+  document.getElementById('tv-tab-create-body').style.display = (which==='create') ? 'block' : 'none';
+  document.getElementById('tv-tab-browse-body').style.display = (which==='browse') ? 'block' : 'none';
+  const c = document.getElementById('tv-tab-create'), b = document.getElementById('tv-tab-browse');
+  c.style.background = (which==='create') ? '#fca5a5' : '';
+  c.style.color      = (which==='create') ? '#000'    : '';
+  b.style.background = (which==='browse') ? '#fca5a5' : '';
+  b.style.color      = (which==='browse') ? '#000'    : '';
+  if(which==='browse') startBrowseRooms(); else stopBrowseRooms();
+};
+window.onRoomTypeChange = function(){
+  const el = document.querySelector('input[name="tv-ri-type"]:checked'); if(!el) return;
+  const priv = el.value === 'private';
+  document.getElementById('tv-ri-pw-row').style.display = priv ? 'block' : 'none';
+  const pub = document.getElementById('tv-ri-type-public-lbl');
+  const prv = document.getElementById('tv-ri-type-private-lbl');
+  if(!pub || !prv) return;
+  pub.style.background = priv ? 'transparent' : '#fca5a5';
+  pub.style.color      = priv ? '#94a3b8'    : '#000';
+  prv.style.background = priv ? '#fca5a5'    : 'transparent';
+  prv.style.color      = priv ? '#000'       : '#94a3b8';
+};
+window.createRoom = function(){
+  if(!MP.ready){ alert('Multiplayer offline — refresh and try again'); return; }
+  const name = document.getElementById('tv-ri-name').value.trim() || 'Untitled Tavern';
+  const nick = document.getElementById('tv-ri-nick').value.trim() || 'Player';
+  const isPublic = document.querySelector('input[name="tv-ri-type"]:checked').value === 'public';
+  const pw = document.getElementById('tv-ri-pw').value.trim();
+  if(!isPublic && !pw){ alert('Private rooms need a password.'); return; }
+  document.getElementById('tv-ri-pw').value = '';
+  MP.roomId = newRoomId();
+  MP.isHost = true;
+  MP.roomMeta = { roomName: name, isPublic, pw: isPublic ? null : pw };
+  MP.playerName = nick;
+  closeRoomLobby();
+  mpEnterLobby();
+};
+window.joinRoomBtn = function(roomId, needsPassword){
+  if(!MP.ready){ alert('Multiplayer offline'); return; }
+  const roomEl = document.querySelector('#tv-ri-list button[onclick*="'+roomId+'"]');
+  const displayName = roomEl ? roomEl.closest('div').querySelector('div').textContent.replace(/^[🔒🌐]\s*/,'').trim() : ('Room ' + roomId);
+  const enter = (nick) => {
+    MP.roomId = roomId;
+    MP.isHost = false;
+    MP.roomMeta = null;
+    MP.playerName = nick;
+    closeRoomLobby();
+    mpEnterLobby();
+  };
+  pwModalOpen(displayName, needsPassword, result => {
+    if(result === null) return;
+    const nick = (result.nick || 'Player').slice(0,12);
+    if(!needsPassword){ pwModalClose(); enter(nick); return; }
+    MP.db.ref('tavern/rooms/'+roomId+'/pw').once('value')
+      .then(snap => {
+        const stored = snap.val();
+        if(stored == null){ console.warn('[Rooms] no pw stored, joining anyway'); pwModalClose(); enter(nick); return; }
+        if(stored === result.pw){ pwModalClose(); enter(nick); }
+        else pwModalShowError('Wrong password.');
+      })
+      .catch(err => {
+        console.error('[Rooms] pw read failed:', err);
+        pwModalClose();
+        alert('Password check failed (' + (err && err.code || 'unknown') + '), joining anyway.');
+        enter(nick);
+      });
+  });
+};
+
+// ── Browse ──
+function startBrowseRooms(){
+  if(!MP.ready){
+    document.getElementById('tv-ri-list').innerHTML = '<div style="text-align:center;color:#f87171;padding:24px 12px">Multiplayer is offline — refresh.</div>';
+    return;
+  }
+  stopBrowseRooms();
+  document.getElementById('tv-ri-list').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
+  const cache = {};
+  const ref = MP.db.ref('tavern/rooms');
+  let scheduled=false;
+  const rerender = () => {
+    if(scheduled) return; scheduled=true;
+    requestAnimationFrame(() => {
+      scheduled=false;
+      const rooms = Object.entries(cache)
+        .map(([id,r]) => ({id, ...(r||{})}))
+        .filter(r => r && !r.started && r.hostId)
+        .sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+      renderRoomList(rooms);
+    });
+  };
+  const onAdded   = snap => { cache[snap.key] = snap.val()||{}; rerender(); };
+  const onChanged = snap => { cache[snap.key] = snap.val()||{}; rerender(); };
+  const onRemoved = snap => { delete cache[snap.key]; rerender(); };
+  ref.on('child_added',   onAdded);
+  ref.on('child_changed', onChanged);
+  ref.on('child_removed', onRemoved);
+  MP.browseHandlers = { ref, onAdded, onChanged, onRemoved };
+  setTimeout(rerender, 800);
+}
+function stopBrowseRooms(){
+  if(MP.browseHandlers){
+    MP.browseHandlers.ref.off('child_added',   MP.browseHandlers.onAdded);
+    MP.browseHandlers.ref.off('child_changed', MP.browseHandlers.onChanged);
+    MP.browseHandlers.ref.off('child_removed', MP.browseHandlers.onRemoved);
+    MP.browseHandlers=null;
+  }
+}
+function renderRoomList(rooms){
+  const el = document.getElementById('tv-ri-list');
+  if(!rooms.length){
+    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 12px">No rooms yet. Create one!</div>';
+    return;
+  }
+  el.innerHTML = rooms.map(r => {
+    const count = r.players ? Object.keys(r.players).length : 0;
+    const full = count >= 4;
+    const btn = full
+      ? '<span style="color:#94a3b8;font-size:12px;padding:6px 12px">FULL</span>'
+      : `<button class="cancel" style="background:#fca5a5;color:#000;padding:6px 14px;font-size:12px;font-weight:800" onclick="joinRoomBtn('${r.id}',${r.hasPassword?1:0})">Join</button>`;
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid rgba(252,165,165,.15)">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:14px;font-weight:700;color:#fef3c7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            ${r.hasPassword?'🔒':'🌐'} ${_escHtml(r.roomName||'Untitled')}
+          </div>
+          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Host: ${_escHtml(r.hostName||'?')} · ${count}/4</div>
+        </div>
+        ${btn}
+      </div>`;
+  }).join('');
+}
+
+// ── Join modal ──
+let _tvPwCallback=null;
+window.pwModalOpen = function(title, needsPassword, cb){
+  _tvPwCallback=cb;
+  document.getElementById('tv-pw-kicker').textContent = needsPassword ? '🔒 PRIVATE ROOM' : '🌐 JOIN ROOM';
+  document.getElementById('tv-pw-title').textContent = 'Join "' + title + '"';
+  document.getElementById('tv-pw-pw-row').style.display = needsPassword ? 'block' : 'none';
+  const nickInp = document.getElementById('tv-pw-nick');
+  const pwInp   = document.getElementById('tv-pw-input');
+  const seed = document.getElementById('tv-ri-nick').value.trim() || '';
+  nickInp.value = seed;
+  pwInp.value = '';
+  document.getElementById('tv-pw-error').style.display='none';
+  document.getElementById('tv-pw-modal').style.display='flex';
+  setTimeout(() => {
+    (seed || !needsPassword ? nickInp : pwInp).focus();
+    if(seed && !needsPassword) nickInp.select();
+  }, 30);
+};
+window.pwModalClose = function(){
+  document.getElementById('tv-pw-modal').style.display='none';
+  document.getElementById('tv-pw-input').value='';
+  _tvPwCallback=null;
+};
+window.pwModalCancel = function(){ const cb=_tvPwCallback; pwModalClose(); if(cb) cb(null); };
+window.pwModalOk = function(){
+  const nick = document.getElementById('tv-pw-nick').value.trim();
+  const pw   = document.getElementById('tv-pw-input').value;
+  if(!nick){ pwModalShowError('Please enter a nickname.'); return; }
+  const cb=_tvPwCallback;
+  if(cb) cb({ nick, pw });
+};
+window.pwModalShowError = function(msg){
+  const el = document.getElementById('tv-pw-error');
+  el.textContent = msg; el.style.display='block';
+};
+document.addEventListener('keydown', e => {
+  if(document.getElementById('tv-pw-modal').style.display !== 'flex') return;
+  if(e.key === 'Enter'){ e.preventDefault(); pwModalOk(); }
+  else if(e.key === 'Escape'){ e.preventDefault(); pwModalCancel(); }
 });
 
 </script>
