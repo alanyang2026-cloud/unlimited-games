@@ -5,21 +5,22 @@
 <title>Snake</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;overflow:hidden;user-select:none}
-.ui{color:#e2e8f0;margin-bottom:12px;display:flex;gap:24px;font-size:15px;font-weight:600}
-.ui span{color:#a855f7}
+/* Vintage CRT terminal — green-on-black, everything glows softly */
+body{background:#020f04;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Courier New','Menlo',monospace;overflow:hidden;user-select:none;color:#4ade80}
+.ui{color:#86efac;margin-bottom:12px;display:flex;gap:24px;font-size:15px;font-weight:700;letter-spacing:.15em;text-transform:uppercase}
+.ui span{color:#4ade80;text-shadow:0 0 8px rgba(74,222,128,.7)}
 .wrap{position:relative}
-canvas{display:block;border-radius:12px;border:2px solid #1e1e3a}
-.ov{position:absolute;inset:0;background:rgba(7,7,13,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;gap:10px}
-.ov h2{font-size:2rem;color:#a855f7;text-shadow:0 0 20px rgba(168,85,247,.5)}
-.ov p{color:#94a3b8;font-size:14px}
-.ov .big{font-size:18px;color:#e2e8f0}
-.ov .big b{color:#a855f7}
-btn,.btn{background:#a855f7;color:#fff;border:none;padding:10px 30px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;transition:.15s}
-.btn:hover{background:#9333ea;transform:translateY(-1px)}
-.hint{color:#94a3b8;font-size:14px;margin-top:8px}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
-.hbtn:hover{background:rgba(168,85,247,.5)}
+canvas{display:block;border-radius:12px;border:2px solid #14532d;box-shadow:0 0 30px rgba(34,197,94,.15) inset,0 0 20px rgba(34,197,94,.25)}
+.ov{position:absolute;inset:0;background:rgba(2,15,4,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;gap:10px}
+.ov h2{font-size:2rem;color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,.7);letter-spacing:.15em}
+.ov p{color:#86efac;font-size:14px;letter-spacing:.1em}
+.ov .big{font-size:18px;color:#bbf7d0}
+.ov .big b{color:#4ade80;text-shadow:0 0 10px rgba(74,222,128,.6)}
+.btn{background:#166534;color:#dcfce7;border:1px solid #22c55e;padding:10px 30px;border-radius:6px;font-size:14px;font-weight:700;font-family:inherit;letter-spacing:.15em;cursor:pointer;margin-top:6px;transition:.15s;text-transform:uppercase}
+.btn:hover{background:#15803d;box-shadow:0 0 16px rgba(34,197,94,.5);transform:translateY(-1px)}
+.hint{color:#4d7c0f;font-size:13px;margin-top:8px;letter-spacing:.15em;text-transform:uppercase;font-family:inherit}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(2,15,4,.7);color:#86efac;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:inherit;backdrop-filter:blur(8px);border:1px solid rgba(74,222,128,.3);transition:.2s;letter-spacing:.1em}
+.hbtn:hover{background:rgba(21,128,61,.6);color:#dcfce7}
 </style>
 </head>
 <body>
@@ -63,19 +64,19 @@ function tick(){
 }
 
 function draw(){
-  ctx.fillStyle='#07070d';ctx.fillRect(0,0,C.width,C.height);
-  // dots
-  ctx.fillStyle='#0d0d18';
+  ctx.fillStyle='#020f04';ctx.fillRect(0,0,C.width,C.height);
+  // dots — subtle grid pattern
+  ctx.fillStyle='#052e0f';
   for(let x=0;x<W;x++)for(let y=0;y<H;y++){ctx.fillRect(x*SZ+SZ/2-1,y*SZ+SZ/2-1,2,2)}
-  // food
-  ctx.shadowBlur=14;ctx.shadowColor='#f43f5e';ctx.fillStyle='#f43f5e';
+  // food — glowing amber apple
+  ctx.shadowBlur=16;ctx.shadowColor='#fbbf24';ctx.fillStyle='#fbbf24';
   ctx.beginPath();ctx.arc(food.x*SZ+SZ/2,food.y*SZ+SZ/2,SZ/2-2,0,Math.PI*2);ctx.fill();
   ctx.shadowBlur=0;
-  // snake
+  // snake — bright green head, fading trail
   sn.forEach((s,i)=>{
     const t=i/sn.length;
-    ctx.fillStyle=i===0?'#a855f7':`hsl(${270-t*30},65%,${55-t*18}%)`;
-    ctx.shadowBlur=i===0?14:0;ctx.shadowColor='#a855f7';
+    ctx.fillStyle=i===0?'#4ade80':`hsl(${140-t*10},${75-t*20}%,${55-t*20}%)`;
+    ctx.shadowBlur=i===0?18:0;ctx.shadowColor='#22c55e';
     rr(s.x*SZ+1,s.y*SZ+1,SZ-2,SZ-2,4);
     ctx.shadowBlur=0;
   });

@@ -114,20 +114,25 @@ function drawPipe(p){
 }
 
 function drawBg(){
-  // sky gradient
+  // Daytime sky — warm summer afternoon
   const sky=ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#0c0c1e');sky.addColorStop(1,'#0a1628');
+  sky.addColorStop(0,'#5eb1de');sky.addColorStop(0.55,'#a5d8f0');sky.addColorStop(1,'#dff2fb');
   ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
-  // stars
-  ctx.fillStyle='rgba(255,255,255,0.6)';
-  [[40,60],[80,30],[160,80],[240,20],[290,55],[120,40],[200,70]].forEach(([x,y])=>{
-    ctx.beginPath();ctx.arc(x,y,1,0,Math.PI*2);ctx.fill();
+  // Clouds — soft, offset for parallax feel
+  ctx.fillStyle='rgba(255,255,255,0.75)';
+  [[50,70,22],[210,45,18],[130,110,26],[280,90,20]].forEach(([x,y,r])=>{
+    ctx.beginPath();
+    ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.arc(x+r*0.9,y-2,r*0.85,0,Math.PI*2);
+    ctx.arc(x-r*0.8,y-1,r*0.75,0,Math.PI*2);
+    ctx.fill();
   });
-  // ground
-  const g=ctx.createLinearGradient(0,H-30,0,H);
-  g.addColorStop(0,'#854d0e');g.addColorStop(1,'#713f12');
-  ctx.fillStyle=g;ctx.fillRect(0,H-30,W,30);
-  ctx.fillStyle='#a16207';ctx.fillRect(0,H-30,W,5);
+  // Ground — grass on soil
+  ctx.fillStyle='#4d7c0f';ctx.fillRect(0,H-30,W,30);
+  ctx.fillStyle='#65a30d';ctx.fillRect(0,H-30,W,6);
+  // Grass tufts
+  ctx.fillStyle='#84cc16';
+  for(let x=4;x<W;x+=14) ctx.fillRect(x, H-30, 2, 3);
 }
 
 function drawHUD(){
@@ -138,12 +143,14 @@ function drawHUD(){
 
 function drawOverlay(){
   if(state==='ready'){
-    ctx.fillStyle='rgba(7,7,13,.7)';ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='#fbbf24';ctx.font='bold 48px system-ui';ctx.textAlign='center';
-    ctx.shadowBlur=20;ctx.shadowColor='#f59e0b';
-    ctx.fillText('🐦',W/2,H/2-60);ctx.shadowBlur=0;
-    ctx.fillStyle='white';ctx.font='bold 28px system-ui';ctx.fillText('Flappy Bird',W/2,H/2-10);
-    ctx.fillStyle='#94a3b8';ctx.font='16px system-ui';ctx.fillText('Tap / Click / Space to start',W/2,H/2+30);
+    ctx.fillStyle='rgba(30,58,95,.35)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='bold 48px system-ui'; ctx.textAlign='center';
+    ctx.shadowBlur=14; ctx.shadowColor='rgba(0,0,0,.4)';
+    ctx.fillText('🐦',W/2,H/2-60);
+    ctx.font='bold 28px system-ui'; ctx.fillText('Flappy Bird',W/2,H/2-10);
+    ctx.font='16px system-ui'; ctx.fillStyle='#fefce8';
+    ctx.fillText('Tap · Click · Space',W/2,H/2+30);
+    ctx.shadowBlur=0;
   }
   if(state==='dead'){
     ctx.fillStyle='rgba(7,7,13,.8)';ctx.fillRect(0,0,W,H);

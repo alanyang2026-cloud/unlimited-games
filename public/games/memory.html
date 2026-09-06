@@ -5,29 +5,32 @@
 <title>Memory Match</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;user-select:none}
-h1{color:#e879f9;font-size:1.8rem;font-weight:900;text-shadow:0 0 20px rgba(232,121,249,.4);margin-bottom:10px}
+/* Casino card table — green felt background, gold accents, red card backs */
+body{background:radial-gradient(ellipse at center,#0b5a2c 0%,#083d20 60%,#052815 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:'Georgia','Times New Roman',serif;user-select:none;color:#fef3c7}
+h1{color:#fbbf24;font-size:1.8rem;font-weight:900;text-shadow:0 2px 0 #78350f,0 0 20px rgba(251,191,36,.35);margin-bottom:10px;letter-spacing:.05em}
 .top{display:flex;gap:14px;margin-bottom:14px}
-.box{background:#0f0f1a;border:2px solid #1e1e3a;border-radius:10px;padding:8px 18px;text-align:center}
-.box .lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-.box .val{font-size:20px;font-weight:800;color:#e879f9}
+.box{background:rgba(0,0,0,.28);border:1px solid rgba(251,191,36,.35);border-radius:8px;padding:8px 18px;text-align:center;backdrop-filter:blur(4px)}
+.box .lbl{font-size:11px;color:#fde68a;text-transform:uppercase;letter-spacing:.15em}
+.box .val{font-size:20px;font-weight:800;color:#fbbf24;font-family:'Georgia',serif}
 .grid{display:grid;gap:8px}
 .card{width:70px;height:70px;position:relative;cursor:pointer;perspective:600px}
-.card-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .35s cubic-bezier(.4,0,.2,1);border-radius:10px}
+.card-inner{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:transform .35s cubic-bezier(.4,0,.2,1);border-radius:8px;box-shadow:0 3px 6px rgba(0,0,0,.35)}
 .card.flipped .card-inner{transform:rotateY(180deg)}
-.front,.back{position:absolute;inset:0;border-radius:10px;backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
-.front{background:#0f0f1a;border:2px solid #1e1e3a;font-size:28px}
-.back{background:#16162a;border:2px solid #2d2d5a;transform:rotateY(180deg);font-size:32px}
-.card.matched .front{background:#1a0d2e;border-color:#7c3aed;box-shadow:0 0 12px rgba(168,85,247,.3)}
-.card.matched .back{background:#1a0d2e;border-color:#7c3aed;box-shadow:0 0 12px rgba(168,85,247,.3)}
+.front,.back{position:absolute;inset:0;border-radius:8px;backface-visibility:hidden;display:flex;align-items:center;justify-content:center}
+/* Card back — deep crimson with a diagonal stripe pattern (no ?) */
+.front{background:repeating-linear-gradient(45deg,#7f1d1d 0 6px,#991b1b 6px 12px);border:2px solid #fbbf24;font-size:0;color:transparent}
+/* Card face — cream paper with amber border */
+.back{background:linear-gradient(180deg,#fefce8,#fef9c3);border:2px solid #78350f;transform:rotateY(180deg);font-size:32px}
+.card.matched .front,.card.matched .back{border-color:#22c55e;box-shadow:0 0 16px rgba(34,197,94,.45)}
 .card:not(.flipped):not(.matched):hover .card-inner{transform:rotateY(15deg)}
-.btn{background:#a855f7;color:#fff;border:none;padding:10px 28px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;margin-top:12px;transition:.15s}
-.btn:hover{background:#9333ea}
-.win{position:fixed;inset:0;background:rgba(7,7,13,.88);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
-.win h2{font-size:2.5rem;color:#e879f9;text-shadow:0 0 20px rgba(232,121,249,.5)}
-.win p{color:#94a3b8;font-size:16px}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
-.hbtn:hover{background:rgba(168,85,247,.5)}
+.btn{background:linear-gradient(180deg,#fbbf24,#d97706);color:#78350f;border:1px solid #78350f;padding:10px 28px;border-radius:8px;font-weight:900;cursor:pointer;font-size:14px;margin-top:12px;transition:.15s;letter-spacing:.1em;text-transform:uppercase;font-family:inherit;box-shadow:0 3px 0 #78350f}
+.btn:hover{transform:translateY(-1px);box-shadow:0 4px 0 #78350f,0 0 12px rgba(251,191,36,.5)}
+.btn:active{transform:translateY(1px);box-shadow:0 1px 0 #78350f}
+.win{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(11,90,44,.94),rgba(5,40,21,.98));display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.win h2{font-size:2.5rem;color:#fbbf24;text-shadow:0 2px 0 #78350f,0 0 20px rgba(251,191,36,.5)}
+.win p{color:#fde68a;font-size:16px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.55);color:#fde68a;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:'Georgia',serif;backdrop-filter:blur(8px);border:1px solid rgba(251,191,36,.35);transition:.2s}
+.hbtn:hover{background:rgba(120,53,15,.7);color:#fef3c7}
 </style>
 </head>
 <body>
