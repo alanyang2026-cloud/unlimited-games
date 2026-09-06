@@ -5,36 +5,39 @@
 <title>2048</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;user-select:none}
-h1{color:#f59e0b;font-size:2.5rem;font-weight:900;text-shadow:0 0 20px rgba(245,158,11,.4);margin-bottom:8px}
+/* Warm-wood tile puzzle — cream board, natural tile progression */
+body{background:linear-gradient(180deg,#f5e6c8 0%,#e5d3ac 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:'Georgia','Times New Roman',serif;user-select:none;color:#4a3618}
+h1{color:#7c5220;font-size:2.8rem;font-weight:900;letter-spacing:-.02em;margin-bottom:8px;text-shadow:0 1px 0 #f5e6c8}
 .top{display:flex;gap:12px;margin-bottom:14px;align-items:center}
-.sbox{background:#0f0f1a;border:2px solid #1e1e3a;border-radius:10px;padding:8px 18px;text-align:center}
-.sbox .lbl{font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em}
-.sbox .val{font-size:20px;font-weight:800;color:#f59e0b}
-.new-btn{background:#a855f7;color:#fff;border:none;padding:8px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:14px;transition:.15s}
-.new-btn:hover{background:#9333ea}
-#board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#0f0f1a;border:2px solid #1e1e3a;padding:12px;border-radius:14px;width:340px}
-.cell{width:72px;height:72px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;transition:all .1s;background:#16162a}
-.c2{background:#a855f7;color:#fff;font-size:26px}
-.c4{background:#9333ea;color:#fff}
-.c8{background:#7c3aed;color:#fff}
-.c16{background:#6d28d9;color:#fff;font-size:20px}
-.c32{background:#f59e0b;color:#fff;font-size:20px}
-.c64{background:#f97316;color:#fff;font-size:18px}
-.c128{background:#ef4444;color:#fff;font-size:18px}
-.c256{background:#ec4899;color:#fff;font-size:16px}
-.c512{background:#06b6d4;color:#fff;font-size:16px}
-.c1024{background:#10b981;color:#fff;font-size:14px}
-.c2048{background:#fbbf24;color:#fff;font-size:14px;box-shadow:0 0 20px rgba(251,191,36,.5)}
+.sbox{background:#b89968;border:1px solid #8b7048;border-radius:6px;padding:6px 16px;text-align:center;box-shadow:inset 0 -2px 0 rgba(0,0,0,.15)}
+.sbox .lbl{font-size:10px;color:#f5e6c8;text-transform:uppercase;letter-spacing:.15em;font-weight:700}
+.sbox .val{font-size:20px;font-weight:900;color:#fff;font-family:'Georgia',serif}
+.new-btn{background:#7c5220;color:#f5e6c8;border:none;padding:8px 20px;border-radius:6px;font-weight:900;cursor:pointer;font-size:13px;transition:.15s;letter-spacing:.1em;text-transform:uppercase;font-family:inherit;box-shadow:0 2px 0 #4a3618}
+.new-btn:hover{background:#4a3618;transform:translateY(-1px);box-shadow:0 3px 0 #2a1e0e}
+.new-btn:active{transform:translateY(1px);box-shadow:0 1px 0 #4a3618}
+#board{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:#b89968;border:3px solid #8b7048;padding:12px;border-radius:8px;width:340px;box-shadow:0 6px 0 #8b7048,0 8px 20px rgba(0,0,0,.2)}
+.cell{width:72px;height:72px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:32px;transition:all .1s;background:rgba(139,112,72,.35);color:#4a3618;font-family:'Georgia',serif}
+/* Tile progression — warm cream → gold → orange → red → jewel tones */
+.c2   {background:#eee4da;color:#4a3618;font-size:32px}
+.c4   {background:#ede0c8;color:#4a3618;font-size:32px}
+.c8   {background:#f2b179;color:#fff;font-size:32px}
+.c16  {background:#f59563;color:#fff;font-size:28px}
+.c32  {background:#f67c5f;color:#fff;font-size:28px}
+.c64  {background:#f65e3b;color:#fff;font-size:28px}
+.c128 {background:#edcf72;color:#fff;font-size:24px;box-shadow:inset 0 0 12px rgba(255,255,255,.35)}
+.c256 {background:#edcc61;color:#fff;font-size:24px;box-shadow:inset 0 0 14px rgba(255,255,255,.4)}
+.c512 {background:#edc850;color:#fff;font-size:24px;box-shadow:inset 0 0 18px rgba(255,255,255,.45)}
+.c1024{background:#edc53f;color:#fff;font-size:20px;box-shadow:inset 0 0 22px rgba(255,255,255,.5)}
+.c2048{background:#edc22e;color:#fff;font-size:20px;box-shadow:0 0 24px rgba(237,194,46,.7),inset 0 0 24px rgba(255,255,255,.5)}
 .pop{animation:pop .15s ease-out}
 @keyframes pop{0%{transform:scale(.8)}60%{transform:scale(1.1)}100%{transform:scale(1)}}
-.ov{position:fixed;inset:0;background:rgba(7,7,13,.85);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
-.ov h2{font-size:2rem;color:#a855f7}
-.ov p{color:#94a3b8}
-.ov .btn{background:#a855f7;color:#fff;border:none;padding:12px 32px;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer}
-.hint{color:#94a3b8;font-size:14px;margin-top:10px}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
-.hbtn:hover{background:rgba(168,85,247,.5)}
+.ov{position:fixed;inset:0;background:rgba(245,230,200,.94);display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px}
+.ov h2{font-size:2.2rem;color:#7c5220}
+.ov p{color:#4a3618;font-size:15px}
+.ov .btn{background:#7c5220;color:#f5e6c8;border:none;padding:12px 32px;border-radius:6px;font-size:15px;font-weight:900;cursor:pointer;letter-spacing:.15em;text-transform:uppercase;font-family:inherit;box-shadow:0 3px 0 #4a3618}
+.hint{color:#8b7048;font-size:14px;margin-top:10px;font-style:italic}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(74,54,24,.85);color:#f5e6c8;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:'Georgia',serif;backdrop-filter:blur(8px);border:1px solid #8b7048;transition:.2s}
+.hbtn:hover{background:#4a3618}
 </style>
 </head>
 <body>
@@ -49,7 +52,7 @@ h1{color:#f59e0b;font-size:2.5rem;font-weight:900;text-shadow:0 0 20px rgba(245,
 <p class="hint">Arrow keys / WASD · Swipe on mobile</p>
 <div class="ov" id="ov">
   <h2 id="ov-title">Game Over!</h2>
-  <p>Score: <b id="ov-sc" style="color:#a855f7"></b></p>
+  <p>Score: <b id="ov-sc" style="color:#7c5220"></b></p>
   <button class="btn" onclick="init();document.getElementById('ov').style.display='none'">Play Again</button>
 </div>
 <script>

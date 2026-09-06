@@ -5,27 +5,28 @@
 <title>Find the Door</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#05050a;overflow:hidden;font-family:system-ui,sans-serif;color:#e2e8f0;user-select:none;height:100vh}
-canvas{display:block;border-radius:6px;image-rendering:pixelated;image-rendering:crisp-edges}
+/* Damp dungeon — stone-grey walls, torch amber accents, moody */
+body{background:radial-gradient(ellipse at 50% 40%,#3a2818 0%,#1c1310 55%,#0a0605 100%);overflow:hidden;font-family:'Cinzel','Georgia','Times New Roman',serif;color:#d6b58f;user-select:none;height:100vh}
+canvas{display:block;border-radius:4px;image-rendering:pixelated;image-rendering:crisp-edges;box-shadow:0 0 40px rgba(251,146,60,.15)}
 .wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.7);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
-.hbtn:hover{background:rgba(168,85,247,.5)}
-.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,10,.92);backdrop-filter:blur(8px);z-index:50;padding:24px}
-.ov h1{font-size:3.4rem;font-weight:900;letter-spacing:-.02em;background:linear-gradient(135deg,#a855f7,#06b6d4,#22c55e);-webkit-background-clip:text;background-clip:text;color:transparent;margin-bottom:6px;font-family:monospace}
-.ov h2{font-size:1.2rem;color:#94a3b8;margin-bottom:20px;font-weight:500}
-.ov p{color:#94a3b8;font-size:14px;text-align:center;line-height:1.7;max-width:480px;margin-bottom:8px}
-.ks{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px 22px;margin:14px 0 22px;font-size:13px;line-height:1.9;color:#cbd5e1;font-family:monospace}
-.ks b{color:#a855f7}
-.ks i{color:#fbbf24;font-style:normal;display:block;margin-top:6px;font-size:12px}
-.btn{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;padding:13px 36px;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.06em;transition:.15s;box-shadow:0 4px 20px rgba(168,85,247,.35);font-family:monospace}
-.btn:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(168,85,247,.55)}
-.btn.alt{background:#1e1e3a;box-shadow:none;margin-left:8px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(20,15,10,.85);color:#d6b58f;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(214,181,143,.35);transition:.2s;font-family:'Georgia',serif;letter-spacing:.08em}
+.hbtn:hover{background:rgba(120,53,15,.7);color:#fef3c7}
+.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,rgba(58,40,24,.92) 0%,rgba(10,6,5,.96) 70%);backdrop-filter:blur(8px);z-index:50;padding:24px}
+.ov h1{font-size:3.2rem;font-weight:900;letter-spacing:.05em;color:#fbbf24;text-shadow:0 2px 0 #78350f,0 0 30px rgba(251,146,60,.5);margin-bottom:6px;font-family:'Cinzel','Georgia',serif}
+.ov h2{font-size:1.1rem;color:#d6b58f;margin-bottom:20px;font-weight:400;font-style:italic;letter-spacing:.05em}
+.ov p{color:#d6b58f;font-size:14px;text-align:center;line-height:1.7;max-width:480px;margin-bottom:8px}
+.ks{background:rgba(20,15,10,.6);border:1px solid rgba(120,53,15,.55);border-radius:6px;padding:14px 22px;margin:14px 0 22px;font-size:13px;line-height:1.9;color:#e7c9a0;font-family:'Courier New',monospace;box-shadow:inset 0 0 20px rgba(0,0,0,.4)}
+.ks b{color:#fbbf24}
+.ks i{color:#f97316;font-style:normal;display:block;margin-top:6px;font-size:12px}
+.btn{background:linear-gradient(180deg,#b45309,#78350f);color:#fef3c7;border:1px solid #fbbf24;padding:13px 36px;border-radius:6px;font-size:15px;font-weight:700;cursor:pointer;letter-spacing:.1em;transition:.15s;box-shadow:0 3px 0 #451a03,0 6px 20px rgba(180,83,9,.35);font-family:'Cinzel','Georgia',serif;text-transform:uppercase}
+.btn:hover{transform:translateY(-2px);box-shadow:0 5px 0 #451a03,0 10px 28px rgba(251,146,60,.55)}
+.btn.alt{background:linear-gradient(180deg,#292524,#171412);box-shadow:0 3px 0 #0c0906;margin-left:8px;border-color:#57534e;color:#d6b58f}
 .lvl-grid{display:grid;grid-template-columns:repeat(5,56px);gap:8px;margin:14px 0 20px}
-.lvl-btn{background:#1e293b;border:1px solid #334155;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;padding:10px;font-size:14px;transition:.15s;font-family:monospace}
-.lvl-btn:hover{background:#334155;transform:translateY(-1px)}
-.lvl-btn.done{background:linear-gradient(135deg,#22c55e,#16a34a);border-color:#86efac}
+.lvl-btn{background:linear-gradient(180deg,#292524,#171412);border:1px solid #57534e;border-radius:6px;color:#d6b58f;font-weight:700;cursor:pointer;padding:10px;font-size:14px;transition:.15s;font-family:'Cinzel',serif}
+.lvl-btn:hover{background:#3a2818;transform:translateY(-1px);border-color:#78350f}
+.lvl-btn.done{background:linear-gradient(180deg,#65a30d,#4d7c0f);border-color:#a3e635;color:#fff}
 .lvl-btn.locked{opacity:.35;cursor:not-allowed}
-.lvl-btn.current{background:linear-gradient(135deg,#a855f7,#7c3aed);border-color:#c084fc;box-shadow:0 0 16px rgba(168,85,247,.5)}
+.lvl-btn.current{background:linear-gradient(180deg,#f59e0b,#b45309);border-color:#fbbf24;color:#fff;box-shadow:0 0 18px rgba(251,146,60,.6)}
 </style>
 </head>
 <body>

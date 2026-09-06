@@ -6,37 +6,38 @@
 <title>Squishy — Stress Relief</title>
 <style>
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;user-select:none;-webkit-user-select:none}
-  body{display:flex;flex-direction:column;align-items:center;background:radial-gradient(circle at 50% 0%,#1e293b,#0f172a 60%)}
+  /* Soft macaron pastel — cotton-candy pink and lavender, no sharp edges */
+  html,body{margin:0;padding:0;background:linear-gradient(180deg,#fdf2f8 0%,#fce7f3 100%);color:#5b21b6;font-family:'Nunito','Comic Sans MS',system-ui,-apple-system,sans-serif;height:100%;overflow:hidden;user-select:none;-webkit-user-select:none}
+  body{display:flex;flex-direction:column;align-items:center}
 
   /* ── Material picker overlay ───────────────────────────── */
-  .picker{position:fixed;inset:0;background:rgba(15,23,42,.96);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)}
+  .picker{position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,#fce7f3,#f5d0e5 60%,#e9c1e4 100%);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px}
   .picker.hide{display:none}
-  .picker h1{font-size:32px;margin:0 0 6px 0;background:linear-gradient(90deg,#fbbf24,#f0abfc,#7dd3fc);-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:900;letter-spacing:.5px}
-  .picker .sub{color:#94a3b8;margin-bottom:24px;font-size:14px;text-align:center}
+  .picker h1{font-size:34px;margin:0 0 6px 0;color:#c026d3;font-weight:900;letter-spacing:.5px;text-shadow:0 2px 0 #fff}
+  .picker .sub{color:#a855f7;margin-bottom:24px;font-size:14px;text-align:center;font-weight:600}
   .mats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;max-width:640px;width:100%}
-  .matCard{background:#1e293b;border:2px solid #334155;border-radius:16px;padding:16px;cursor:pointer;text-align:center;transition:transform .15s,border-color .15s,box-shadow .15s}
-  .matCard:hover{transform:translateY(-4px);border-color:#fbbf24;box-shadow:0 8px 24px rgba(0,0,0,.4)}
-  .matCard .swatch{width:60px;height:60px;border-radius:50%;margin:0 auto 8px;box-shadow:inset -8px -8px 14px rgba(0,0,0,.2),inset 6px 6px 14px rgba(255,255,255,.3),0 4px 12px rgba(0,0,0,.3)}
-  .matCard .nm{font-weight:800;font-size:15px;color:#f1f5f9}
-  .matCard .dc{font-size:11px;color:#94a3b8;margin-top:4px;line-height:1.3}
+  .matCard{background:#fff;border:2px solid #f5d0e5;border-radius:22px;padding:16px;cursor:pointer;text-align:center;transition:transform .18s,border-color .15s,box-shadow .18s;box-shadow:0 4px 0 #e9c1e4,0 8px 20px rgba(200,120,180,.15)}
+  .matCard:hover{transform:translateY(-4px);border-color:#f0abfc;box-shadow:0 8px 0 #e9c1e4,0 16px 30px rgba(200,120,180,.25)}
+  .matCard .swatch{width:60px;height:60px;border-radius:50%;margin:0 auto 8px;box-shadow:inset -8px -8px 14px rgba(0,0,0,.12),inset 6px 6px 14px rgba(255,255,255,.6),0 4px 12px rgba(200,120,180,.3)}
+  .matCard .nm{font-weight:900;font-size:15px;color:#5b21b6}
+  .matCard .dc{font-size:11px;color:#a78bfa;margin-top:4px;line-height:1.3;font-weight:600}
 
   /* ── Main play area ────────────────────────────────────── */
-  .topbar{width:100%;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:rgba(0,0,0,.3);border-bottom:1px solid #1e293b;font-size:13px;font-weight:600;flex-wrap:wrap}
-  .stat{background:#1e293b;padding:6px 12px;border-radius:8px;display:flex;align-items:center;gap:6px}
-  .stat .v{font-weight:800;font-size:14px;color:#fbbf24}
-  .matLabel{display:flex;align-items:center;gap:8px}
-  .matLabel .sw{width:18px;height:18px;border-radius:50%}
-  .changeBtn{background:#7c3aed;color:white;border:none;padding:7px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:13px;box-shadow:0 3px 0 #5b21b6}
-  .changeBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #5b21b6}
+  .topbar{width:100%;padding:10px 14px;display:flex;gap:10px;align-items:center;justify-content:space-between;background:rgba(255,255,255,.6);border-bottom:1px solid #fbcfe8;font-size:13px;font-weight:700;flex-wrap:wrap;backdrop-filter:blur(6px)}
+  .stat{background:#fff;padding:6px 12px;border-radius:16px;display:flex;align-items:center;gap:6px;color:#7c3aed;box-shadow:0 2px 0 #f5d0e5}
+  .stat .v{font-weight:900;font-size:14px;color:#c026d3}
+  .matLabel{display:flex;align-items:center;gap:8px;color:#7c3aed}
+  .matLabel .sw{width:18px;height:18px;border-radius:50%;box-shadow:inset -3px -3px 4px rgba(0,0,0,.1),inset 2px 2px 4px rgba(255,255,255,.5)}
+  .changeBtn{background:#f0abfc;color:#fff;border:none;padding:7px 16px;border-radius:16px;font-weight:900;cursor:pointer;font-size:13px;box-shadow:0 3px 0 #c026d3;letter-spacing:.05em}
+  .changeBtn:active{transform:translateY(2px);box-shadow:0 1px 0 #c026d3}
 
   .stage{flex:1;width:100%;position:relative;display:flex;align-items:center;justify-content:center;touch-action:none;overflow:hidden}
   canvas{display:block;touch-action:none;cursor:grab}
   canvas.grabbing{cursor:grabbing}
 
-  .hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:12px;color:#64748b;text-align:center;pointer-events:none}
+  .hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:13px;color:#a78bfa;text-align:center;pointer-events:none;font-weight:600}
 
-  .float{position:absolute;font-weight:900;color:#fbbf24;text-shadow:0 2px 4px #000;pointer-events:none;animation:fup 1s ease-out forwards;font-size:18px;z-index:5}
+  .float{position:absolute;font-weight:900;color:#c026d3;text-shadow:0 2px 4px rgba(255,255,255,.8);pointer-events:none;animation:fup 1s ease-out forwards;font-size:20px;z-index:5}
   @keyframes fup{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-50px) scale(1.4);opacity:0}}
 </style>
 </head>
