@@ -601,6 +601,7 @@ addEventListener("keydown", (e) => {
   if (e.code === "KeyM") setMuteIcon(AudioFX.toggleMute());
   if (e.code === "KeyT") toggleTheme();
   if (e.code === "KeyF") toggleFullscreen();
+  if (e.code === "KeyN") Game.giveUp();
   AudioFX.init();
 });
 addEventListener("keyup", (e) => (keys[e.code] = false));
@@ -2134,7 +2135,11 @@ const LEVELS = [
           { x: 884, y: 416 },
           { x: 110, y: 236 },
         ],
-        { fleeDist: 78 }
+        // Larger fleeDist so triggering the flee from the right side
+        // doesn't require pixel-perfect approach — flee kicks in from
+        // ~120 px away, which makes the level solvable without dying
+        // right on top of the pop spikes.
+        { fleeDist: 120 }
       ),
       solids: [floorSeg(0, 250), floorSeg(700, 960), R(40, 300, 210, 16), roof(30), wallL(), wallR()],
       traps: [
@@ -2142,7 +2147,10 @@ const LEVELS = [
         new MovingPlatform(R(280, 452, 100, 16), { toX: 560, speed: 100, pause: 0.35 }),
         new Saw([{ x: 470, y: 150 }, { x: 470, y: 430 }], { r: 22, speed: 190 }),
         new Laser({ x: 610, y: 30, len: 418, vertical: true, period: 1.9, warn: 0.45, fire: 0.4 }),
-        new PopSpikes(806, 480, 66, R(720, 330, 16, 150), { delay: 0.05 }),
+        // Pop-spike delay bumped 0.05s → 0.5s so there's a real reaction
+        // window; you can still eat it, but a careful player can time
+        // the trigger sensor and clear it.
+        new PopSpikes(806, 480, 66, R(720, 330, 16, 150), { delay: 0.5 }),
         new StaticSpikes(250, 540, 450, { dir: "up", size: 44 }),
         new Note(150, 250, "the devil's last laugh"),
       ],
@@ -2193,6 +2201,9 @@ const Game = {
     this.spawnPlayer();
     stains = [];
     particles.length = 0;
+    // Per-level death counter — resets on load, drives the "give up
+    // and skip" prompt below.
+    this.levelDeaths = 0;
     document.getElementById("hud-levelname").textContent = def.name;
     document.getElementById("hud-levelnum").textContent = i + 1;
   },
@@ -2216,6 +2227,7 @@ const Game = {
   die(x, y) {
     if (this.state !== "play") return;
     this.deaths++;
+    this.levelDeaths = (this.levelDeaths || 0) + 1;
     saveProgress();
     updateDeathHud();
     AudioFX.death();
@@ -2225,6 +2237,14 @@ const Game = {
     this.state = "dead";
     this.deathT = 0;
     this.deathLine = DEATH_LINES[Math.floor(Math.random() * DEATH_LINES.length)];
+  },
+  // Bailout — used only when the player has died 15+ times on the
+  // same level and asks to skip. Marks the level done and moves on
+  // (or ends the game if this was the last level). Bound to N.
+  giveUp() {
+    if (this.state === "menu") return;
+    if ((this.levelDeaths || 0) < 15) return;
+    this.winLevel();
   },
 
   winLevel() {
@@ -2434,6 +2454,12 @@ const Game = {
         ctx.textAlign = "center";
         const wob = Math.sin(this.time * 30) * 2 * (1 - this.deathT);
         ctx.fillText(this.deathLine, W / 2 + wob, H / 2 - 30);
+        // After 15 deaths on the same level, offer a way out.
+        if ((this.levelDeaths || 0) >= 15) {
+          ctx.font = `600 18px ${FONT}`;
+          ctx.fillStyle = theme.muted || theme.fg;
+          ctx.fillText("stuck? press N to skip this level", W / 2, H / 2 + 24);
+        }
         ctx.globalAlpha = 1;
       }
 
