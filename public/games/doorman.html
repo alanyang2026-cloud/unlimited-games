@@ -617,33 +617,135 @@ function roundRect(x,y,w,h,r){
 
 // ── Background / atmosphere ────────────────────────────────────
 function drawBg(){
-  // Dark booth interior
-  const grd = ctx.createLinearGradient(0,0,0,H);
-  grd.addColorStop(0,'#08070a');
-  grd.addColorStop(0.5,'#11090c');
-  grd.addColorStop(1,'#050405');
-  ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+  const fl = flicker;
+  const FLOOR_Y = H - 96;
 
-  // Subtle wall texture lines
-  ctx.strokeStyle='rgba(70,40,40,0.04)';
+  // Wall gradient — vintage burgundy → deep charcoal, slightly warmer
+  // now to feel like a lived-in tenement corridor rather than a booth.
+  const grd = ctx.createLinearGradient(0,0,0,FLOOR_Y);
+  grd.addColorStop(0,'#0d0709');
+  grd.addColorStop(0.55,'#1a0d0e');
+  grd.addColorStop(1,'#0a0507');
+  ctx.fillStyle=grd; ctx.fillRect(0,0,W,FLOOR_Y);
+
+  // Faded damask wallpaper — subtle diamond lattice, only just visible
+  ctx.save();
+  ctx.globalAlpha = 0.045;
+  ctx.strokeStyle = '#c8a99a';
+  ctx.lineWidth = 1;
+  const DIAM = 44;
+  for(let y=-DIAM; y<FLOOR_Y+DIAM; y+=DIAM){
+    for(let x=-DIAM; x<W+DIAM; x+=DIAM){
+      ctx.beginPath();
+      ctx.moveTo(x, y+DIAM/2);
+      ctx.lineTo(x+DIAM/2, y);
+      ctx.lineTo(x+DIAM, y+DIAM/2);
+      ctx.lineTo(x+DIAM/2, y+DIAM);
+      ctx.closePath();
+      ctx.stroke();
+      // Little four-petal at each intersection
+      ctx.beginPath();
+      ctx.arc(x+DIAM/2, y+DIAM/2, 3.5, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+
+  // Wall/floor trim (chair rail) around 1/3 down
+  const RAIL_Y = FLOOR_Y - 60;
+  ctx.fillStyle = 'rgba(60,25,20,0.7)';
+  ctx.fillRect(0, RAIL_Y, W, 4);
+  ctx.fillStyle = 'rgba(120,60,45,0.35)';
+  ctx.fillRect(0, RAIL_Y+4, W, 1);
+
+  // Wooden floor — dark planks vanishing toward the door
+  const floorGrd = ctx.createLinearGradient(0,FLOOR_Y,0,H);
+  floorGrd.addColorStop(0,'#1a0d08');
+  floorGrd.addColorStop(1,'#0a0503');
+  ctx.fillStyle=floorGrd; ctx.fillRect(0,FLOOR_Y,W,H-FLOOR_Y);
+  // Plank seams
+  ctx.strokeStyle='rgba(90,50,20,0.4)';
   ctx.lineWidth=1;
-  for(let y=0;y<H;y+=12){
+  const seams=[FLOOR_Y+22, FLOOR_Y+52];
+  for(const y of seams){
     ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
   }
+  // Vertical plank seams (offset per row for a tiled look)
+  for(let x=40; x<W; x+=110){
+    ctx.beginPath(); ctx.moveTo(x, FLOOR_Y); ctx.lineTo(x, FLOOR_Y+22); ctx.stroke();
+  }
+  for(let x=100; x<W; x+=110){
+    ctx.beginPath(); ctx.moveTo(x, FLOOR_Y+22); ctx.lineTo(x, FLOOR_Y+52); ctx.stroke();
+  }
+  for(let x=60; x<W; x+=110){
+    ctx.beginPath(); ctx.moveTo(x, FLOOR_Y+52); ctx.lineTo(x, H); ctx.stroke();
+  }
+  // Skirting board
+  ctx.fillStyle='#2a1810';
+  ctx.fillRect(0, FLOOR_Y-6, W, 6);
+  ctx.fillStyle='rgba(0,0,0,0.6)';
+  ctx.fillRect(0, FLOOR_Y-1, W, 1);
+
+  // Hairline cracks
+  ctx.strokeStyle='rgba(0,0,0,0.35)';
+  ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(680, 40); ctx.lineTo(692, 90); ctx.lineTo(686, 145);
+  ctx.moveTo(60, 320); ctx.lineTo(52, 380); ctx.lineTo(58, 430);
+  ctx.stroke();
+
+  // Ceiling shadow band
+  const cs = ctx.createLinearGradient(0,0,0,90);
+  cs.addColorStop(0,'rgba(0,0,0,0.7)');
+  cs.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=cs; ctx.fillRect(0,0,W,90);
+
+  // Hanging pendant lamp — chain from ceiling to a bulb over the door
+  const LAMP_X = 290, LAMP_Y = 130;
+  ctx.strokeStyle='#1a0d0a';
+  ctx.lineWidth=2;
+  // Chain as tiny ovals
+  for(let cy=0; cy<LAMP_Y-14; cy+=6){
+    ctx.beginPath();
+    ctx.ellipse(LAMP_X, cy, 2, 3, 0, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // Lamp shade (metal cone)
+  ctx.fillStyle='#1c1310';
+  ctx.beginPath();
+  ctx.moveTo(LAMP_X-22, LAMP_Y-14);
+  ctx.lineTo(LAMP_X+22, LAMP_Y-14);
+  ctx.lineTo(LAMP_X+14, LAMP_Y+2);
+  ctx.lineTo(LAMP_X-14, LAMP_Y+2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle='#3d2817';
+  ctx.lineWidth=1;
+  ctx.stroke();
+  // Bulb glow
+  const bulbGrd = ctx.createRadialGradient(LAMP_X, LAMP_Y+6, 2, LAMP_X, LAMP_Y+6, 22);
+  bulbGrd.addColorStop(0, `rgba(254,243,199,${0.9*fl})`);
+  bulbGrd.addColorStop(1, 'rgba(254,243,199,0)');
+  ctx.fillStyle=bulbGrd;
+  ctx.fillRect(LAMP_X-24, LAMP_Y-16, 48, 40);
+  // Bulb
+  ctx.fillStyle=`rgba(254,243,199,${0.85*fl})`;
+  ctx.beginPath();
+  ctx.ellipse(LAMP_X, LAMP_Y+6, 4, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Light cone spilling onto the door area (below the lamp)
+  const lc = ctx.createRadialGradient(LAMP_X, LAMP_Y+4, 20, LAMP_X, LAMP_Y+280, 380);
+  lc.addColorStop(0, `rgba(254,220,150,${0.14*fl})`);
+  lc.addColorStop(0.4, `rgba(254,200,120,${0.05*fl})`);
+  lc.addColorStop(1, 'rgba(254,200,120,0)');
+  ctx.fillStyle=lc; ctx.fillRect(0,0,W,H);
 
   // Vignette
-  const vg = ctx.createRadialGradient(W/2,H/2,W*0.25,W/2,H/2,W*0.75);
+  const vg = ctx.createRadialGradient(W/2,H/2,W*0.25,W/2,H/2,W*0.78);
   vg.addColorStop(0,'rgba(0,0,0,0)');
   vg.addColorStop(1,'rgba(0,0,0,0.85)');
   ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
-
-  // Top "ceiling" with hanging light cone
-  const lc = ctx.createRadialGradient(W/2, -50, 30, W/2, 350, 480);
-  const fl = flicker;
-  lc.addColorStop(0, `rgba(254,243,199,${0.10*fl})`);
-  lc.addColorStop(0.4, `rgba(254,243,199,${0.04*fl})`);
-  lc.addColorStop(1, 'rgba(254,243,199,0)');
-  ctx.fillStyle=lc; ctx.fillRect(0,0,W,H);
 }
 
 function drawGrain(){
@@ -659,38 +761,159 @@ function drawGrain(){
 function drawDoor(){
   // The door itself: a dark panel filling the left side
   const dx=60, dy=70, dw=460, dh=480;
-  // Door panel
-  ctx.fillStyle='#1c1310';
-  roundRect(dx,dy,dw,dh,8); ctx.fill();
-  // Wood grain
-  ctx.strokeStyle='rgba(60,30,20,0.4)';
+
+  // Doormat under the door (drawn first so the door sits on top)
+  ctx.fillStyle='#3d1a10';
+  const matX=dx+30, matY=dy+dh-8, matW=dw-60, matH=22;
+  ctx.fillRect(matX, matY, matW, matH);
+  // Mat weave lines
+  ctx.strokeStyle='rgba(120,60,45,0.5)';
   ctx.lineWidth=1;
-  for(let i=0;i<8;i++){
+  for(let x=matX+6; x<matX+matW; x+=6){
+    ctx.beginPath(); ctx.moveTo(x, matY+3); ctx.lineTo(x, matY+matH-3); ctx.stroke();
+  }
+  ctx.strokeStyle='rgba(200,140,110,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(matX+matW*0.2, matY+matH/2);
+  ctx.lineTo(matX+matW*0.8, matY+matH/2);
+  ctx.stroke();
+
+  // Door frame — thick trim around the panel
+  ctx.fillStyle='#2a1810';
+  roundRect(dx-8, dy-8, dw+16, dh+16, 4); ctx.fill();
+  ctx.fillStyle='rgba(0,0,0,0.7)';
+  ctx.fillRect(dx-8, dy-8, dw+16, 3);        // top trim shadow
+  ctx.fillRect(dx-8, dy-8, 3, dh+16);        // left trim shadow
+
+  // Door panel base color
+  ctx.fillStyle='#1c1310';
+  roundRect(dx,dy,dw,dh,4); ctx.fill();
+
+  // Vertical wood grain (subtle streaks running top-to-bottom)
+  ctx.strokeStyle='rgba(60,30,20,0.35)';
+  ctx.lineWidth=1;
+  for(let x=dx+8; x<dx+dw; x+=18){
     ctx.beginPath();
-    ctx.moveTo(dx, dy+50+i*60);
-    ctx.bezierCurveTo(dx+dw*0.3, dy+50+i*60+8, dx+dw*0.7, dy+50+i*60-6, dx+dw, dy+50+i*60);
+    ctx.moveTo(x, dy+6);
+    ctx.bezierCurveTo(x+3, dy+dh*0.35, x-2, dy+dh*0.7, x+1, dy+dh-6);
     ctx.stroke();
   }
-  // Inner panel border
-  ctx.strokeStyle='rgba(40,20,15,0.8)';
+  // Horizontal wood grain lines for depth
+  ctx.strokeStyle='rgba(60,30,20,0.25)';
+  for(let i=0;i<6;i++){
+    ctx.beginPath();
+    ctx.moveTo(dx+6, dy+60+i*80);
+    ctx.bezierCurveTo(dx+dw*0.3, dy+60+i*80+6, dx+dw*0.7, dy+60+i*80-4, dx+dw-6, dy+60+i*80);
+    ctx.stroke();
+  }
+
+  // Two recessed panels top + bottom (classic six-panel door look)
+  const panelInset = 30;
+  ctx.strokeStyle='rgba(0,0,0,0.65)';
   ctx.lineWidth=2;
-  roundRect(dx+18,dy+18,dw-36,dh-36,4); ctx.stroke();
+  const panels = [
+    [dx+panelInset, dy+panelInset, dw-panelInset*2, 60],
+    [dx+panelInset, dy+dh-panelInset-80, dw-panelInset*2, 80],
+  ];
+  for(const [px,py,pw,phh] of panels){
+    roundRect(px, py, pw, phh, 3); ctx.stroke();
+    // Inner bevel highlight (top-left) and shadow (bot-right)
+    ctx.strokeStyle='rgba(120,70,50,0.15)';
+    ctx.beginPath(); ctx.moveTo(px+2, py+phh-2); ctx.lineTo(px+2, py+2); ctx.lineTo(px+pw-2, py+2); ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.moveTo(px+pw-2, py+2); ctx.lineTo(px+pw-2, py+phh-2); ctx.lineTo(px+2, py+phh-2); ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.65)';
+  }
 
-  // Door knob
-  ctx.fillStyle='#854d0e';
-  ctx.beginPath(); ctx.arc(dx+dw-32, dy+dh/2+40, 9, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#422006'; ctx.lineWidth=1.5; ctx.stroke();
+  // Brass kick plate along the bottom
+  ctx.fillStyle='#8b6914';
+  ctx.fillRect(dx+16, dy+dh-32, dw-32, 18);
+  const kg = ctx.createLinearGradient(0, dy+dh-32, 0, dy+dh-14);
+  kg.addColorStop(0, 'rgba(255,220,150,0.35)');
+  kg.addColorStop(1, 'rgba(60,30,10,0.5)');
+  ctx.fillStyle = kg;
+  ctx.fillRect(dx+16, dy+dh-32, dw-32, 18);
+  ctx.strokeStyle='rgba(40,20,5,0.7)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(dx+16, dy+dh-32, dw-32, 18);
+  // Kick-plate scratches
+  ctx.strokeStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.moveTo(dx+80,  dy+dh-24); ctx.lineTo(dx+120, dy+dh-22);
+  ctx.moveTo(dx+200, dy+dh-20); ctx.lineTo(dx+230, dy+dh-25);
+  ctx.moveTo(dx+dw-90, dy+dh-19); ctx.lineTo(dx+dw-60, dy+dh-23);
+  ctx.stroke();
 
-  // Peephole / window
+  // Brass hinges on the left edge
+  ctx.fillStyle='#8b6914';
+  for(const hy of [dy+40, dy+dh-70]){
+    ctx.fillRect(dx-2, hy, 18, 40);
+    ctx.strokeStyle='rgba(40,20,5,0.8)';
+    ctx.strokeRect(dx-2, hy, 18, 40);
+    // Screw dots
+    ctx.fillStyle='#4a3208';
+    ctx.beginPath(); ctx.arc(dx+7, hy+8, 1.6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(dx+7, hy+32, 1.6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#8b6914';
+  }
+
+  // Mail slot with brass rim
+  const slotY = dy+dh-80;
+  ctx.fillStyle='#000';
+  ctx.fillRect(dx+dw/2-45, slotY, 90, 10);
+  ctx.strokeStyle='#8b6914';
+  ctx.lineWidth=2;
+  ctx.strokeRect(dx+dw/2-45, slotY-1, 90, 12);
+  ctx.fillStyle='#8b6914';
+  ctx.font='bold 7px Courier New';
+  ctx.textAlign='center';
+  ctx.fillText('MAIL', dx+dw/2, slotY-4);
+
+  // Door knob — brass with highlight
+  const knX = dx+dw-32, knY = dy+dh/2+60;
+  ctx.fillStyle='#8b6914';
+  ctx.beginPath(); ctx.arc(knX, knY, 11, 0, Math.PI*2); ctx.fill();
+  const knHi = ctx.createRadialGradient(knX-3, knY-3, 1, knX, knY, 12);
+  knHi.addColorStop(0, 'rgba(255,220,150,0.7)');
+  knHi.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle=knHi;
+  ctx.beginPath(); ctx.arc(knX, knY, 11, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#3d2607'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(knX, knY, 11, 0, Math.PI*2); ctx.stroke();
+  // Keyhole plate
+  ctx.fillStyle='#8b6914';
+  ctx.beginPath(); ctx.ellipse(knX, knY+22, 6, 10, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000';
+  ctx.beginPath(); ctx.arc(knX, knY+19, 2, 0, Math.PI*2); ctx.fill();
+  ctx.fillRect(knX-1, knY+19, 2, 6);
+
+  // Peephole / window — brass rim with rivets
   const pcx = dx+dw/2, pcy = dy+170;
   const pr = 130;
-  // Window frame
+  // Outer brass ring
+  ctx.fillStyle='#8b6914';
+  ctx.beginPath(); ctx.arc(pcx, pcy, pr+14, 0, Math.PI*2); ctx.fill();
+  // Brass gradient rim highlight
+  const ringGrd = ctx.createRadialGradient(pcx-30, pcy-30, 10, pcx, pcy, pr+14);
+  ringGrd.addColorStop(0, 'rgba(255,220,150,0.55)');
+  ringGrd.addColorStop(0.5, 'rgba(0,0,0,0)');
+  ringGrd.addColorStop(1, 'rgba(0,0,0,0.5)');
+  ctx.fillStyle=ringGrd;
+  ctx.beginPath(); ctx.arc(pcx, pcy, pr+14, 0, Math.PI*2); ctx.fill();
+  // Dark bezel
   ctx.fillStyle='#0a0608';
-  ctx.beginPath(); ctx.arc(pcx, pcy, pr+10, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle='#3d2817';
-  ctx.lineWidth=4;
-  ctx.beginPath(); ctx.arc(pcx, pcy, pr+8, 0, Math.PI*2); ctx.stroke();
-  // Inner dark
+  ctx.beginPath(); ctx.arc(pcx, pcy, pr+6, 0, Math.PI*2); ctx.fill();
+  // Rivets around the rim
+  ctx.fillStyle='#3d2607';
+  for(let a=0; a<Math.PI*2; a+=Math.PI/6){
+    const rx = pcx + Math.cos(a)*(pr+10);
+    const ry = pcy + Math.sin(a)*(pr+10);
+    ctx.beginPath(); ctx.arc(rx, ry, 2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,220,150,0.4)';
+    ctx.beginPath(); ctx.arc(rx-0.5, ry-0.5, 1, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='#3d2607';
+  }
+  // Inner dark hole
   ctx.fillStyle='#000';
   ctx.beginPath(); ctx.arc(pcx, pcy, pr, 0, Math.PI*2); ctx.fill();
 
