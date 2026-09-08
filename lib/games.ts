@@ -84,9 +84,9 @@ export const GAMES: Game[] = [
     id: "door-escape",
     title: "Find the Door",
     emoji: "🏃",
-    description: "Tiny stickman, deadly traps, one door per room.",
-    color: "from-indigo-700 to-purple-900",
-    controls: "WASD / Arrows · Space jump · [R] restart",
+    description: "30 hand-crafted trap levels. Reach the door — if you can.",
+    color: "from-amber-700 to-stone-900",
+    controls: "A/D / Arrows · W / Space jump · [R] restart · [T] theme",
   },
   {
     id: "downhill-brawl",

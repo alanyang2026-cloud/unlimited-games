@@ -26,7 +26,7 @@ const GAMES = [
   { id:'snake-battle',    title:'Snake Battle',    emoji:'⚔️', url:'/games/snake-battle.html',   c1:'#7c3aed', c2:'#581c87', live:true, nw:760, nh:540 },
   { id:'arcade-brawl',    title:'Arcade Brawl',    emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true, nw:720, nh:460 },
   { id:'doorman',         title:'Night Watch',     emoji:'🚪', url:'/games/doorman.html',         c1:'#7f1d1d', c2:'#1c1917', nw:1100, nh:660 },
-  { id:'door-escape',     title:'Find Door',       emoji:'🏃', url:'/games/door-escape.html',     c1:'#4338ca', c2:'#581c87', nw:660, nh:500 },
+  { id:'door-escape',     title:'Find Door',       emoji:'🏃', url:'/games/door-escape.html',     c1:'#b45309', c2:'#78350f', nw:960, nh:540 },
   { id:'downhill',        title:'Downhill',        emoji:'🚵', url:'/games/downhill-brawl.html',  c1:'#15803d', c2:'#b45309', nw:720, nh:520 },
   { id:'chess',           title:'Rated Chess',     emoji:'♔', url:'/games/chess.html',            c1:'#d97706', c2:'#292524', nw:900, nh:820 },
   { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:520 },
