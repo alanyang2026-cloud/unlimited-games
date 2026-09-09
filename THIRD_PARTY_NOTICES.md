@@ -5,6 +5,22 @@ projects. Their licenses are reproduced in full below.
 
 ---
 
+## Night Watch (`public/games/doorman.html`) — inspiration only
+
+The passport-style ID card layout takes visual cues from
+**Papers-Please Document Generator** by woodendoors7
+(https://github.com/woodendoors7/PapersPleaseDocumentGenerator,
+GPL-3.0). No code or assets are bundled — only the general
+"official document" aesthetic, which is not copyrightable.
+
+The five-sense visitor report mechanic (sight / hearing / smell /
+touch / temperature) is inspired by **The Gatekeeper's Insight**
+by adamico (https://github.com/adamico/gatekeeper-insight,
+MIT License). No code, assets, or descriptive text are bundled —
+all copy in this game is original.
+
+---
+
 ## Find the Door (`public/games/door-escape.html`)
 
 Adapted from **FableDevil** — a browser rage-platformer by Leonxlnx.
