@@ -94,6 +94,111 @@ const EYECOL=['#3b2f1e','#1e3a8a','#14532d','#7c2d12','#475569'];
 const HSTYLE=['short','long','curly','bald','bun','wave'];
 const MOUTHS=['smile','neutral','frown'];
 
+// ── Sensory report templates ─────────────────────────────────────
+// Every visitor gets a small "sensory report" (peep-hole + door
+// listening) — the doorman's own perception. Real residents pick
+// entries from `.normal`; imposters may swap one line for an
+// entry from `.wrong`, which is a subtle non-visual tell. Adapted
+// from the gatekeeper-insight jam concept (MIT); wording original.
+const SENSES = {
+  sight: {
+    label:'👁 SIGHT', title:'What you glimpse',
+    normal:[
+      "eyes slightly puffy from sleep",
+      "faint stubble along the jaw",
+      "collar buttoned high against the cold",
+      "a small coffee stain on the shirt",
+      "reading glasses tucked into a pocket",
+      "hair slightly damp from the rain",
+      "keys jingling in a loose grip",
+    ],
+    wrong:[
+      "the pupils don't quite catch the light",
+      "a second eyelid flicks — just once",
+      "the shadow on the wall doesn't move in sync",
+      "no reflection in the door's brass fitting",
+    ],
+  },
+  sound: {
+    label:'👂 HEARING', title:'What you hear through the door',
+    normal:[
+      "a normal knock — three taps, even",
+      "shuffled feet on the mat outside",
+      "the elevator dinging one floor down",
+      "keys being fumbled in a coat pocket",
+      "clearing their throat, waiting patiently",
+      "a small sigh — long day",
+    ],
+    wrong:[
+      "the knock lands on the beat between beats",
+      "breathing has a faint whistling harmonic",
+      "no footsteps arriving — they were just… there",
+      "you hear two voices where there should be one",
+    ],
+  },
+  smell: {
+    label:'👃 SMELL', title:'What drifts under the door',
+    normal:[
+      "cold air and cigarette smoke from the stairwell",
+      "cheap laundry detergent",
+      "fried onions from another apartment",
+      "wet wool and city rain",
+      "cheap aftershave, maybe barbershop",
+      "a faint trace of takeout curry",
+    ],
+    wrong:[
+      "a sharp chemical note under the perfume",
+      "old copper — like a coin left in your palm too long",
+      "burnt hair, very faint",
+      "nothing at all — no scent, none",
+    ],
+  },
+  touch: {
+    label:'✋ TOUCH', title:'How the door feels',
+    normal:[
+      "the door hums a little as they lean on it",
+      "one soft press against the frame",
+      "the knob turns a hair — habit, not intent",
+    ],
+    wrong:[
+      "the doorframe is warmer than it should be",
+      "the wood vibrates like something's tapping from the inside",
+      "the knob turns half a degree on its own",
+    ],
+  },
+  temperature: {
+    label:'🌡 TEMPERATURE', title:'The air near the peep-hole',
+    normal:[
+      "regular hallway chill — winter's still here",
+      "warm, like they've just come up the stairs",
+      "cool, but no draft",
+    ],
+    wrong:[
+      "colder than the corridor — noticeably so",
+      "unnaturally hot, like standing near an oven",
+      "the temperature drops the closer you look",
+    ],
+  },
+};
+const SENSE_KEYS = ['sight','sound','smell','touch','temperature'];
+
+function pickSenseLine(senseKey, wrong=false){
+  const s = SENSES[senseKey];
+  const bank = wrong ? s.wrong : s.normal;
+  return { key:senseKey, label:s.label, text: pick(bank), anomalous: !!wrong };
+}
+
+// Roll a sensory report for a visitor. `wrongCount` = number of
+// senses that should read as anomalous (0 for a genuine resident,
+// 1 for a subtle imposter with a sensory tell).
+function rollSenses(wrongCount=0){
+  // Pick 3 senses out of 5 (always includes sight + sound), stable per visitor
+  const keys = ['sight','sound', pick(['smell','touch','temperature'])];
+  const wrongIdx = new Set();
+  while(wrongIdx.size < wrongCount) wrongIdx.add(Math.floor(Math.random()*keys.length));
+  return keys.map((k,i) => pickSenseLine(k, wrongIdx.has(i)));
+}
+
 let DB=[]; // 14 residents
 
 function mkFace(seed){
@@ -156,25 +261,35 @@ function genVisitor(){
   const subtleChance = Math.min(0.7, 0.2 + night*0.1);
 
   if(!isImposter){
-    // Real resident — exact match
+    // Real resident — exact match, clean sensory report
     const r = pick(DB);
     return {
       isImposter: false,
       visibleFace: cloneFace(r.face),
       idPhoto: cloneFace(r.face),
       idName: r.name, idAge: r.age, idApt: r.apt, idRole: r.role, idCard: r.id,
+      senses: rollSenses(0),
       truth: r,
       reason: 'Real resident — everything checks out.',
     };
   }
 
   // Imposter — pick a strategy
-  const strategies = night<=1 ? [0,0,1,3] : night<=2 ? [0,0,1,1,2,3] : [0,1,1,2,2,3,3];
-  // 0 = visible-face glitches (most obvious)
-  // 1 = visible face doesn't match ID photo
-  // 2 = ID info doesn't match DB entry for that name
-  // 3 = name not in DB
+  //   0 = visible-face glitches (most obvious visual tell)
+  //   1 = visible face doesn't match ID photo
+  //   2 = ID info doesn't match DB entry for that name
+  //   3 = name not in DB
+  //   4 = sensory tell (face fine, docs fine — the anomaly is in
+  //       the doorman's sensory report). Only shows up later nights.
+  const strategies = night<=1 ? [0,0,1,3]
+                   : night<=2 ? [0,0,1,1,2,3,4]
+                              : [0,1,1,2,2,3,3,4,4];
   const strat = pick(strategies);
+
+  // Imposters usually have visual/document tells, but may ALSO carry
+  // a sensory anomaly (adds to the pool of possible tells). Strat 4
+  // is sensory-only — face + docs are clean.
+  const bonusSensory = strat!==4 && Math.random() < 0.30;
 
   if(strat===0){
     const r = pick(DB);
@@ -185,6 +300,7 @@ function genVisitor(){
       visibleFace: visFace,
       idPhoto: cloneFace(r.face),
       idName: r.name, idAge: r.age, idApt: r.apt, idRole: r.role, idCard: r.id,
+      senses: rollSenses(bonusSensory ? 1 : 0),
       truth: r, reason: 'IMPOSTER — look at its face.',
     };
   }
@@ -200,6 +316,7 @@ function genVisitor(){
       visibleFace: fakeFace,
       idPhoto: cloneFace(r.face),
       idName: r.name, idAge: r.age, idApt: r.apt, idRole: r.role, idCard: r.id,
+      senses: rollSenses(bonusSensory ? 1 : 0),
       truth: r, reason: 'IMPOSTER — face does not match ID photo.',
     };
   }
@@ -216,25 +333,40 @@ function genVisitor(){
       visibleFace: cloneFace(r.face),
       idPhoto: cloneFace(r.face),
       idName: r.name, idAge: age, idApt: apt, idRole: role, idCard: r.id,
+      senses: rollSenses(bonusSensory ? 1 : 0),
       truth: r, reason: 'IMPOSTER — ID info contradicts the resident book.',
     };
   }
-  // strat 3: name not in DB
-  const fakeName = pick(NAMES);
-  let fullFake = fakeName[0]+' '+fakeName[1];
-  while(DB.some(d=>d.name===fullFake)){
-    fullFake = pick(NAMES).join(' ');
+  if(strat===3){
+    const fakeName = pick(NAMES);
+    let fullFake = fakeName[0]+' '+fakeName[1];
+    while(DB.some(d=>d.name===fullFake)){
+      fullFake = pick(NAMES).join(' ');
+    }
+    const fakeFace = mkFace();
+    // Maybe add subtle creepy
+    if(Math.random()<0.35)fakeFace.glitches=randomGlitches(0.8);
+    return {
+      isImposter:true,
+      visibleFace: fakeFace,
+      idPhoto: cloneFace(fakeFace),
+      idName: fullFake, idAge: rndI(20,70), idApt: rndI(1,9)+pick(['A','B','C','D']),
+      idRole: pick(ROLES), idCard: 'R'+rndI(1000,9999),
+      senses: rollSenses(bonusSensory ? 1 : 0),
+      truth: null, reason: 'IMPOSTER — no such name in the resident book.',
+    };
   }
-  const fakeFace = mkFace();
-  // Maybe add subtle creepy
-  if(Math.random()<0.35)fakeFace.glitches=randomGlitches(0.8);
+  // strat 4 — sensory-only tell. Face and docs perfectly match a
+  // real resident; the only thing wrong is one line of the sensory
+  // report. Hardest to spot; only appears from night 2 on.
+  const r = pick(DB);
   return {
     isImposter:true,
-    visibleFace: fakeFace,
-    idPhoto: cloneFace(fakeFace),
-    idName: fullFake, idAge: rndI(20,70), idApt: rndI(1,9)+pick(['A','B','C','D']),
-    idRole: pick(ROLES), idCard: 'R'+rndI(1000,9999),
-    truth: null, reason: 'IMPOSTER — no such name in the resident book.',
+    visibleFace: cloneFace(r.face),
+    idPhoto: cloneFace(r.face),
+    idName: r.name, idAge: r.age, idApt: r.apt, idRole: r.role, idCard: r.id,
+    senses: rollSenses(1),
+    truth: r, reason: 'IMPOSTER — the senses caught something the eyes missed.',
   };
 }
 
@@ -953,98 +1085,233 @@ function drawDoor(){
 }
 
 // ── ID card ────────────────────────────────────────────────────
+// ── Passport-style ID card + sensory report panel ──────────────
+// Visual style inspired by Papers-Please-family document art
+// (blue leather cover, cream inner page, typewritten labels,
+// circular official stamps, worn edges). All rendering is our own.
 function drawIDCard(){
   const cx=560, cy=80, cw=400, ch=240;
   if(!visitor || phase==='enter')return;
-  // Slot shadow
-  ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.fillRect(cx-2,cy+ch-4,cw+6,8);
-  // Card body
-  const cg = ctx.createLinearGradient(cx,cy,cx,cy+ch);
-  cg.addColorStop(0,'#fef3c7');
-  cg.addColorStop(1,'#fde68a');
-  ctx.fillStyle=cg;
-  roundRect(cx,cy,cw,ch,8); ctx.fill();
-  ctx.strokeStyle='#92400e'; ctx.lineWidth=2;
-  roundRect(cx,cy,cw,ch,8); ctx.stroke();
 
-  // Header bar
-  ctx.fillStyle='#7c2d12';
-  ctx.fillRect(cx, cy, cw, 30);
-  ctx.fillStyle='#fef3c7';
-  ctx.font='bold 13px Courier New';
-  ctx.textAlign='left';
-  ctx.fillText('▌ RESIDENT IDENTIFICATION CARD', cx+10, cy+20);
-  ctx.textAlign='right';
-  ctx.fillText('BLDG 1331', cx+cw-10, cy+20);
+  // Cast shadow under the whole booklet
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(cx+cw/2, cy+ch+8, cw*0.48, 8, 0, 0, Math.PI*2);
+  ctx.fill();
 
-  // Photo box
-  const px=cx+18, py=cy+44, ps=128;
-  ctx.fillStyle='#fff';
-  ctx.fillRect(px,py,ps,ps);
-  ctx.strokeStyle='#92400e'; ctx.lineWidth=1.5;
-  ctx.strokeRect(px,py,ps,ps);
-  // Photo background
-  ctx.fillStyle='#e7e5e4';
-  ctx.fillRect(px+4,py+4,ps-8,ps-8);
-  drawFace(px+ps/2, py+ps/2+10, 1.2, visitor.idPhoto, false);
+  // Booklet body — deep navy "leather" left half + cream page right half
+  // Cover (spine + back visible on the left edge)
+  const spineW = 8;
+  ctx.fillStyle='#0f172a';                 // dark leather
+  roundRect(cx-spineW, cy, spineW+18, ch, 3); ctx.fill();
+  // Little stitching detail on the spine
+  ctx.strokeStyle='rgba(203,213,225,0.35)';
+  ctx.lineWidth=1;
+  ctx.setLineDash([2,4]);
+  ctx.beginPath();
+  ctx.moveTo(cx-spineW+4, cy+8); ctx.lineTo(cx-spineW+4, cy+ch-8);
+  ctx.stroke();
+  ctx.setLineDash([]);
 
-  // Info section
-  const ix = cx+165, iy=cy+50;
-  ctx.fillStyle='#451a03';
-  ctx.font='9px Courier New';
-  ctx.textAlign='left';
-  ctx.fillText('NAME', ix, iy);
-  ctx.fillStyle='#1c1917';
-  ctx.font='bold 16px Courier New';
-  ctx.fillText(visitor.idName, ix, iy+18);
+  // Inner cream page
+  const pg = ctx.createLinearGradient(cx, cy, cx, cy+ch);
+  pg.addColorStop(0, '#f5e9c8');
+  pg.addColorStop(0.5,'#efdea3');
+  pg.addColorStop(1, '#e6cf88');
+  ctx.fillStyle=pg;
+  roundRect(cx+10, cy, cw-10, ch, 2); ctx.fill();
 
-  ctx.fillStyle='#451a03';
-  ctx.font='9px Courier New';
-  ctx.fillText('AGE', ix, iy+42);
-  ctx.fillStyle='#1c1917';
-  ctx.font='bold 14px Courier New';
-  ctx.fillText(visitor.idAge, ix, iy+58);
-
-  ctx.fillStyle='#451a03';
-  ctx.font='9px Courier New';
-  ctx.fillText('APT', ix+90, iy+42);
-  ctx.fillStyle='#1c1917';
-  ctx.font='bold 14px Courier New';
-  ctx.fillText(visitor.idApt, ix+90, iy+58);
-
-  ctx.fillStyle='#451a03';
-  ctx.font='9px Courier New';
-  ctx.fillText('ROLE', ix, iy+82);
-  ctx.fillStyle='#1c1917';
-  ctx.font='bold 14px Courier New';
-  ctx.fillText(visitor.idRole, ix, iy+98);
-
-  ctx.fillStyle='#451a03';
-  ctx.font='9px Courier New';
-  ctx.fillText('ID #', ix, iy+122);
-  ctx.fillStyle='#1c1917';
-  ctx.font='bold 14px Courier New';
-  ctx.fillText(visitor.idCard, ix, iy+138);
-
-  // Stamp / watermark
+  // Paper grain — subtle noise + fiber lines
   ctx.save();
-  ctx.translate(cx+cw-60, cy+ch-30);
-  ctx.rotate(-0.18);
-  ctx.strokeStyle='rgba(124,29,29,0.6)'; ctx.lineWidth=2;
-  ctx.strokeRect(-32,-12,64,24);
-  ctx.fillStyle='rgba(124,29,29,0.6)';
-  ctx.font='bold 11px Courier New';
-  ctx.textAlign='center';
-  ctx.fillText('VERIFIED', 0, 4);
+  ctx.beginPath(); roundRect(cx+10, cy, cw-10, ch, 2); ctx.clip();
+  ctx.globalAlpha=0.06;
+  for(let i=0;i<70;i++){
+    ctx.fillStyle = Math.random()<0.5 ? '#000' : '#fff';
+    ctx.fillRect(cx+10+Math.random()*(cw-10), cy+Math.random()*ch, 1, 1);
+  }
+  ctx.strokeStyle='rgba(120,80,20,0.06)';
+  ctx.lineWidth=1;
+  for(let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.moveTo(cx+10, cy+40+i*50+Math.random()*8);
+    ctx.bezierCurveTo(cx+cw*0.3, cy+40+i*50+6, cx+cw*0.7, cy+40+i*50-4, cx+cw-10, cy+40+i*50);
+    ctx.stroke();
+  }
   ctx.restore();
+
+  // Two rusted staples (holding the passport photo in place)
+  ctx.fillStyle='#71717a';
+  ctx.fillRect(cx+30, cy+42, 12, 3); ctx.fillRect(cx+30, cy+42, 3, 8);
+  ctx.fillRect(cx+30, cy+42, 12, 3); ctx.fillRect(cx+39, cy+42, 3, 8);
+  ctx.fillRect(cx+30, cy+160, 12, 3); ctx.fillRect(cx+30, cy+160, 3, 8);
+  ctx.fillRect(cx+30, cy+160, 12, 3); ctx.fillRect(cx+39, cy+160, 3, 8);
+
+  // Header banner
+  ctx.fillStyle='#7c2d12';
+  ctx.fillRect(cx+10, cy, cw-10, 26);
+  ctx.strokeStyle='#451a03'; ctx.lineWidth=1;
+  ctx.strokeRect(cx+10, cy, cw-10, 26);
+  ctx.fillStyle='#fef3c7';
+  ctx.font='bold 12px Courier New';
+  ctx.textAlign='left';
+  ctx.fillText('▌ RESIDENT PASSPORT · BLDG 1331', cx+18, cy+18);
+  ctx.textAlign='right';
+  ctx.fillText('№ '+visitor.idCard, cx+cw-14, cy+18);
+
+  // Photo box — cream mat with black inner frame and dog-ear corner
+  const px=cx+50, py=cy+42, ps=118;
+  ctx.fillStyle='#0a0a0a';
+  ctx.fillRect(px-3, py-3, ps+6, ps+6);
+  ctx.fillStyle='#f5e9c8';
+  ctx.fillRect(px, py, ps, ps);
+  // Photo backdrop (slightly warm cream)
+  ctx.fillStyle='#e7e0c5';
+  ctx.fillRect(px+3, py+3, ps-6, ps-6);
+  drawFace(px+ps/2, py+ps/2+10, 1.15, visitor.idPhoto, false);
+  // "PHOTO" tiny label under the box
+  ctx.fillStyle='#78350f';
+  ctx.font='7px Courier New';
+  ctx.textAlign='center';
+  ctx.fillText('OFFICIAL PHOTOGRAPH', px+ps/2, py+ps+11);
+
+  // Info section — typewritten rows on ruled underlines
+  const ix = cx+180, iy = cy+38;
+  ctx.textAlign='left';
+
+  // Helper — render a small label + value with a red underline
+  function row(label, value, dx, dy, labW, valW){
+    ctx.fillStyle='#7c2d12';
+    ctx.font='bold 8px Courier New';
+    ctx.fillText(label, ix+dx, iy+dy);
+    ctx.strokeStyle='rgba(124,45,18,0.45)';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(ix+dx, iy+dy+16);
+    ctx.lineTo(ix+dx+labW+valW, iy+dy+16);
+    ctx.stroke();
+    ctx.fillStyle='#1c1917';
+    ctx.font='bold '+(label==='NAME'?14:12)+'px Courier New';
+    ctx.fillText(String(value), ix+dx, iy+dy+14);
+  }
+  row('NAME',   visitor.idName, 0,   0,  30, 180);
+  row('AGE',    visitor.idAge,  0,   36, 26, 40);
+  row('APT',    visitor.idApt,  80,  36, 22, 46);
+  row('ROLE',   visitor.idRole, 0,   72, 30, 80);
+  row('ISSUED', 'BLDG 1331',   0,  108, 44, 130);
+
+  // Circular red official stamp — rotated, worn
+  ctx.save();
+  ctx.translate(cx+cw-58, cy+ch-58);
+  ctx.rotate(-0.22);
+  ctx.globalAlpha=0.72;
+  ctx.strokeStyle='#7c2d12'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(0,0,32,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,26,0,Math.PI*2); ctx.stroke();
+  // Stamp text ring
+  ctx.fillStyle='#7c2d12';
+  ctx.font='bold 6.5px Courier New';
+  ctx.textAlign='center';
+  const ring = 'BUILDING · MANAGEMENT · 1331 · ';
+  for(let i=0;i<ring.length;i++){
+    const a = (i / ring.length) * Math.PI*2 - Math.PI/2;
+    ctx.save();
+    ctx.rotate(a);
+    ctx.fillText(ring[i], 0, -28);
+    ctx.restore();
+  }
+  // Star in the middle
+  ctx.font='bold 22px Courier New';
+  ctx.fillText('★', 0, 8);
+  ctx.restore();
+
+  // Small perforated edge along the right (booklet punch holes)
+  ctx.fillStyle='rgba(0,0,0,0.5)';
+  for(let y=cy+30; y<cy+ch-4; y+=14){
+    ctx.beginPath(); ctx.arc(cx+cw-6, y, 1.6, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Dog-ear folded corner (bottom-right)
+  ctx.fillStyle='#c9b47a';
+  ctx.beginPath();
+  ctx.moveTo(cx+cw-14, cy+ch);
+  ctx.lineTo(cx+cw,    cy+ch-14);
+  ctx.lineTo(cx+cw,    cy+ch);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle='rgba(60,40,10,0.5)';
+  ctx.beginPath();
+  ctx.moveTo(cx+cw-14, cy+ch);
+  ctx.lineTo(cx+cw,    cy+ch-14);
+  ctx.stroke();
+}
+
+// Sensory report panel — sits below the ID card
+function drawSensoryPanel(){
+  if(!visitor || phase==='enter' || !visitor.senses) return;
+  const cx=560, cy=340, cw=400, ch=200;
+  // Panel background — same worn cream stock as the ID
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(cx+cw/2, cy+ch+6, cw*0.46, 6, 0, 0, Math.PI*2); ctx.fill();
+  const pg = ctx.createLinearGradient(cx, cy, cx, cy+ch);
+  pg.addColorStop(0, '#e7dcbd');
+  pg.addColorStop(1, '#d5c39a');
+  ctx.fillStyle=pg;
+  roundRect(cx, cy, cw, ch, 4); ctx.fill();
+  ctx.strokeStyle='#78350f'; ctx.lineWidth=1;
+  roundRect(cx, cy, cw, ch, 4); ctx.stroke();
+  // Header bar
+  ctx.fillStyle='#1e293b';
+  ctx.fillRect(cx, cy, cw, 24);
+  ctx.fillStyle='#fef3c7';
+  ctx.font='bold 11px Courier New';
+  ctx.textAlign='left';
+  ctx.fillText('◆ DOORMAN\'S SENSORY REPORT', cx+10, cy+16);
+  ctx.textAlign='right';
+  ctx.fillText('CLASSIFIED', cx+cw-10, cy+16);
+
+  // Sense rows
+  const rowY = cy+38;
+  const rowH = 52;
+  for(let i=0; i<visitor.senses.length; i++){
+    const s = visitor.senses[i];
+    const y = rowY + i*rowH;
+    // Left icon column
+    ctx.fillStyle='#78350f';
+    ctx.font='bold 12px Courier New';
+    ctx.textAlign='left';
+    ctx.fillText(s.label, cx+12, y+8);
+    // Text — wrap
+    ctx.fillStyle='#1c1917';
+    ctx.font='italic 12px "Courier New"';
+    const maxW = cw - 130;
+    const words = s.text.split(' ');
+    let line='', ly=y+26;
+    for(const w of words){
+      const test = line ? line+' '+w : w;
+      if(ctx.measureText(test).width > maxW && line){
+        ctx.fillText(line, cx+120, ly);
+        line = w; ly += 14;
+      } else { line = test; }
+    }
+    if(line) ctx.fillText(line, cx+120, ly);
+    // Divider
+    if(i < visitor.senses.length-1){
+      ctx.strokeStyle='rgba(120,53,15,0.25)';
+      ctx.beginPath();
+      ctx.moveTo(cx+10, y+rowH-6);
+      ctx.lineTo(cx+cw-10, y+rowH-6);
+      ctx.stroke();
+    }
+  }
 }
 
 // ── Buttons ────────────────────────────────────────────────────
 function drawButtons(){
   if(phase!=='decide')return;
-  // APPROVE
-  const aX=560, aY=355, aW=190, aH=68;
+  // APPROVE — moved down to y=555 so it doesn't cover the new
+  // sensory report panel (y=340-540).
+  const aX=560, aY=555, aW=190, aH=58;
   const aHover = isHover(aX,aY,aW,aH);
   ctx.fillStyle = aHover?'#16a34a':'#15803d';
   roundRect(aX,aY,aW,aH,6); ctx.fill();
@@ -1059,7 +1326,7 @@ function drawButtons(){
   ctx.fillText('Let them in  ·  [A]', aX+aW/2, aY+52);
 
   // REJECT
-  const rX=770, rY=355, rW=190, rH=68;
+  const rX=770, rY=555, rW=190, rH=58;
   const rHover = isHover(rX,rY,rW,rH);
   ctx.fillStyle = rHover?'#dc2626':'#991b1b';
   roundRect(rX,rY,rW,rH,6); ctx.fill();
@@ -1293,6 +1560,7 @@ function loop(){
   drawBg();
   drawDoor();
   drawIDCard();
+  drawSensoryPanel();
   drawButtons();
   drawBook();
   drawHUD();
