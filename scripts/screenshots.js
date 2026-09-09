@@ -19,12 +19,13 @@ const SITE = 'https://unlimitedgames.vercel.app';
 const OUT  = path.join(os.homedir(), 'Desktop', 'UG-screenshots');
 const W = 1280, H = 800;
 
+// 5-shot story: overview → new room feature → visual variety
 const SHOTS = [
   { name: '1-home',         url: SITE + '/',                          wait: 800 },
-  { name: '2-liars-tavern', url: SITE + '/games/liars-tavern.html',   wait: 2000, click: '.title button' },
-  { name: '3-snake-battle', url: SITE + '/games/snake-battle.html',   wait: 1500, click: '.btn.bn' },
-  { name: '4-arcade-brawl', url: SITE + '/games/arcade-brawl.html',   wait: 1500 },
-  { name: '5-chess',        url: SITE + '/games/chess.html',          wait: 1200 },
+  { name: '2-snake-battle-rooms', url: SITE + '/games/snake-battle.html', wait: 1200, click: 'button[onclick="openRoomLobby()"]' },
+  { name: '3-liars-tavern', url: SITE + '/games/liars-tavern.html',   wait: 2500 },
+  { name: '4-memory-casino', url: SITE + '/games/memory.html',        wait: 800 },
+  { name: '5-snake-crt',    url: SITE + '/games/snake.html',          wait: 700, click: '.btn' },
 ];
 
 (async () => {

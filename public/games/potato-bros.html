@@ -365,19 +365,17 @@ function mkPlayer(){
   };
 }
 
-// ─── Sprite helper (PNG-first, emoji fallback) ──────────
-// Drop any PNG into /games/potato-art/{characters,items}/<id>.png and
-// it overrides the emoji wherever the UI renders an icon. Missing PNG
-// just stays as the emoji — no error, no flash.
+// ─── Icon helper — emoji only ─────────────────────────
+// Previously this rendered a PNG on top of the emoji so custom art
+// could be dropped into /games/potato-art/{characters,items}/. We
+// shipped without any PNGs, so every icon was throwing a 404 in
+// the console. Removed the img — pure emoji now. If custom art
+// comes back later, restore the <img src="/games/potato-art/…">
+// tag here with an onerror fallback.
 function iconHtml(kind, id, emoji, size){
   size = size || 48;
   const fs = Math.round(size * 0.78);
-  return `<span style="display:inline-block;position:relative;width:${size}px;height:${size}px;line-height:${size}px;font-size:${fs}px;text-align:center">
-    <img src="/games/potato-art/${kind}/${id}.png" alt=""
-         style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none"
-         onerror="this.style.display='none'">
-    ${emoji}
-  </span>`;
+  return `<span style="display:inline-block;width:${size}px;height:${size}px;line-height:${size}px;font-size:${fs}px;text-align:center">${emoji}</span>`;
 }
 
 // ─── Helpers ─────────────────────────────────────────────
@@ -957,18 +955,11 @@ function drawEnemies(){
   }
 }
 
-// In-game character sprites (PNG body) — loaded lazily, fall back to
-// the procedural potato when missing. Drop a PNG at
-// /games/potato-art/characters/<char_id>.png to override.
+// In-game character sprites — we ship no PNGs, so this stays empty
+// and every draw falls through to the procedural potato. Kept the
+// symbol so downstream `CHAR_SPRITES[c.id]` reads don't break. If
+// we add PNGs later, populate this map before use.
 const CHAR_SPRITES = {};
-(function loadCharSprites(){
-  for(const c of CHARACTERS){
-    const img = new Image();
-    img.onload = () => { CHAR_SPRITES[c.id] = img; };
-    img.onerror = () => {};
-    img.src = '/games/potato-art/characters/' + c.id + '.png';
-  }
-})();
 
 function drawPlayer(){
   const p = state.p;
