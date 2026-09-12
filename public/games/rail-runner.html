@@ -253,7 +253,10 @@ resetState();
 // ── Input ──────────────────────────────────────────────────
 function jump(){
   if(!state.running || state.dead) return;
-  if(state.y <= 0.01 && state.slideT <= 0) state.yVel = 8.5;
+  // Can jump when grounded — either on the tracks or on top of
+  // a train car. State.onTrain locks player's ground floor.
+  const g = state.onTrain ? 1.8 : 0;
+  if(state.y <= g + 0.05 && state.slideT <= 0) state.yVel = 10;
 }
 function slide(){
   if(!state.running || state.dead) return;
@@ -291,24 +294,46 @@ addEventListener('touchend', e => {
 
 // ── Spawners ───────────────────────────────────────────────
 function spawnObstacle(){
-  // Lanes that don't already have a coin train in the incoming
-  // z-range (85 -> 115) — otherwise a fresh obstacle would land
-  // right on top of the coins the player is trying to grab.
   const clear = [0, 1, 2].filter(ln => {
     return !state.coins3D.some(c =>
       c.userData.lane === ln &&
-      c.userData.z > 85 && c.userData.z < 115
+      c.userData.z > 85 && c.userData.z < 130
     );
   });
   if(clear.length === 0) return;
-  // 45% chance to block 2 of the remaining lanes (only if 2+ are clear);
-  // otherwise just one. Never block all three.
+
+  // 15% chance to drop a ramp+train combo in one clear lane (only
+  // if we have at least 2 clear lanes so the player has an out).
+  if(clear.length >= 2 && Math.random() < 0.15){
+    const ln = clear[Math.floor(Math.random()*clear.length)];
+    // Ramp at the front (closer to player z=115)
+    const ramp = buildObstacle('ramp', ln);
+    ramp.userData = { z: 115, lane: ln, kind: 'ramp' };
+    ramp.position.set(LANE_X[ln], 0, 115);
+    scene.add(ramp); state.obstacles.push(ramp);
+    // Train immediately behind the ramp (train center 12u further away)
+    const train = buildObstacle('train', ln);
+    train.userData = { z: 105, lane: ln, kind: 'train' };
+    train.position.set(LANE_X[ln], 0, 105);
+    scene.add(train); state.obstacles.push(train);
+    // Bonus: put a coin trail on top of the train
+    for(let i=0; i<6; i++){
+      const c = new THREE.Mesh(
+        new THREE.TorusGeometry(0.35, 0.13, 8, 20),
+        new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xb45309, emissiveIntensity: 0.7, metalness: 0.6, roughness: 0.3 })
+      );
+      c.rotation.x = Math.PI/2;
+      c.userData = { z: 108 - i*1.6, lane: ln, air: true, taken: false, onTrain: true };
+      c.position.set(LANE_X[ln], 2.4, c.userData.z);
+      scene.add(c); state.coins3D.push(c);
+    }
+    return;
+  }
+
   const takeTwo = clear.length >= 2 && Math.random() < 0.45;
   const blocked = takeTwo ? shuffle(clear).slice(0, 2) : [clear[Math.floor(Math.random()*clear.length)]];
-  // Guarantee at least one lane stays open (the coin lane is one,
-  // plus we cap at length-1 of `clear`).
   if(blocked.length >= clear.length && clear.length >= 2) blocked.pop();
-  const kind = pick(['lo','lo','hi','wall']);
+  const kind = pick(['lo','lo','hi','wall','train']);   // trains occasionally solo too
   for(const ln of blocked){
     const obj = buildObstacle(kind, ln);
     obj.userData = { z: 100, lane: ln, kind };
@@ -398,7 +423,7 @@ function buildObstacle(kind, ln){
         g.add(s);
       }
     }
-  } else {
+  } else if(kind === 'wall'){
     // Wall — change lane
     const wall = new THREE.Mesh(
       new THREE.BoxGeometry(1.8, 3.0, 0.6),
@@ -406,7 +431,6 @@ function buildObstacle(kind, ln){
     );
     wall.position.y = 1.5;
     g.add(wall);
-    // X mark on the front
     const xMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
     for(const rot of [Math.PI/4, -Math.PI/4]){
       const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.02), xMat);
@@ -414,8 +438,120 @@ function buildObstacle(kind, ln){
       bar.rotation.z = rot;
       g.add(bar);
     }
+  } else if(kind === 'train'){
+    // Long subway car — top surface at y=1.8. Player crashes at
+    // ground level; if they get on top (via a jump or ramp) they
+    // can run the length of the car.
+    const car = new THREE.Mesh(
+      new THREE.BoxGeometry(2.0, 1.7, 12),
+      new THREE.MeshLambertMaterial({ color: 0x475569 })
+    );
+    car.position.y = 0.9;
+    g.add(car);
+    // Yellow stripe down each side
+    for(const sx of [-1.02, 1.02]){
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.28, 11.6),
+        new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+      );
+      stripe.position.set(sx, 0.85, 0);
+      g.add(stripe);
+    }
+    // Window band
+    for(const sx of [-1.02, 1.02]){
+      const winBand = new THREE.Mesh(
+        new THREE.BoxGeometry(0.04, 0.55, 11.4),
+        new THREE.MeshBasicMaterial({ color: 0x1e293b })
+      );
+      winBand.position.set(sx, 1.25, 0);
+      g.add(winBand);
+      // Individual window mullions
+      for(let i=-5; i<=5; i++){
+        const m = new THREE.Mesh(
+          new THREE.BoxGeometry(0.05, 0.55, 0.15),
+          new THREE.MeshBasicMaterial({ color: 0x475569 })
+        );
+        m.position.set(sx, 1.25, i*1.1);
+        g.add(m);
+      }
+    }
+    // Roof detail (a rounded ridge in the middle)
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(1.6, 0.15, 11.6),
+      new THREE.MeshLambertMaterial({ color: 0x334155 })
+    );
+    roof.position.y = 1.82;
+    g.add(roof);
+    // Cab window at the front (facing camera)
+    const cabWin = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.5, 0.05),
+      new THREE.MeshBasicMaterial({ color: 0x1e40af })
+    );
+    cabWin.position.set(0, 1.15, 6.01);
+    g.add(cabWin);
+    // Two red brake lights
+    for(const lx of [-0.55, 0.55]){
+      const light = new THREE.Mesh(
+        new THREE.SphereGeometry(0.10, 8, 6),
+        new THREE.MeshBasicMaterial({ color: 0xff2a2a })
+      );
+      light.position.set(lx, 0.55, 6.02);
+      g.add(light);
+    }
+  } else if(kind === 'ramp'){
+    // Wedge ramp — flat top runs from y=1.8 at the front to y=0
+    // at the back over 4 z-units. Player running into it at
+    // ground level auto-climbs to train-top height.
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(4, 0);          // 4u along z (back edge)
+    shape.lineTo(4, 1.8);        // vertical face at the back? no — front
+    shape.lineTo(0, 0);
+    shape.closePath();
+    // Actually simpler: build with a BufferGeometry manually.
+    // We want the FRONT (z=+2) to be tall (y=1.8) and the BACK
+    // (z=-2) to be at ground. Player runs from front to back.
+    const wedge = buildWedge(2.0, 1.8, 4.0);
+    wedge.material = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+    g.add(wedge);
+    // Yellow warning stripes on the sloped face
+    for(let i=-1; i<=1; i++){
+      const s = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.06, 0.02),
+        new THREE.MeshBasicMaterial({ color: 0x1c1917 })
+      );
+      // approximate — attach flat labels near the ramp's front top
+      s.position.set(i*0.55, 1.65, 1.95);
+      g.add(s);
+    }
+    // "RAMP" text is skipped — the shape reads clearly enough
   }
   return g;
+}
+
+// Helper — a triangular prism (wedge) that reads as a ramp
+// going from y=0 at z=-halfZ (back) up to y=height at z=+halfZ (front).
+function buildWedge(halfX, height, len){
+  const halfZ = len / 2;
+  const verts = new Float32Array([
+    // Sloped top (from back-ground to front-top), 2 tris
+    -halfX, 0, -halfZ,     halfX, 0, -halfZ,    halfX, height, halfZ,
+    -halfX, 0, -halfZ,     halfX, height, halfZ, -halfX, height, halfZ,
+    // Bottom
+    -halfX, 0, -halfZ,     -halfX, 0, halfZ,     halfX, 0, halfZ,
+    -halfX, 0, -halfZ,      halfX, 0, halfZ,     halfX, 0, -halfZ,
+    // Front (vertical face at +halfZ, height rectangle)
+    -halfX, 0, halfZ,      -halfX, height, halfZ, halfX, height, halfZ,
+    -halfX, 0, halfZ,       halfX, height, halfZ, halfX, 0, halfZ,
+    // Left triangle
+    -halfX, 0, -halfZ,     -halfX, 0, halfZ,     -halfX, height, halfZ,
+    // Right triangle
+     halfX, 0, -halfZ,      halfX, height, halfZ, halfX, 0, halfZ,
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+  geo.computeVertexNormals();
+  return new THREE.Mesh(geo);
 }
 
 // ── Game start / end ───────────────────────────────────────
@@ -470,10 +606,42 @@ function update(dt){
   state.laneTween += (state.lane - state.laneTween) * Math.min(1, dt * 10);
   playerGroup.position.x = LANE_X[0] + (LANE_X[2] - LANE_X[0]) * (state.laneTween / 2);
 
-  // Vertical physics
+  // Vertical physics — ground floor is normally 0 but a train
+  // or ramp under the player raises it to 1.8.
+  let ground = 0;
+  state.onTrain = false;
+  for(const o of state.obstacles){
+    if(o.userData.lane !== state.lane) continue;
+    const z = o.userData.z, k = o.userData.kind;
+    if(k === 'train'){
+      // Train footprint z in [-6, 6] around its center
+      if(z + 6 >= 0 && z - 6 <= 0){
+        // Only "on top" if we arrived from above (y >= ~1.5) OR
+        // we're already elevated (came off a ramp / another train).
+        if(state.y >= 1.4){ ground = 1.8; state.onTrain = true; }
+      }
+    } else if(k === 'ramp'){
+      // Ramp footprint z in [-2, 2] around its center; it always
+      // lifts us (whether ground or airborne).
+      if(z + 2 >= 0 && z - 2 <= 0){
+        // The wedge's top slopes from y=0 at z=-2 (back) up to
+        // y=1.8 at z=+2 (front). Player at z=0, so:
+        //   local z = 0 - z_ramp   (where along the wedge we are)
+        //   slope-top = ((local z + 2) / 4) * 1.8
+        // localZ interpretation: player enters ramp at its front
+        // (z=+2 → localZ=+2 → top = 1.8) and rides down the slope
+        // as ramp scrolls past (localZ decreases toward -2).
+        const localZ = 0 - z;
+        const slopeTop = Math.max(0, Math.min(1.8, ((localZ + 2) / 4) * 1.8));
+        ground = Math.max(ground, slopeTop);
+        state.onTrain = true;
+      }
+    }
+  }
+
   state.yVel -= 24 * dt;
   state.y += state.yVel * dt;
-  if(state.y < 0){ state.y = 0; state.yVel = 0; }
+  if(state.y < ground){ state.y = ground; state.yVel = 0; }
   playerGroup.position.y = state.y;
 
   // Slide
@@ -537,30 +705,33 @@ function update(dt){
     c.rotation.z += dt * 5;                      // spin
   }
 
-  // Collision — narrow z window centred on the player (was 2.2
-  // units wide, which mis-fired hits during descent from a jump).
-  // Now the check only triggers when the obstacle actually
-  // occupies the player's own slice of the track.
+  // Collision — narrow z window centred on the player.
   for(const o of state.obstacles){
     if(o.userData.hit) continue;
-    const z = o.userData.z;
-    if(z < -0.35 || z > 0.55) continue;
+    const z = o.userData.z, k = o.userData.kind;
+    // Trains use a WIDE window (their full 12u length); ramps use
+    // their own 4u length; other obstacles are point-like.
+    let inRange;
+    if(k === 'train') inRange = (z + 6 >= -0.5 && z - 6 <= 0.5);
+    else if(k === 'ramp') inRange = (z + 2 >= -0.5 && z - 2 <= 0.5);
+    else inRange = (z >= -0.35 && z <= 0.55);
+    if(!inRange) continue;
     if(o.userData.lane !== state.lane) continue;
-    const k = o.userData.kind;
     let hit = true;
     if(k === 'lo'){
-      // Barrier goes up to y=0.8; player clears once feet are
-      // above 0.85. Threshold a little generous to reward the
-      // player who timed the jump.
       if(state.y > 0.85) hit = false;
     } else if(k === 'hi'){
-      // Bar centered at y=1.4 (1.2–1.6). Sliding drops the
-      // player to 0-0.7 — clean under. Standing = head into bar.
       if(state.slideT > 0) hit = false;
+    } else if(k === 'train'){
+      // Crash only if the player is at ground level under the
+      // train. On top (y ~ 1.8) is safe — that's the mechanic.
+      if(state.y >= 1.4) hit = false;
+    } else if(k === 'ramp'){
+      // Ramps never kill; they just lift the player.
+      hit = false;
     }
     // 'wall' has no evasion — must have already switched lane
     if(hit){ o.userData.hit = true; endGame(); return; }
-    // Flash the obstacle green briefly to acknowledge a successful evade
     if(!o.userData.dodged){
       o.userData.dodged = true;
       o.traverse(m => { if(m.material && m.material.color){ m.userData.orig = m.material.color.getHex(); m.material.color.setHex(0x22c55e); } });
