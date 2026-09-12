@@ -254,8 +254,9 @@ resetState();
 function jump(){
   if(!state.running || state.dead) return;
   // Can jump when grounded — either on the tracks or on top of
-  // a train car. State.onTrain locks player's ground floor.
-  const g = state.onTrain ? 1.8 : 0;
+  // a train car. State.onTrain locks player's ground floor to
+  // the train-roof height (2.4).
+  const g = state.onTrain ? 2.4 : 0;
   if(state.y <= g + 0.05 && state.slideT <= 0) state.yVel = 10;
 }
 function slide(){
@@ -316,7 +317,8 @@ function spawnObstacle(){
     train.userData = { z: 105, lane: ln, kind: 'train' };
     train.position.set(LANE_X[ln], 0, 105);
     scene.add(train); state.obstacles.push(train);
-    // Bonus: put a coin trail on top of the train
+    // Bonus: coin trail hovering just above the train's roof —
+    // grabbable only while running on top.
     for(let i=0; i<6; i++){
       const c = new THREE.Mesh(
         new THREE.TorusGeometry(0.35, 0.13, 8, 20),
@@ -324,7 +326,7 @@ function spawnObstacle(){
       );
       c.rotation.x = Math.PI/2;
       c.userData = { z: 108 - i*1.6, lane: ln, air: true, taken: false, onTrain: true };
-      c.position.set(LANE_X[ln], 2.4, c.userData.z);
+      c.position.set(LANE_X[ln], 3.0, c.userData.z);
       scene.add(c); state.coins3D.push(c);
     }
     return;
@@ -439,118 +441,116 @@ function buildObstacle(kind, ln){
       g.add(bar);
     }
   } else if(kind === 'train'){
-    // Long subway car — top surface at y=1.8. Player crashes at
-    // ground level; if they get on top (via a jump or ramp) they
-    // can run the length of the car.
+    // Subway car — top surface at y=2.4 (proper "taller-than-player"
+    // height so a raw jump can't reach the roof; only a ramp gets
+    // you up). 12u long body.
     const car = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0, 1.7, 12),
+      new THREE.BoxGeometry(2.0, 2.4, 12),
       new THREE.MeshLambertMaterial({ color: 0x475569 })
     );
-    car.position.y = 0.9;
+    car.position.y = 1.2;
     g.add(car);
-    // Yellow stripe down each side
+    // Yellow stripe just above the underframe
     for(const sx of [-1.02, 1.02]){
       const stripe = new THREE.Mesh(
         new THREE.BoxGeometry(0.05, 0.28, 11.6),
         new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
       );
-      stripe.position.set(sx, 0.85, 0);
+      stripe.position.set(sx, 0.5, 0);
       g.add(stripe);
     }
-    // Window band
+    // Window band (upper half of car)
     for(const sx of [-1.02, 1.02]){
       const winBand = new THREE.Mesh(
-        new THREE.BoxGeometry(0.04, 0.55, 11.4),
+        new THREE.BoxGeometry(0.04, 0.9, 11.4),
         new THREE.MeshBasicMaterial({ color: 0x1e293b })
       );
-      winBand.position.set(sx, 1.25, 0);
+      winBand.position.set(sx, 1.65, 0);
       g.add(winBand);
       // Individual window mullions
       for(let i=-5; i<=5; i++){
         const m = new THREE.Mesh(
-          new THREE.BoxGeometry(0.05, 0.55, 0.15),
+          new THREE.BoxGeometry(0.05, 0.9, 0.15),
           new THREE.MeshBasicMaterial({ color: 0x475569 })
         );
-        m.position.set(sx, 1.25, i*1.1);
+        m.position.set(sx, 1.65, i*1.1);
         g.add(m);
       }
     }
-    // Roof detail (a rounded ridge in the middle)
+    // Roof ridge
     const roof = new THREE.Mesh(
       new THREE.BoxGeometry(1.6, 0.15, 11.6),
       new THREE.MeshLambertMaterial({ color: 0x334155 })
     );
-    roof.position.y = 1.82;
+    roof.position.y = 2.42;
     g.add(roof);
-    // Cab window at the front (facing camera)
+    // Cab window (front-facing)
     const cabWin = new THREE.Mesh(
-      new THREE.BoxGeometry(1.5, 0.5, 0.05),
+      new THREE.BoxGeometry(1.5, 0.6, 0.05),
       new THREE.MeshBasicMaterial({ color: 0x1e40af })
     );
-    cabWin.position.set(0, 1.15, 6.01);
+    cabWin.position.set(0, 1.7, 6.01);
     g.add(cabWin);
-    // Two red brake lights
+    // Brake / headlights on the front face
     for(const lx of [-0.55, 0.55]){
       const light = new THREE.Mesh(
-        new THREE.SphereGeometry(0.10, 8, 6),
+        new THREE.SphereGeometry(0.12, 8, 6),
         new THREE.MeshBasicMaterial({ color: 0xff2a2a })
       );
-      light.position.set(lx, 0.55, 6.02);
+      light.position.set(lx, 0.75, 6.02);
       g.add(light);
     }
   } else if(kind === 'ramp'){
-    // Wedge ramp — flat top runs from y=1.8 at the front to y=0
-    // at the back over 4 z-units. Player running into it at
-    // ground level auto-climbs to train-top height.
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(4, 0);          // 4u along z (back edge)
-    shape.lineTo(4, 1.8);        // vertical face at the back? no — front
-    shape.lineTo(0, 0);
-    shape.closePath();
-    // Actually simpler: build with a BufferGeometry manually.
-    // We want the FRONT (z=+2) to be tall (y=1.8) and the BACK
-    // (z=-2) to be at ground. Player runs from front to back.
-    const wedge = buildWedge(2.0, 1.8, 4.0);
+    // Wedge ramp — slopes from y=0 at the near-player edge (z=-2)
+    // up to y=2.4 at the far edge (z=+2), matching the train
+    // roof it delivers you to. Player runs up the slope; walking
+    // off the top steps directly onto the following train car.
+    const wedge = buildWedge(1.0, 2.4, 4.0);
     wedge.material = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
     g.add(wedge);
-    // Yellow warning stripes on the sloped face
-    for(let i=-1; i<=1; i++){
+    // Diagonal warning stripes across the sloped face
+    for(let i=-2; i<=2; i++){
       const s = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3, 0.06, 0.02),
+        new THREE.BoxGeometry(0.9, 0.14, 0.05),
         new THREE.MeshBasicMaterial({ color: 0x1c1917 })
       );
-      // approximate — attach flat labels near the ramp's front top
-      s.position.set(i*0.55, 1.65, 1.95);
+      // Position along the slope centerline. Slope midpoint y=1.2
+      // sits at world z=0 (the ramp's center), and each stripe
+      // steps ~0.35u up the slope.
+      const t = i * 0.35;
+      s.position.set(0, 1.2 + t * (2.4/4), t);
+      // Rotate to lie flat on the slope face (tilt around x-axis)
+      s.rotation.x = -Math.atan2(2.4, 4);
       g.add(s);
     }
-    // "RAMP" text is skipped — the shape reads clearly enough
   }
   return g;
 }
 
-// Helper — a triangular prism (wedge) that reads as a ramp
-// going from y=0 at z=-halfZ (back) up to y=height at z=+halfZ (front).
+// Build a wedge that slopes from y=0 at z=-halfZ (near player) up
+// to y=height at z=+halfZ (far side). Uses ExtrudeGeometry so
+// face windings + normals are handled correctly by Three.js.
 function buildWedge(halfX, height, len){
   const halfZ = len / 2;
-  const verts = new Float32Array([
-    // Sloped top (from back-ground to front-top), 2 tris
-    -halfX, 0, -halfZ,     halfX, 0, -halfZ,    halfX, height, halfZ,
-    -halfX, 0, -halfZ,     halfX, height, halfZ, -halfX, height, halfZ,
-    // Bottom
-    -halfX, 0, -halfZ,     -halfX, 0, halfZ,     halfX, 0, halfZ,
-    -halfX, 0, -halfZ,      halfX, 0, halfZ,     halfX, 0, -halfZ,
-    // Front (vertical face at +halfZ, height rectangle)
-    -halfX, 0, halfZ,      -halfX, height, halfZ, halfX, height, halfZ,
-    -halfX, 0, halfZ,       halfX, height, halfZ, halfX, 0, halfZ,
-    // Left triangle
-    -halfX, 0, -halfZ,     -halfX, 0, halfZ,     -halfX, height, halfZ,
-    // Right triangle
-     halfX, 0, -halfZ,      halfX, height, halfZ, halfX, 0, halfZ,
-  ]);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-  geo.computeVertexNormals();
+  // 2D profile in x-y: right triangle with vertical edge on the
+  // +x side. After the -π/2 rotation below, +x becomes +z, so
+  // the tall face ends up at the +z (far) end.
+  const shape = new THREE.Shape();
+  shape.moveTo(-halfZ, 0);
+  shape.lineTo( halfZ, 0);
+  shape.lineTo( halfZ, height);
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: 2 * halfX,
+    bevelEnabled: false,
+  });
+  // Extrude produces the shape in xy plane with depth along +z.
+  // Rotate so shape's x-axis becomes world z, giving us a wedge
+  // whose sloped-up direction runs along +z.
+  geo.rotateY(-Math.PI / 2);
+  // After that rotation, extrude depth (previously in +z) now
+  // spans world x from -2halfX to 0; recenter.
+  geo.translate(halfX, 0, 0);
   return new THREE.Mesh(geo);
 }
 
@@ -606,38 +606,35 @@ function update(dt){
   state.laneTween += (state.lane - state.laneTween) * Math.min(1, dt * 10);
   playerGroup.position.x = LANE_X[0] + (LANE_X[2] - LANE_X[0]) * (state.laneTween / 2);
 
-  // Vertical physics — ground floor is normally 0 but a train
-  // or ramp under the player raises it to 1.8.
+  // Vertical physics — ground is normally 0 but a train or ramp
+  // in the player's lane raises it. Train roof = 2.4, matching
+  // the top of the ramp so the transition is seamless.
+  //
+  // onTrain is STICKY: only a ramp can set it true. Once true it
+  // stays true as long as some train/ramp keeps supporting the
+  // player; it flips back to false when the last of them passes.
+  // This means you can't simply jump on top of a train from the
+  // ground — you have to ride a ramp up first (train roof at 2.4
+  // is a hair above the raw jump peak of ~2.08 anyway).
   let ground = 0;
-  state.onTrain = false;
+  let hasSupport = false;
   for(const o of state.obstacles){
     if(o.userData.lane !== state.lane) continue;
     const z = o.userData.z, k = o.userData.kind;
-    if(k === 'train'){
-      // Train footprint z in [-6, 6] around its center
-      if(z + 6 >= 0 && z - 6 <= 0){
-        // Only "on top" if we arrived from above (y >= ~1.5) OR
-        // we're already elevated (came off a ramp / another train).
-        if(state.y >= 1.4){ ground = 1.8; state.onTrain = true; }
-      }
-    } else if(k === 'ramp'){
-      // Ramp footprint z in [-2, 2] around its center; it always
-      // lifts us (whether ground or airborne).
-      if(z + 2 >= 0 && z - 2 <= 0){
-        // The wedge's top slopes from y=0 at z=-2 (back) up to
-        // y=1.8 at z=+2 (front). Player at z=0, so:
-        //   local z = 0 - z_ramp   (where along the wedge we are)
-        //   slope-top = ((local z + 2) / 4) * 1.8
-        // localZ interpretation: player enters ramp at its front
-        // (z=+2 → localZ=+2 → top = 1.8) and rides down the slope
-        // as ramp scrolls past (localZ decreases toward -2).
-        const localZ = 0 - z;
-        const slopeTop = Math.max(0, Math.min(1.8, ((localZ + 2) / 4) * 1.8));
-        ground = Math.max(ground, slopeTop);
-        state.onTrain = true;
+    if(k === 'ramp' && z + 2 >= 0 && z - 2 <= 0){
+      const localZ = -z;              // player position relative to ramp center
+      const slopeTop = Math.max(0, Math.min(2.4, ((localZ + 2) / 4) * 2.4));
+      ground = Math.max(ground, slopeTop);
+      state.onTrain = true;
+      hasSupport = true;
+    } else if(k === 'train' && z + 6 >= 0 && z - 6 <= 0){
+      if(state.onTrain){
+        ground = Math.max(ground, 2.4);
+        hasSupport = true;
       }
     }
   }
+  if(!hasSupport) state.onTrain = false;
 
   state.yVel -= 24 * dt;
   state.y += state.yVel * dt;
@@ -724,8 +721,8 @@ function update(dt){
       if(state.slideT > 0) hit = false;
     } else if(k === 'train'){
       // Crash only if the player is at ground level under the
-      // train. On top (y ~ 1.8) is safe — that's the mechanic.
-      if(state.y >= 1.4) hit = false;
+      // train. On top (y ≥ 2.0) is safe — that's the mechanic.
+      if(state.y >= 2.0) hit = false;
     } else if(k === 'ramp'){
       // Ramps never kill; they just lift the player.
       hit = false;
