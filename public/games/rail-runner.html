@@ -5,556 +5,558 @@
 <title>Rail Runner</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{background:#0a0612;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,-apple-system,sans-serif;user-select:none;overflow:hidden;color:#e2e8f0}
-canvas{display:block;border-radius:12px;border:2px solid #312e81;box-shadow:0 0 30px rgba(139,92,246,.25) inset,0 0 20px rgba(139,92,246,.2)}
-.hint{color:#94a3b8;font-size:14px;margin-top:10px;letter-spacing:.05em}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+html,body{height:100%;overflow:hidden;background:#0a0612;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;user-select:none}
+body{position:relative}
+canvas#c{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.hbtn{position:fixed;top:10px;left:10px;z-index:20;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.14);pointer-events:auto}
 .hbtn:hover{background:rgba(139,92,246,.5)}
+#dist{position:absolute;top:12px;left:12px;font:900 26px system-ui;color:#fef3c7;text-shadow:0 2px 8px rgba(0,0,0,.7)}
+#dist small{display:block;font:600 11px system-ui;color:#c7d2fe;letter-spacing:.15em;margin-top:2px}
+#coins{position:absolute;top:12px;right:14px;font:900 22px system-ui;color:#fbbf24;text-shadow:0 2px 8px rgba(0,0,0,.7)}
+#speedbar{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);width:200px;height:6px;background:rgba(0,0,0,0.4);border-radius:4px;overflow:hidden;border:1px solid rgba(139,92,246,.4)}
+#speedfill{height:100%;width:0%;background:linear-gradient(90deg,#22d3ee,#a855f7,#ec4899);transition:width .2s}
+.overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(30,27,75,.7),rgba(10,6,18,.92));backdrop-filter:blur(6px);z-index:10;pointer-events:auto}
+.overlay h1{font:900 clamp(40px,7vw,64px) system-ui;background:linear-gradient(90deg,#22d3ee,#a855f7,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 30px rgba(139,92,246,.4);letter-spacing:.02em;margin-bottom:8px}
+.overlay h2{font:900 36px system-ui;color:#f43f5e;text-shadow:0 0 20px rgba(244,63,94,.5);margin-bottom:10px}
+.overlay p{color:#cbd5e1;font-size:14px;margin-bottom:6px;letter-spacing:.05em;text-align:center}
+.overlay .stat{color:#fbbf24;font:900 24px system-ui;margin:6px 0}
+.overlay button{margin-top:16px;padding:12px 30px;font:900 15px system-ui;letter-spacing:.15em;text-transform:uppercase;background:linear-gradient(135deg,#a855f7,#ec4899);color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 6px 20px rgba(168,85,247,.45);transition:.15s}
+.overlay button:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(168,85,247,.6)}
+.hidden{display:none!important}
+.hint{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);font-size:12px;color:#94a3b8;letter-spacing:.1em}
 </style>
 </head>
 <body>
 <a href="/" class="hbtn">← Games</a>
 <canvas id="c"></canvas>
-<p class="hint">← → change lane · SPACE jump · ↓ slide</p>
+
+<div id="hud">
+  <div id="dist">0m<small>DISTANCE</small></div>
+  <div id="coins">◉ 0</div>
+  <div id="speedbar"><div id="speedfill"></div></div>
+</div>
+
+<div class="overlay" id="ov-title">
+  <h1>RAIL RUNNER</h1>
+  <p>Left / Right — swap lane · Space — jump · Down — slide</p>
+  <p style="color:#94a3b8">Obstacles come fast. React faster.</p>
+  <button onclick="startGame()">▶ RUN</button>
+  <p class="hint">Tap or swipe on mobile</p>
+</div>
+
+<div class="overlay hidden" id="ov-end">
+  <h2>💥 WIPEOUT</h2>
+  <div class="stat"><span id="end-dist">0</span>m · <span id="end-coins">0</span> coins</div>
+  <p>BEST: <span id="end-best">0</span>m</p>
+  <button onclick="startGame()">🔁 RUN AGAIN</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-const C = document.getElementById('c'), ctx = C.getContext('2d');
-C.width = 800; C.height = 600;
-const W = C.width, H = C.height;
+// ═════════════════════════════════════════════════════════════
+//   RAIL RUNNER — 3D endless-lane runner (Three.js)
+//   100% original: mechanics only. No third-party art or code
+//   from any commercial runner game.
+// ═════════════════════════════════════════════════════════════
 
-// ── Constants ────────────────────────────────────────────────
-const HORIZON_Y = H * 0.30;
-const GROUND_Y  = H - 90;
-const LANE_OFFSET = 130;               // half-distance between two adjacent lanes at ground
-const LANE_X = [W/2 - LANE_OFFSET, W/2, W/2 + LANE_OFFSET];
-const Z_MAX = 1;                        // depth values run 0 (horizon) → 1 (at player)
-const START_SPEED = 0.55;               // depth units per second
-const MAX_SPEED   = 1.30;
-const SPEED_RAMP  = 0.0025;             // per meter
-const JUMP_DUR    = 0.65;
-const SLIDE_DUR   = 0.55;
+const cv = document.getElementById('c');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1e1b4b);
+scene.fog = new THREE.Fog(0x4c1d95, 22, 90);
 
-// ── State ────────────────────────────────────────────────────
-let state, best = +(localStorage.getItem('rr_best') || 0);
+const camera = new THREE.PerspectiveCamera(68, innerWidth/innerHeight, 0.1, 300);
+camera.position.set(0, 4.5, -8);
+camera.lookAt(0, 1.5, 8);
 
-function reset(){
-  state = {
-    lane: 1,                            // 0 left, 1 center, 2 right
-    laneTween: 1,                       // smoothly tweens toward `lane`
-    y: 0,                               // 0 = ground, -1 = peak of jump
-    slide: 0,                           // 0 = normal, 1 = sliding
-    jumpT: 0, slideT: 0,
-    speed: START_SPEED,
-    distance: 0,                        // metres
-    coins: 0,
-    stars: [],
-    obstacles: [],
-    coinsArr: [],
-    tick: 0,
-    spawnT: 0, coinT: 0,
-    running: false, dead: false,
-    shake: 0,
-  };
-  // Starry sky
-  for(let i=0; i<80; i++){
-    state.stars.push({
-      x: Math.random()*W,
-      y: Math.random()*HORIZON_Y,
-      r: Math.random()*1.4 + 0.3,
-      tw: Math.random()*Math.PI*2,
-    });
+const renderer = new THREE.WebGLRenderer({ antialias: true, canvas: cv });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ── Lighting ────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x8899cc, 0.6));
+const sun = new THREE.DirectionalLight(0xfef3c7, 0.9);
+sun.position.set(6, 12, 4);
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0xec4899, 0.4);
+rim.position.set(-6, 4, -2);
+scene.add(rim);
+
+// ── Ground (long dark strip) ────────────────────────────────
+const GROUND_LEN = 200;
+const groundMat = new THREE.MeshLambertMaterial({ color: 0x0a0612 });
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(20, GROUND_LEN), groundMat);
+ground.rotation.x = -Math.PI/2;
+ground.position.z = GROUND_LEN/2 - 10;
+scene.add(ground);
+
+// ── Rails — silver strips down each side of the track ──────
+const railMat = new THREE.MeshStandardMaterial({ color: 0xc0c0d0, metalness: 0.75, roughness: 0.35 });
+for(const rx of [-4, 4]){
+  const rail = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, GROUND_LEN), railMat);
+  rail.position.set(rx, 0.08, GROUND_LEN/2 - 10);
+  scene.add(rail);
+}
+
+// ── Wooden sleepers scrolling toward camera ────────────────
+const sleeperMat = new THREE.MeshLambertMaterial({ color: 0x3a1d0a });
+const sleepers = [];
+for(let i = 0; i < 30; i++){
+  const s = new THREE.Mesh(new THREE.BoxGeometry(9, 0.15, 0.7), sleeperMat);
+  s.position.set(0, 0.06, i * 6);
+  scene.add(s);
+  sleepers.push(s);
+}
+
+// ── Lane dividers (glowing yellow segments) ────────────────
+const dividerMat = new THREE.MeshStandardMaterial({
+  color: 0xfbbf24, emissive: 0x92400e, emissiveIntensity: 1.2,
+});
+const dividers = [];
+for(let lane of [-1.35, 1.35]){
+  for(let i = 0; i < 40; i++){
+    const d = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 1.5), dividerMat);
+    d.position.set(lane, 0.05, i * 5);
+    scene.add(d);
+    dividers.push(d);
   }
 }
-reset();
 
-// ── Input ─────────────────────────────────────────────────────
-function moveLeft(){  if(!state.running || state.dead) return; if(state.lane>0) state.lane--; }
-function moveRight(){ if(!state.running || state.dead) return; if(state.lane<2) state.lane++; }
+// ── Distant city (parallax silhouettes) ────────────────────
+const cityGroup = new THREE.Group();
+scene.add(cityGroup);
+for(let i = 0; i < 40; i++){
+  const w = 1.5 + Math.random() * 3;
+  const h = 3 + Math.random() * 10;
+  const bldg = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, 1),
+    new THREE.MeshLambertMaterial({ color: 0x1a0d24 })
+  );
+  const side = Math.random() < 0.5 ? -1 : 1;
+  bldg.position.set(side * (10 + Math.random() * 22), h/2 - 0.5, 10 + Math.random() * 70);
+  cityGroup.add(bldg);
+  // Random lit window on each side
+  if(Math.random() < 0.7){
+    const win = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.35, 0.35),
+      new THREE.MeshBasicMaterial({ color: 0xfbbf24 })
+    );
+    win.position.set(bldg.position.x - side * 0.51, bldg.position.y + (Math.random()-0.5)*h*0.5, bldg.position.z);
+    win.rotation.y = -side * Math.PI/2;
+    cityGroup.add(win);
+  }
+}
+
+// ── Streetlights whipping past ─────────────────────────────
+const lightPosts = [];
+const postMat = new THREE.MeshLambertMaterial({ color: 0x111827 });
+const lampMat = new THREE.MeshStandardMaterial({
+  color: 0xfef3c7, emissive: 0xfef3c7, emissiveIntensity: 1.4,
+});
+for(let i = 0; i < 12; i++){
+  const post = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.10, 5, 6), postMat);
+  pole.position.y = 2.5;
+  post.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.08, 0.08), postMat);
+  arm.position.set(-0.6, 4.8, 0);
+  post.add(arm);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), lampMat);
+  lamp.position.set(-1.1, 4.7, 0);
+  post.add(lamp);
+  post.position.set(6.2, 0, i * 16);
+  scene.add(post);
+  lightPosts.push(post);
+  // Mirrored on the other side
+  const post2 = post.clone();
+  post2.position.x = -6.2;
+  post2.rotation.y = Math.PI;
+  scene.add(post2);
+  lightPosts.push(post2);
+}
+
+// ── Sky stars ──────────────────────────────────────────────
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(400 * 3);
+for(let i = 0; i < 400; i++){
+  starPos[i*3+0] = (Math.random() - 0.5) * 300;
+  starPos[i*3+1] = 20 + Math.random() * 80;
+  starPos[i*3+2] = 30 + Math.random() * 200;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+  color: 0xfefce8, size: 0.4, sizeAttenuation: true,
+}));
+scene.add(stars);
+
+// ── Player ─────────────────────────────────────────────────
+const playerGroup = new THREE.Group();
+scene.add(playerGroup);
+const bodyMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.6), bodyMat);
+body.position.y = 0.7;
+playerGroup.add(body);
+const head = new THREE.Mesh(
+  new THREE.SphereGeometry(0.4, 12, 10),
+  new THREE.MeshLambertMaterial({ color: 0xf5d0a4 })
+);
+head.position.y = 1.75;
+playerGroup.add(head);
+const cap = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.42, 0.42, 0.15, 12),
+  new THREE.MeshLambertMaterial({ color: 0xf43f5e })
+);
+cap.position.y = 2.05;
+playerGroup.add(cap);
+// Legs
+const legMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a });
+const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.35), legMat);
+const legR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.35), legMat);
+legL.position.set(-0.24, 0.3, 0);
+legR.position.set(0.24, 0.3, 0);
+playerGroup.add(legL); playerGroup.add(legR);
+// Arms
+const armMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+const armL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.3), armMat);
+const armR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.3), armMat);
+armL.position.set(-0.6, 0.9, 0);
+armR.position.set(0.6, 0.9, 0);
+playerGroup.add(armL); playerGroup.add(armR);
+
+playerGroup.position.set(0, 0, 0);
+
+// ── State ──────────────────────────────────────────────────
+const LANE_X = [-2.7, 0, 2.7];
+let state, best = +(localStorage.getItem('rr3d_best') || 0);
+function resetState(){
+  state = {
+    lane: 1, laneTween: 1,
+    yVel: 0, y: 0,
+    slideT: 0,
+    speed: 20,           // world units per second toward camera
+    distance: 0,
+    coins: 0,
+    spawnT: 0.5, coinT: 1.0,
+    obstacles: [], coins3D: [],
+    running: false, dead: false,
+    tick: 0, shake: 0,
+  };
+}
+resetState();
+
+// ── Input ──────────────────────────────────────────────────
 function jump(){
   if(!state.running || state.dead) return;
-  if(state.y === 0 && state.slide === 0){ state.jumpT = JUMP_DUR; }
+  if(state.y <= 0.01 && state.slideT <= 0) state.yVel = 8.5;
 }
 function slide(){
   if(!state.running || state.dead) return;
-  if(state.slide === 0 && state.y === 0){ state.slideT = SLIDE_DUR; }
+  if(state.slideT <= 0 && state.y <= 0.01) state.slideT = 0.55;
 }
-
 addEventListener('keydown', e => {
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
-  if(!state.running){
-    if(e.key===' ' || e.key==='Enter'){ start(); return; }
-  } else if(state.dead){
-    if(e.key===' ' || e.key==='Enter'){ reset(); start(); return; }
+  if(!state.running || state.dead){
+    if(e.key===' ' || e.key==='Enter') startGame();
+    return;
   }
-  if(e.key === 'ArrowLeft'  || e.code === 'KeyA') moveLeft();
-  if(e.key === 'ArrowRight' || e.code === 'KeyD') moveRight();
-  if(e.key === 'ArrowUp'    || e.key === ' ' || e.code === 'KeyW') jump();
-  if(e.key === 'ArrowDown'  || e.code === 'KeyS') slide();
+  if(e.key==='ArrowLeft'  || e.code==='KeyA'){ if(state.lane>0) state.lane--; }
+  if(e.key==='ArrowRight' || e.code==='KeyD'){ if(state.lane<2) state.lane++; }
+  if(e.key==='ArrowUp'    || e.key===' ' || e.code==='KeyW') jump();
+  if(e.key==='ArrowDown'  || e.code==='KeyS') slide();
 });
-
-// Basic swipe support (mobile / trackpad)
-let touchX = null, touchY = null;
+// Touch swipe
+let tx=null, ty=null;
 addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  touchX = t.clientX; touchY = t.clientY;
-  if(!state.running){ start(); }
-  else if(state.dead){ reset(); start(); }
+  const t = e.touches[0]; tx=t.clientX; ty=t.clientY;
+  if(!state.running || state.dead){ startGame(); }
 });
 addEventListener('touchend', e => {
-  if(touchX==null) return;
+  if(tx==null) return;
   const t = e.changedTouches[0];
-  const dx = t.clientX - touchX, dy = t.clientY - touchY;
-  touchX = touchY = null;
+  const dx = t.clientX-tx, dy = t.clientY-ty;
+  tx=ty=null;
   if(Math.abs(dx) > Math.abs(dy)){
-    if(dx > 30) moveRight();
-    else if(dx < -30) moveLeft();
+    if(dx > 30 && state.lane<2) state.lane++;
+    else if(dx < -30 && state.lane>0) state.lane--;
   } else {
-    if(dy < -30) jump();
-    else if(dy > 30) slide();
+    if(dy < -30) jump(); else if(dy > 30) slide();
   }
 });
 
-function start(){ state.running = true; state.dead = false; }
-
-// ── Spawner ───────────────────────────────────────────────────
-// Types: 'lo' (jump over), 'hi' (slide under), 'wall' (change lane)
+// ── Spawners ───────────────────────────────────────────────
 function spawnObstacle(){
-  const lanes = [0,1,2];
-  // 40% chance to block two lanes at once (still passable via the third)
-  const blocked = Math.random() < 0.4 ? shuffle(lanes).slice(0,2) : [pick(lanes)];
-  const kind = pick(['lo','hi','lo','wall']);      // walls a bit rarer
+  const lanes = [0, 1, 2];
+  // 45% chance to block 2 of 3 lanes; single lane 55%
+  const blocked = Math.random() < 0.45 ? shuffle(lanes).slice(0, 2) : [lanes[Math.floor(Math.random()*3)]];
+  const kind = pick(['lo','lo','hi','wall']);
   for(const ln of blocked){
-    state.obstacles.push({ z: 0, lane: ln, kind });
+    const obj = buildObstacle(kind, ln);
+    obj.userData = { z: 100, lane: ln, kind };
+    obj.position.set(LANE_X[ln], 0, 100);
+    scene.add(obj);
+    state.obstacles.push(obj);
   }
 }
-function spawnCoin(){
+function spawnCoinRun(){
   const ln = Math.floor(Math.random()*3);
-  const airborne = Math.random() < 0.35;
-  const count = 1 + Math.floor(Math.random()*3);
+  const air = Math.random() < 0.35;
+  const count = 3 + Math.floor(Math.random()*4);
   for(let i=0; i<count; i++){
-    state.coinsArr.push({ z: -i*0.10, lane: ln, airborne });
+    const c = new THREE.Mesh(
+      new THREE.TorusGeometry(0.35, 0.13, 8, 20),
+      new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xb45309, emissiveIntensity: 0.7, metalness: 0.6, roughness: 0.3 })
+    );
+    c.rotation.x = Math.PI/2;
+    c.userData = { z: 100 + i*2, lane: ln, air, taken: false };
+    c.position.set(LANE_X[ln], air ? 2.4 : 1.0, c.userData.z);
+    scene.add(c);
+    state.coins3D.push(c);
   }
 }
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
 
-// ── Update ────────────────────────────────────────────────────
+function buildObstacle(kind, ln){
+  const g = new THREE.Group();
+  if(kind === 'lo'){
+    // Low striped barrier — jump over
+    const box = new THREE.Mesh(
+      new THREE.BoxGeometry(1.7, 0.8, 0.6),
+      new THREE.MeshLambertMaterial({ color: 0xf59e0b })
+    );
+    box.position.y = 0.4;
+    g.add(box);
+    // Diagonal stripes on the front
+    for(let i=-2; i<=2; i++){
+      const s = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.75, 0.02),
+        new THREE.MeshBasicMaterial({ color: 0x1c1917 })
+      );
+      s.position.set(i*0.35, 0.4, -0.31);
+      s.rotation.z = Math.PI/6;
+      g.add(s);
+    }
+  } else if(kind === 'hi'){
+    // Overhead bar — slide under
+    const bar = new THREE.Mesh(
+      new THREE.BoxGeometry(2.4, 0.3, 0.4),
+      new THREE.MeshLambertMaterial({ color: 0xdc2626 })
+    );
+    bar.position.y = 2.8;
+    g.add(bar);
+    for(const px of [-1.15, 1.15]){
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.08, 3.0, 6),
+        new THREE.MeshLambertMaterial({ color: 0x94a3b8 })
+      );
+      post.position.set(px, 1.5, 0);
+      g.add(post);
+    }
+    // Warning stripes
+    for(let i=-3; i<=3; i++){
+      if(i%2){
+        const s = new THREE.Mesh(
+          new THREE.BoxGeometry(0.3, 0.32, 0.02),
+          new THREE.MeshBasicMaterial({ color: 0xfef3c7 })
+        );
+        s.position.set(i*0.35, 2.8, -0.21);
+        g.add(s);
+      }
+    }
+  } else {
+    // Wall — change lane
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(1.8, 3.0, 0.6),
+      new THREE.MeshLambertMaterial({ color: 0x374151 })
+    );
+    wall.position.y = 1.5;
+    g.add(wall);
+    // X mark on the front
+    const xMat = new THREE.MeshBasicMaterial({ color: 0xf43f5e });
+    for(const rot of [Math.PI/4, -Math.PI/4]){
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.2, 0.02), xMat);
+      bar.position.set(0, 1.5, -0.32);
+      bar.rotation.z = rot;
+      g.add(bar);
+    }
+  }
+  return g;
+}
+
+// ── Game start / end ───────────────────────────────────────
+function startGame(){
+  resetState();
+  // Purge any old obstacles/coins from a previous run
+  for(const o of scene.children.slice()){
+    if(o.userData && (o.userData.kind || o.userData.air !== undefined)){
+      scene.remove(o);
+    }
+  }
+  state.running = true;
+  document.getElementById('ov-title').classList.add('hidden');
+  document.getElementById('ov-end').classList.add('hidden');
+}
+window.startGame = startGame;
+function endGame(){
+  state.dead = true;
+  state.running = false;
+  state.shake = 0.6;
+  const d = Math.floor(state.distance);
+  if(d > best){ best = d; localStorage.setItem('rr3d_best', best); }
+  document.getElementById('end-dist').textContent = d;
+  document.getElementById('end-coins').textContent = state.coins;
+  document.getElementById('end-best').textContent = best;
+  document.getElementById('ov-end').classList.remove('hidden');
+}
+
+// ── Main loop ──────────────────────────────────────────────
 let last = performance.now();
-function tick(now){
-  const dt = Math.min(0.05, (now - last)/1000);
+function loop(now){
+  const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   update(dt);
-  draw();
-  requestAnimationFrame(tick);
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
 }
-requestAnimationFrame(tick);
+requestAnimationFrame(loop);
 
 function update(dt){
   state.tick += dt;
-  // Twinkle stars regardless of running state
-  for(const s of state.stars) s.tw += dt * (0.6 + s.r*0.5);
+  // Twinkle stars (rotate slowly for parallax)
+  stars.rotation.y += dt * 0.02;
 
   if(!state.running || state.dead) return;
 
   // Speed ramp
-  state.speed = Math.min(MAX_SPEED, START_SPEED + state.distance * SPEED_RAMP);
-  state.distance += state.speed * 12 * dt;   // ~metres
+  state.speed = Math.min(60, 20 + state.distance * 0.05);
+  state.distance += state.speed * dt * 0.5;   // "metres"
 
   // Lane tween
-  const t = 8 * dt;
-  state.laneTween += (state.lane - state.laneTween) * Math.min(1, t);
+  state.laneTween += (state.lane - state.laneTween) * Math.min(1, dt * 10);
+  playerGroup.position.x = LANE_X[0] + (LANE_X[2] - LANE_X[0]) * (state.laneTween / 2);
 
-  // Jump / slide timers
-  if(state.jumpT > 0){
-    state.jumpT -= dt;
-    const p = 1 - state.jumpT / JUMP_DUR;
-    state.y = -Math.sin(p * Math.PI);      // 0 → -1 → 0 arc
-    if(state.jumpT <= 0){ state.y = 0; }
-  }
+  // Vertical physics
+  state.yVel -= 24 * dt;
+  state.y += state.yVel * dt;
+  if(state.y < 0){ state.y = 0; state.yVel = 0; }
+  playerGroup.position.y = state.y;
+
+  // Slide
   if(state.slideT > 0){
     state.slideT -= dt;
-    state.slide = state.slideT > 0 ? 1 : 0;
+    body.scale.y = 0.5; body.position.y = 0.35;
+    head.visible = false; cap.visible = false;
+    armL.rotation.z = -1.4; armR.rotation.z = 1.4;
+  } else {
+    body.scale.y = 1; body.position.y = 0.7;
+    head.visible = true; cap.visible = true;
+    armL.rotation.z = 0; armR.rotation.z = 0;
   }
 
-  // Spawn things
-  state.spawnT -= dt;
-  state.coinT  -= dt;
-  const spawnEvery = Math.max(0.55, 1.4 - state.distance * 0.001);
+  // Running animation (legs + arms swing)
+  const swing = Math.sin(state.tick * 15) * 0.6;
+  if(state.y <= 0.01 && state.slideT <= 0){
+    legL.rotation.x = swing;
+    legR.rotation.x = -swing;
+    armL.rotation.x = -swing * 0.7;
+    armR.rotation.x = swing * 0.7;
+  } else if(state.slideT <= 0){
+    // Jumping pose
+    legL.rotation.x = -0.4; legR.rotation.x = 0.4;
+    armL.rotation.x = -0.7; armR.rotation.x = -0.7;
+  }
+
+  // Scroll ground textures — sleepers, dividers, streetlights, city
+  const scroll = state.speed * dt;
+  for(const s of sleepers){
+    s.position.z -= scroll;
+    if(s.position.z < -12) s.position.z += sleepers.length * 6;
+  }
+  for(const d of dividers){
+    d.position.z -= scroll;
+    if(d.position.z < -12) d.position.z += 200;   // 40 * 5
+  }
+  for(const p of lightPosts){
+    p.position.z -= scroll;
+    if(p.position.z < -12) p.position.z += 12 * 16;
+  }
+  for(const b of cityGroup.children){
+    b.position.z -= scroll * 0.35;               // parallax slower
+    if(b.position.z < -20){ b.position.z += 100; }
+  }
+
+  // Spawn
+  state.spawnT -= dt; state.coinT -= dt;
+  const spawnEvery = Math.max(0.35, 1.2 - state.distance * 0.001);
   if(state.spawnT <= 0){ spawnObstacle(); state.spawnT = spawnEvery; }
-  if(state.coinT  <= 0){ spawnCoin();     state.coinT  = 1.3 + Math.random() * 1.5; }
+  if(state.coinT  <= 0){ spawnCoinRun();  state.coinT  = 1.6 + Math.random() * 1.8; }
 
-  // Advance depth
-  const dz = state.speed * dt;
-  for(const o of state.obstacles) o.z += dz;
-  for(const c of state.coinsArr)  c.z += dz;
-
-  // Collision — anything at z within [0.90, 1.02] and in our lane
+  // Move obstacles / coins toward camera
   for(const o of state.obstacles){
-    if(o.z < 0.90 || o.z > 1.02) continue;
-    if(o.lane !== state.lane) continue;
-    if(o.hit) continue;
-    // Kind-specific evasion
-    if(o.kind === 'lo' && state.y < -0.35) continue;      // jumped
-    if(o.kind === 'hi' && state.slide === 1) continue;    // slid
-    // Otherwise hit
-    o.hit = true;
-    die();
+    o.position.z -= scroll;
+    o.userData.z = o.position.z;
+  }
+  for(const c of state.coins3D){
+    c.position.z -= scroll;
+    c.userData.z = c.position.z;
+    c.rotation.z += dt * 5;                      // spin
+  }
+
+  // Collision — obstacle z between -1 and 1.5 and same lane
+  for(const o of state.obstacles){
+    if(o.userData.hit) continue;
+    if(o.userData.z < -0.6 || o.userData.z > 1.6) continue;
+    if(o.userData.lane !== state.lane) continue;
+    // Evasion checks
+    if(o.userData.kind === 'lo' && state.y > 1.1) continue;
+    if(o.userData.kind === 'hi' && state.slideT > 0) continue;
+    o.userData.hit = true;
+    endGame();
+    return;
   }
   // Coin collection
-  for(const c of state.coinsArr){
-    if(c.got) continue;
-    if(c.z < 0.85 || c.z > 1.05) continue;
-    if(c.lane !== state.lane) continue;
-    // Airborne coins need you to be jumping
-    if(c.airborne && state.y > -0.3) continue;
-    c.got = true;
+  for(const c of state.coins3D){
+    if(c.userData.taken) continue;
+    if(c.userData.z < -0.6 || c.userData.z > 1.6) continue;
+    if(c.userData.lane !== state.lane) continue;
+    // Airborne coins need a jump
+    if(c.userData.air && state.y < 1.2) continue;
+    if(!c.userData.air && state.slideT > 0) continue;   // sliding = too low to grab
+    c.userData.taken = true;
     state.coins++;
+    scene.remove(c);
   }
 
-  // Cull passed-by
-  state.obstacles = state.obstacles.filter(o => o.z < 1.15);
-  state.coinsArr  = state.coinsArr.filter(c => c.z < 1.15 && !c.got);
+  // Cull passed items
+  state.obstacles = state.obstacles.filter(o => {
+    if(o.position.z < -12){ scene.remove(o); return false; }
+    return true;
+  });
+  state.coins3D = state.coins3D.filter(c => {
+    if(c.userData.taken || c.position.z < -12){ scene.remove(c); return false; }
+    return true;
+  });
 
-  // Shake decay
-  state.shake *= Math.exp(-dt * 4);
-}
-
-function die(){
-  state.dead = true;
-  state.running = false;
-  state.shake = 12;
-  if(state.distance > best){
-    best = Math.floor(state.distance);
-    localStorage.setItem('rr_best', best);
-  }
-}
-
-// ── Projection ────────────────────────────────────────────────
-// z ∈ [0,1]. 0 = horizon (small, far), 1 = at player (full size).
-function proj(lane, z, yOff){
-  // Ease so distant things stay small longer, then grow fast near you
-  const t = Math.pow(Math.max(0, Math.min(1, z)), 1.6);
-  const laneX = LANE_X[lane];
-  const x = W/2 + (laneX - W/2) * t;
-  const y = HORIZON_Y + (GROUND_Y - HORIZON_Y) * t + (yOff||0) * t;
-  const scale = 0.06 + 0.94 * t;
-  return { x, y, scale };
-}
-
-// ── Draw ──────────────────────────────────────────────────────
-function draw(){
-  // Sky gradient (dusk purple to inky night)
-  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
-  sky.addColorStop(0, '#1e1b4b');
-  sky.addColorStop(0.6, '#4c1d95');
-  sky.addColorStop(1, '#7c2d12');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, HORIZON_Y);
-
-  // Screen shake offset
-  const shx = (Math.random() - 0.5) * state.shake;
-  const shy = (Math.random() - 0.5) * state.shake;
-  ctx.save();
-  ctx.translate(shx, shy);
-
-  // Stars
-  for(const s of state.stars){
-    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(s.tw);
-    ctx.fillStyle = '#fefce8';
-    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
-  }
-  ctx.globalAlpha = 1;
-
-  // Distant city silhouette on the horizon
-  ctx.fillStyle = '#1a0a1e';
-  for(let i=0; i<24; i++){
-    const bx = i * (W / 24);
-    const bh = 12 + (Math.sin(i*13.37) * 0.5 + 0.5) * 30;
-    ctx.fillRect(bx, HORIZON_Y - bh, W/24 + 1, bh);
-  }
-  // Windows
-  ctx.fillStyle = 'rgba(251,191,36,0.4)';
-  for(let i=0; i<40; i++){
-    const bx = ((i * 37) % W);
-    const by = HORIZON_Y - 3 - ((i * 11) % 22);
-    ctx.fillRect(bx, by, 2, 2);
+  // Screen shake
+  if(state.shake > 0){
+    const s = state.shake;
+    camera.position.x = (Math.random()-0.5) * s * 0.5;
+    camera.position.y = 4.5 + (Math.random()-0.5) * s * 0.4;
+    state.shake *= Math.exp(-dt * 3);
+  } else {
+    camera.position.x = 0; camera.position.y = 4.5;
   }
 
-  // Ground (dark asphalt)
-  ctx.fillStyle = '#0a0612';
-  ctx.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
-
-  drawRoad();
-  drawWorld();
-  drawPlayer();
-
-  ctx.restore();
-
-  drawHUD();
-  if(!state.running && !state.dead) drawTitle();
-  if(state.dead) drawGameOver();
-}
-
-function drawRoad(){
-  // Trapezoid road spanning the full 3 lanes
-  const wideL = W/2 - LANE_OFFSET*1.6;
-  const wideR = W/2 + LANE_OFFSET*1.6;
-  const narrowL = W/2 - 8;
-  const narrowR = W/2 + 8;
-  ctx.fillStyle = '#1a0d24';
-  ctx.beginPath();
-  ctx.moveTo(narrowL, HORIZON_Y);
-  ctx.lineTo(narrowR, HORIZON_Y);
-  ctx.lineTo(wideR,   GROUND_Y + 20);
-  ctx.lineTo(wideL,   GROUND_Y + 20);
-  ctx.closePath();
-  ctx.fill();
-
-  // Lane divider dashes (scrolling toward camera)
-  const scroll = (state.tick * state.speed) % 0.10;
-  for(const laneCenterI of [0, 1]){                       // dividers at 0.5 + 1.5
-    for(let z = -0.08; z < 1.2; z += 0.10){
-      const zz = z + scroll;
-      if(zz < 0 || zz > 1) continue;
-      const p0 = proj(laneCenterI + 0.5, zz);
-      const p1 = proj(laneCenterI + 0.5, zz + 0.04);
-      if(p1.y <= p0.y) continue;
-      ctx.fillStyle = 'rgba(251,191,36,0.75)';
-      const w = Math.max(1, 5 * p0.scale);
-      ctx.fillRect(p0.x - w/2, p0.y, w, Math.max(2, p1.y - p0.y));
-    }
-  }
-
-  // Edge rails (glowing purple)
-  for(const laneEdge of [-0.5, 2.5]){
-    ctx.strokeStyle = 'rgba(139,92,246,0.55)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    const p0 = proj(laneEdge, 0.02);
-    const p1 = proj(laneEdge, 1.05);
-    ctx.moveTo(p0.x, p0.y);
-    ctx.lineTo(p1.x, p1.y);
-    ctx.stroke();
-  }
-}
-
-// Sort obstacles + coins by depth for correct overlap (far-to-near)
-function drawWorld(){
-  const all = [];
-  for(const o of state.obstacles) all.push({ ...o, _t: 'o' });
-  for(const c of state.coinsArr)  all.push({ ...c, _t: 'c' });
-  all.sort((a,b) => a.z - b.z);
-  for(const it of all){
-    if(it._t === 'o') drawObstacle(it);
-    else drawCoin(it);
-  }
-}
-
-function drawObstacle(o){
-  if(o.z < 0.02) return;
-  const kind = o.kind;
-  const p = proj(o.lane, o.z);
-  const s = p.scale;
-  // Fake ambient occlusion
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); ctx.ellipse(p.x, p.y + 4*s, 40*s, 8*s, 0, 0, Math.PI*2); ctx.fill();
-
-  if(kind === 'lo'){
-    // Low barrier — orange & yellow striped block
-    const bw = 100*s, bh = 40*s;
-    const g = ctx.createLinearGradient(0, p.y - bh, 0, p.y);
-    g.addColorStop(0, '#fbbf24'); g.addColorStop(1, '#b45309');
-    ctx.fillStyle = g;
-    roundRect(p.x - bw/2, p.y - bh, bw, bh, 6*s);
-    // Diagonal stripes
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    for(let i=-6; i<6; i++){
-      ctx.beginPath();
-      ctx.moveTo(p.x - bw/2 + i*20*s,        p.y);
-      ctx.lineTo(p.x - bw/2 + i*20*s + 10*s, p.y);
-      ctx.lineTo(p.x - bw/2 + i*20*s + 10*s + bh, p.y - bh);
-      ctx.lineTo(p.x - bw/2 + i*20*s + bh,   p.y - bh);
-      ctx.closePath(); ctx.fill();
-    }
-    ctx.strokeStyle = '#78350f'; ctx.lineWidth = Math.max(1, 2*s);
-    ctx.strokeRect(p.x - bw/2, p.y - bh, bw, bh);
-  }
-  else if(kind === 'hi'){
-    // High bar to slide under — rail + hanging bar
-    const barW = 110*s, barH = 12*s;
-    const yTop = p.y - 130*s;
-    ctx.fillStyle = '#9a9aa5';
-    // Two vertical posts
-    ctx.fillRect(p.x - barW/2, yTop, 5*s, 130*s);
-    ctx.fillRect(p.x + barW/2 - 5*s, yTop, 5*s, 130*s);
-    // Horizontal bar
-    const g = ctx.createLinearGradient(0, yTop, 0, yTop + barH);
-    g.addColorStop(0, '#f43f5e'); g.addColorStop(1, '#7f1d1d');
-    ctx.fillStyle = g;
-    ctx.fillRect(p.x - barW/2, yTop, barW, barH);
-    // Warning stripes
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    for(let i=0; i<8; i++){
-      const bx = p.x - barW/2 + i * (barW/8);
-      if(i%2) ctx.fillRect(bx, yTop, barW/8, barH);
-    }
-  }
-  else {
-    // Full-height wall — must switch lane
-    const bw = 100*s, bh = 160*s;
-    const g = ctx.createLinearGradient(0, p.y - bh, 0, p.y);
-    g.addColorStop(0, '#374151'); g.addColorStop(1, '#111827');
-    ctx.fillStyle = g;
-    roundRect(p.x - bw/2, p.y - bh, bw, bh, 6*s);
-    ctx.strokeStyle = '#7c2d12'; ctx.lineWidth = Math.max(1, 2*s);
-    ctx.strokeRect(p.x - bw/2, p.y - bh, bw, bh);
-    // X mark
-    ctx.strokeStyle = '#f43f5e';
-    ctx.lineWidth = Math.max(2, 4*s);
-    ctx.beginPath();
-    ctx.moveTo(p.x - bw*0.3, p.y - bh*0.75);
-    ctx.lineTo(p.x + bw*0.3, p.y - bh*0.25);
-    ctx.moveTo(p.x + bw*0.3, p.y - bh*0.75);
-    ctx.lineTo(p.x - bw*0.3, p.y - bh*0.25);
-    ctx.stroke();
-  }
-}
-
-function drawCoin(c){
-  if(c.z < 0.02) return;
-  const yOff = c.airborne ? -70 : -30;
-  const p = proj(c.lane, c.z, yOff);
-  const s = p.scale;
-  // Coin body — spinning ellipse
-  const spin = Math.abs(Math.sin(state.tick * 5 + c.z * 8));
-  ctx.save();
-  ctx.translate(p.x, p.y);
-  ctx.scale(1, 1);
-  const rx = Math.max(2, 15 * s * (0.2 + 0.8 * spin));
-  const ry = Math.max(3, 15 * s);
-  const g = ctx.createRadialGradient(-rx*0.3, -ry*0.3, 1, 0, 0, rx);
-  g.addColorStop(0, '#fef3c7'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, '#b45309');
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = '#78350f'; ctx.lineWidth = Math.max(1, 1.2*s);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawPlayer(){
-  // Compute lane x from tween (fractional between 0..2)
-  const t = state.laneTween;
-  const laneX = LANE_X[0] + (LANE_X[2] - LANE_X[0]) * (t / 2);
-  const yJump = state.y * 110;                       // negative = up
-  const bodyW = state.slide ? 74 : 46;
-  const bodyH = state.slide ? 32 : 74;
-  const cx = laneX;
-  const cy = GROUND_Y - 20 + yJump - (state.slide ? -20 : 0);
-
-  // Shadow under feet — smaller when jumping
-  const shrink = Math.max(0.3, 1 + state.y);           // y is negative on jump
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath();
-  ctx.ellipse(laneX, GROUND_Y + 8, 34 * shrink, 8 * shrink, 0, 0, Math.PI*2);
-  ctx.fill();
-
-  // Runner body
-  const g = ctx.createLinearGradient(0, cy - bodyH/2, 0, cy + bodyH/2);
-  g.addColorStop(0, '#22d3ee'); g.addColorStop(1, '#0e7490');
-  ctx.fillStyle = g;
-  roundRect(cx - bodyW/2, cy - bodyH/2, bodyW, bodyH, 10);
-  // Belt highlight
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillRect(cx - bodyW/2 + 4, cy - 2, bodyW - 8, 4);
-
-  // Head (only when not sliding)
-  if(!state.slide){
-    ctx.fillStyle = '#f5d0a4';
-    ctx.beginPath();
-    ctx.arc(cx, cy - bodyH/2 - 18, 18, 0, Math.PI*2);
-    ctx.fill();
-    // Cap
-    ctx.fillStyle = '#f43f5e';
-    ctx.beginPath();
-    ctx.arc(cx, cy - bodyH/2 - 18, 19, Math.PI + 0.1, -0.1);
-    ctx.fill();
-    ctx.fillRect(cx - 20, cy - bodyH/2 - 20, 40, 4);
-    // Eyes
-    ctx.fillStyle = '#0a0612';
-    ctx.beginPath(); ctx.arc(cx - 6, cy - bodyH/2 - 16, 2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(cx + 6, cy - bodyH/2 - 16, 2, 0, Math.PI*2); ctx.fill();
-  }
-
-  // Little run-cycle feet (only when grounded and not sliding)
-  if(state.y === 0 && !state.slide){
-    ctx.fillStyle = '#0e7490';
-    const step = Math.sin(state.tick * 14);
-    ctx.fillRect(cx - 18 + step*4, cy + bodyH/2 - 4, 12, 10);
-    ctx.fillRect(cx +  6 - step*4, cy + bodyH/2 - 4, 12, 10);
-  }
-}
-
-function roundRect(x, y, w, h, r){
-  r = Math.min(r, w/2, h/2);
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y,     x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x,     y + h, r);
-  ctx.arcTo(x,     y + h, x,     y,     r);
-  ctx.arcTo(x,     y,     x + w, y,     r);
-  ctx.closePath();
-  ctx.fill();
-}
-
-// ── HUD & overlays ────────────────────────────────────────────
-function drawHUD(){
-  ctx.fillStyle = '#fef3c7';
-  ctx.font = 'bold 22px system-ui,sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(Math.floor(state.distance) + 'm', 16, 32);
-  ctx.font = '12px system-ui,sans-serif';
-  ctx.fillStyle = '#c7d2fe';
-  ctx.fillText('BEST ' + best, 16, 48);
-
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 20px system-ui,sans-serif';
-  ctx.fillStyle = '#fbbf24';
-  ctx.fillText('◉ ' + state.coins, W - 16, 32);
-}
-
-function drawTitle(){
-  ctx.fillStyle = 'rgba(10,6,18,0.75)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#c084fc';
-  ctx.font = 'bold 56px system-ui,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = '#c084fc';
-  ctx.fillText('RAIL RUNNER', W/2, H/2 - 30);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = '16px system-ui,sans-serif';
-  ctx.fillText('← → change lane · SPACE jump · ↓ slide', W/2, H/2 + 10);
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = 'bold 18px system-ui,sans-serif';
-  ctx.fillText('Press SPACE / Tap to start', W/2, H/2 + 50);
-}
-
-function drawGameOver(){
-  ctx.fillStyle = 'rgba(10,6,18,0.85)';
-  ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#f43f5e';
-  ctx.font = 'bold 48px system-ui,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('💥 WIPEOUT', W/2, H/2 - 30);
-  ctx.fillStyle = '#e2e8f0';
-  ctx.font = '20px system-ui,sans-serif';
-  ctx.fillText(Math.floor(state.distance) + 'm · ' + state.coins + ' coins', W/2, H/2 + 6);
-  ctx.fillStyle = '#fbbf24';
-  ctx.font = '14px system-ui,sans-serif';
-  ctx.fillText('BEST ' + best + 'm', W/2, H/2 + 30);
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '15px system-ui,sans-serif';
-  ctx.fillText('SPACE / Tap to run again', W/2, H/2 + 62);
+  // HUD
+  document.getElementById('dist').innerHTML = Math.floor(state.distance) + 'm<small>DISTANCE</small>';
+  document.getElementById('coins').textContent = '◉ ' + state.coins;
+  document.getElementById('speedfill').style.width = ((state.speed - 20) / 40 * 100) + '%';
 }
 </script>
 </body>
