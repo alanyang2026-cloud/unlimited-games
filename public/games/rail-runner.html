@@ -291,9 +291,23 @@ addEventListener('touchend', e => {
 
 // ── Spawners ───────────────────────────────────────────────
 function spawnObstacle(){
-  const lanes = [0, 1, 2];
-  // 45% chance to block 2 of 3 lanes; single lane 55%
-  const blocked = Math.random() < 0.45 ? shuffle(lanes).slice(0, 2) : [lanes[Math.floor(Math.random()*3)]];
+  // Lanes that don't already have a coin train in the incoming
+  // z-range (85 -> 115) — otherwise a fresh obstacle would land
+  // right on top of the coins the player is trying to grab.
+  const clear = [0, 1, 2].filter(ln => {
+    return !state.coins3D.some(c =>
+      c.userData.lane === ln &&
+      c.userData.z > 85 && c.userData.z < 115
+    );
+  });
+  if(clear.length === 0) return;
+  // 45% chance to block 2 of the remaining lanes (only if 2+ are clear);
+  // otherwise just one. Never block all three.
+  const takeTwo = clear.length >= 2 && Math.random() < 0.45;
+  const blocked = takeTwo ? shuffle(clear).slice(0, 2) : [clear[Math.floor(Math.random()*clear.length)]];
+  // Guarantee at least one lane stays open (the coin lane is one,
+  // plus we cap at length-1 of `clear`).
+  if(blocked.length >= clear.length && clear.length >= 2) blocked.pop();
   const kind = pick(['lo','lo','hi','wall']);
   for(const ln of blocked){
     const obj = buildObstacle(kind, ln);
@@ -304,16 +318,29 @@ function spawnObstacle(){
   }
 }
 function spawnCoinRun(){
-  const ln = Math.floor(Math.random()*3);
-  const air = Math.random() < 0.35;
+  // Pick a lane that has NO obstacle in the incoming z-range
+  // (85 -> 115 units, roughly where the coin train will unfold).
+  // Otherwise the player would grab the coin only to eat an
+  // obstacle immediately behind it.
   const count = 3 + Math.floor(Math.random()*4);
+  const zStart = 100;
+  const zEnd   = 100 + count * 2;
+  const clear = [0, 1, 2].filter(ln => {
+    return !state.obstacles.some(o =>
+      o.userData.lane === ln &&
+      o.userData.z > zStart - 8 && o.userData.z < zEnd + 8
+    );
+  });
+  if(clear.length === 0) return;               // skip this cycle
+  const ln = clear[Math.floor(Math.random()*clear.length)];
+  const air = Math.random() < 0.35;
   for(let i=0; i<count; i++){
     const c = new THREE.Mesh(
       new THREE.TorusGeometry(0.35, 0.13, 8, 20),
       new THREE.MeshStandardMaterial({ color: 0xfbbf24, emissive: 0xb45309, emissiveIntensity: 0.7, metalness: 0.6, roughness: 0.3 })
     );
     c.rotation.x = Math.PI/2;
-    c.userData = { z: 100 + i*2, lane: ln, air, taken: false };
+    c.userData = { z: zStart + i*2, lane: ln, air, taken: false };
     c.position.set(LANE_X[ln], air ? 2.4 : 1.0, c.userData.z);
     scene.add(c);
     state.coins3D.push(c);
@@ -343,29 +370,31 @@ function buildObstacle(kind, ln){
       g.add(s);
     }
   } else if(kind === 'hi'){
-    // Overhead bar — slide under
+    // Overhead bar — slide under. Bar is placed at ~1.4y so a
+    // standing player (head at ~2.15) hits it; a sliding player
+    // (~0.7 tall) passes clean under. Standing tall = fail.
     const bar = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, 0.3, 0.4),
+      new THREE.BoxGeometry(2.4, 0.4, 0.5),
       new THREE.MeshLambertMaterial({ color: 0xdc2626 })
     );
-    bar.position.y = 2.8;
+    bar.position.y = 1.4;
     g.add(bar);
     for(const px of [-1.15, 1.15]){
       const post = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.08, 0.08, 3.0, 6),
+        new THREE.CylinderGeometry(0.08, 0.08, 1.6, 6),
         new THREE.MeshLambertMaterial({ color: 0x94a3b8 })
       );
-      post.position.set(px, 1.5, 0);
+      post.position.set(px, 0.8, 0);
       g.add(post);
     }
-    // Warning stripes
+    // Warning stripes on the bar itself
     for(let i=-3; i<=3; i++){
       if(i%2){
         const s = new THREE.Mesh(
-          new THREE.BoxGeometry(0.3, 0.32, 0.02),
+          new THREE.BoxGeometry(0.3, 0.36, 0.02),
           new THREE.MeshBasicMaterial({ color: 0xfef3c7 })
         );
-        s.position.set(i*0.35, 2.8, -0.21);
+        s.position.set(i*0.35, 1.4, -0.26);
         g.add(s);
       }
     }
@@ -508,26 +537,44 @@ function update(dt){
     c.rotation.z += dt * 5;                      // spin
   }
 
-  // Collision — obstacle z between -1 and 1.5 and same lane
+  // Collision — narrow z window centred on the player (was 2.2
+  // units wide, which mis-fired hits during descent from a jump).
+  // Now the check only triggers when the obstacle actually
+  // occupies the player's own slice of the track.
   for(const o of state.obstacles){
     if(o.userData.hit) continue;
-    if(o.userData.z < -0.6 || o.userData.z > 1.6) continue;
+    const z = o.userData.z;
+    if(z < -0.35 || z > 0.55) continue;
     if(o.userData.lane !== state.lane) continue;
-    // Evasion checks
-    if(o.userData.kind === 'lo' && state.y > 1.1) continue;
-    if(o.userData.kind === 'hi' && state.slideT > 0) continue;
-    o.userData.hit = true;
-    endGame();
-    return;
+    const k = o.userData.kind;
+    let hit = true;
+    if(k === 'lo'){
+      // Barrier goes up to y=0.8; player clears once feet are
+      // above 0.85. Threshold a little generous to reward the
+      // player who timed the jump.
+      if(state.y > 0.85) hit = false;
+    } else if(k === 'hi'){
+      // Bar centered at y=1.4 (1.2–1.6). Sliding drops the
+      // player to 0-0.7 — clean under. Standing = head into bar.
+      if(state.slideT > 0) hit = false;
+    }
+    // 'wall' has no evasion — must have already switched lane
+    if(hit){ o.userData.hit = true; endGame(); return; }
+    // Flash the obstacle green briefly to acknowledge a successful evade
+    if(!o.userData.dodged){
+      o.userData.dodged = true;
+      o.traverse(m => { if(m.material && m.material.color){ m.userData.orig = m.material.color.getHex(); m.material.color.setHex(0x22c55e); } });
+      setTimeout(() => o.traverse(m => { if(m.material && m.userData.orig != null){ m.material.color.setHex(m.userData.orig); } }), 180);
+    }
   }
-  // Coin collection
+  // Coin collection — same tightened window
   for(const c of state.coins3D){
     if(c.userData.taken) continue;
-    if(c.userData.z < -0.6 || c.userData.z > 1.6) continue;
+    const z = c.userData.z;
+    if(z < -0.35 || z > 0.55) continue;
     if(c.userData.lane !== state.lane) continue;
-    // Airborne coins need a jump
     if(c.userData.air && state.y < 1.2) continue;
-    if(!c.userData.air && state.slideT > 0) continue;   // sliding = too low to grab
+    if(!c.userData.air && state.slideT > 0) continue;
     c.userData.taken = true;
     state.coins++;
     scene.remove(c);
