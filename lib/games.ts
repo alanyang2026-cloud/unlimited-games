@@ -128,6 +128,14 @@ export const GAMES: Game[] = [
     color: "from-amber-700 to-lime-700",
     controls: "WASD move · Auto-aim · Level up to pick upgrades · Shop between waves",
   },
+  {
+    id: "rail-runner",
+    title: "Rail Runner",
+    emoji: "🏃‍♂️",
+    description: "3-lane endless runner. Jump, slide, and swap lanes to survive.",
+    color: "from-indigo-700 to-fuchsia-700",
+    controls: "← → change lane · Space jump · ↓ slide · swipe on mobile",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -146,6 +154,7 @@ const URL_MAP: Record<string, string> = {
   "squish": "/games/squish.html",
   "liars-tavern": "/games/liars-tavern.html",
   "potato-bros": "/games/potato-bros.html",
+  "rail-runner": "/games/rail-runner.html",
 };
 
 export function getGameUrl(id: string): string {

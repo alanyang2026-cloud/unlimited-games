@@ -32,6 +32,7 @@ const GAMES = [
   { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:520 },
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true, nw:760, nh:520 },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d', nw:820, nh:640 },
+  { id:'rail-runner',     title:'Rail Runner',     emoji:'🏃‍♂️', url:'/games/rail-runner.html',   c1:'#4338ca', c2:'#a21caf', nw:800, nh:600 },
 ];
 
 // ─── Render the grid ───────────────────────────────────────

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Rail Runner</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0a0612;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,-apple-system,sans-serif;user-select:none;overflow:hidden;color:#e2e8f0}
+canvas{display:block;border-radius:12px;border:2px solid #312e81;box-shadow:0 0 30px rgba(139,92,246,.25) inset,0 0 20px rgba(139,92,246,.2)}
+.hint{color:#94a3b8;font-size:14px;margin-top:10px;letter-spacing:.05em}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(139,92,246,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<canvas id="c"></canvas>
+<p class="hint">← → change lane · SPACE jump · ↓ slide</p>
+<script>
+const C = document.getElementById('c'), ctx = C.getContext('2d');
+C.width = 800; C.height = 600;
+const W = C.width, H = C.height;
+
+// ── Constants ────────────────────────────────────────────────
+const HORIZON_Y = H * 0.30;
+const GROUND_Y  = H - 90;
+const LANE_OFFSET = 130;               // half-distance between two adjacent lanes at ground
+const LANE_X = [W/2 - LANE_OFFSET, W/2, W/2 + LANE_OFFSET];
+const Z_MAX = 1;                        // depth values run 0 (horizon) → 1 (at player)
+const START_SPEED = 0.55;               // depth units per second
+const MAX_SPEED   = 1.30;
+const SPEED_RAMP  = 0.0025;             // per meter
+const JUMP_DUR    = 0.65;
+const SLIDE_DUR   = 0.55;
+
+// ── State ────────────────────────────────────────────────────
+let state, best = +(localStorage.getItem('rr_best') || 0);
+
+function reset(){
+  state = {
+    lane: 1,                            // 0 left, 1 center, 2 right
+    laneTween: 1,                       // smoothly tweens toward `lane`
+    y: 0,                               // 0 = ground, -1 = peak of jump
+    slide: 0,                           // 0 = normal, 1 = sliding
+    jumpT: 0, slideT: 0,
+    speed: START_SPEED,
+    distance: 0,                        // metres
+    coins: 0,
+    stars: [],
+    obstacles: [],
+    coinsArr: [],
+    tick: 0,
+    spawnT: 0, coinT: 0,
+    running: false, dead: false,
+    shake: 0,
+  };
+  // Starry sky
+  for(let i=0; i<80; i++){
+    state.stars.push({
+      x: Math.random()*W,
+      y: Math.random()*HORIZON_Y,
+      r: Math.random()*1.4 + 0.3,
+      tw: Math.random()*Math.PI*2,
+    });
+  }
+}
+reset();
+
+// ── Input ─────────────────────────────────────────────────────
+function moveLeft(){  if(!state.running || state.dead) return; if(state.lane>0) state.lane--; }
+function moveRight(){ if(!state.running || state.dead) return; if(state.lane<2) state.lane++; }
+function jump(){
+  if(!state.running || state.dead) return;
+  if(state.y === 0 && state.slide === 0){ state.jumpT = JUMP_DUR; }
+}
+function slide(){
+  if(!state.running || state.dead) return;
+  if(state.slide === 0 && state.y === 0){ state.slideT = SLIDE_DUR; }
+}
+
+addEventListener('keydown', e => {
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  if(!state.running){
+    if(e.key===' ' || e.key==='Enter'){ start(); return; }
+  } else if(state.dead){
+    if(e.key===' ' || e.key==='Enter'){ reset(); start(); return; }
+  }
+  if(e.key === 'ArrowLeft'  || e.code === 'KeyA') moveLeft();
+  if(e.key === 'ArrowRight' || e.code === 'KeyD') moveRight();
+  if(e.key === 'ArrowUp'    || e.key === ' ' || e.code === 'KeyW') jump();
+  if(e.key === 'ArrowDown'  || e.code === 'KeyS') slide();
+});
+
+// Basic swipe support (mobile / trackpad)
+let touchX = null, touchY = null;
+addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  touchX = t.clientX; touchY = t.clientY;
+  if(!state.running){ start(); }
+  else if(state.dead){ reset(); start(); }
+});
+addEventListener('touchend', e => {
+  if(touchX==null) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchX, dy = t.clientY - touchY;
+  touchX = touchY = null;
+  if(Math.abs(dx) > Math.abs(dy)){
+    if(dx > 30) moveRight();
+    else if(dx < -30) moveLeft();
+  } else {
+    if(dy < -30) jump();
+    else if(dy > 30) slide();
+  }
+});
+
+function start(){ state.running = true; state.dead = false; }
+
+// ── Spawner ───────────────────────────────────────────────────
+// Types: 'lo' (jump over), 'hi' (slide under), 'wall' (change lane)
+function spawnObstacle(){
+  const lanes = [0,1,2];
+  // 40% chance to block two lanes at once (still passable via the third)
+  const blocked = Math.random() < 0.4 ? shuffle(lanes).slice(0,2) : [pick(lanes)];
+  const kind = pick(['lo','hi','lo','wall']);      // walls a bit rarer
+  for(const ln of blocked){
+    state.obstacles.push({ z: 0, lane: ln, kind });
+  }
+}
+function spawnCoin(){
+  const ln = Math.floor(Math.random()*3);
+  const airborne = Math.random() < 0.35;
+  const count = 1 + Math.floor(Math.random()*3);
+  for(let i=0; i<count; i++){
+    state.coinsArr.push({ z: -i*0.10, lane: ln, airborne });
+  }
+}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+// ── Update ────────────────────────────────────────────────────
+let last = performance.now();
+function tick(now){
+  const dt = Math.min(0.05, (now - last)/1000);
+  last = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+function update(dt){
+  state.tick += dt;
+  // Twinkle stars regardless of running state
+  for(const s of state.stars) s.tw += dt * (0.6 + s.r*0.5);
+
+  if(!state.running || state.dead) return;
+
+  // Speed ramp
+  state.speed = Math.min(MAX_SPEED, START_SPEED + state.distance * SPEED_RAMP);
+  state.distance += state.speed * 12 * dt;   // ~metres
+
+  // Lane tween
+  const t = 8 * dt;
+  state.laneTween += (state.lane - state.laneTween) * Math.min(1, t);
+
+  // Jump / slide timers
+  if(state.jumpT > 0){
+    state.jumpT -= dt;
+    const p = 1 - state.jumpT / JUMP_DUR;
+    state.y = -Math.sin(p * Math.PI);      // 0 → -1 → 0 arc
+    if(state.jumpT <= 0){ state.y = 0; }
+  }
+  if(state.slideT > 0){
+    state.slideT -= dt;
+    state.slide = state.slideT > 0 ? 1 : 0;
+  }
+
+  // Spawn things
+  state.spawnT -= dt;
+  state.coinT  -= dt;
+  const spawnEvery = Math.max(0.55, 1.4 - state.distance * 0.001);
+  if(state.spawnT <= 0){ spawnObstacle(); state.spawnT = spawnEvery; }
+  if(state.coinT  <= 0){ spawnCoin();     state.coinT  = 1.3 + Math.random() * 1.5; }
+
+  // Advance depth
+  const dz = state.speed * dt;
+  for(const o of state.obstacles) o.z += dz;
+  for(const c of state.coinsArr)  c.z += dz;
+
+  // Collision — anything at z within [0.90, 1.02] and in our lane
+  for(const o of state.obstacles){
+    if(o.z < 0.90 || o.z > 1.02) continue;
+    if(o.lane !== state.lane) continue;
+    if(o.hit) continue;
+    // Kind-specific evasion
+    if(o.kind === 'lo' && state.y < -0.35) continue;      // jumped
+    if(o.kind === 'hi' && state.slide === 1) continue;    // slid
+    // Otherwise hit
+    o.hit = true;
+    die();
+  }
+  // Coin collection
+  for(const c of state.coinsArr){
+    if(c.got) continue;
+    if(c.z < 0.85 || c.z > 1.05) continue;
+    if(c.lane !== state.lane) continue;
+    // Airborne coins need you to be jumping
+    if(c.airborne && state.y > -0.3) continue;
+    c.got = true;
+    state.coins++;
+  }
+
+  // Cull passed-by
+  state.obstacles = state.obstacles.filter(o => o.z < 1.15);
+  state.coinsArr  = state.coinsArr.filter(c => c.z < 1.15 && !c.got);
+
+  // Shake decay
+  state.shake *= Math.exp(-dt * 4);
+}
+
+function die(){
+  state.dead = true;
+  state.running = false;
+  state.shake = 12;
+  if(state.distance > best){
+    best = Math.floor(state.distance);
+    localStorage.setItem('rr_best', best);
+  }
+}
+
+// ── Projection ────────────────────────────────────────────────
+// z ∈ [0,1]. 0 = horizon (small, far), 1 = at player (full size).
+function proj(lane, z, yOff){
+  // Ease so distant things stay small longer, then grow fast near you
+  const t = Math.pow(Math.max(0, Math.min(1, z)), 1.6);
+  const laneX = LANE_X[lane];
+  const x = W/2 + (laneX - W/2) * t;
+  const y = HORIZON_Y + (GROUND_Y - HORIZON_Y) * t + (yOff||0) * t;
+  const scale = 0.06 + 0.94 * t;
+  return { x, y, scale };
+}
+
+// ── Draw ──────────────────────────────────────────────────────
+function draw(){
+  // Sky gradient (dusk purple to inky night)
+  const sky = ctx.createLinearGradient(0, 0, 0, HORIZON_Y);
+  sky.addColorStop(0, '#1e1b4b');
+  sky.addColorStop(0.6, '#4c1d95');
+  sky.addColorStop(1, '#7c2d12');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, HORIZON_Y);
+
+  // Screen shake offset
+  const shx = (Math.random() - 0.5) * state.shake;
+  const shy = (Math.random() - 0.5) * state.shake;
+  ctx.save();
+  ctx.translate(shx, shy);
+
+  // Stars
+  for(const s of state.stars){
+    ctx.globalAlpha = 0.5 + 0.5 * Math.sin(s.tw);
+    ctx.fillStyle = '#fefce8';
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Distant city silhouette on the horizon
+  ctx.fillStyle = '#1a0a1e';
+  for(let i=0; i<24; i++){
+    const bx = i * (W / 24);
+    const bh = 12 + (Math.sin(i*13.37) * 0.5 + 0.5) * 30;
+    ctx.fillRect(bx, HORIZON_Y - bh, W/24 + 1, bh);
+  }
+  // Windows
+  ctx.fillStyle = 'rgba(251,191,36,0.4)';
+  for(let i=0; i<40; i++){
+    const bx = ((i * 37) % W);
+    const by = HORIZON_Y - 3 - ((i * 11) % 22);
+    ctx.fillRect(bx, by, 2, 2);
+  }
+
+  // Ground (dark asphalt)
+  ctx.fillStyle = '#0a0612';
+  ctx.fillRect(0, HORIZON_Y, W, H - HORIZON_Y);
+
+  drawRoad();
+  drawWorld();
+  drawPlayer();
+
+  ctx.restore();
+
+  drawHUD();
+  if(!state.running && !state.dead) drawTitle();
+  if(state.dead) drawGameOver();
+}
+
+function drawRoad(){
+  // Trapezoid road spanning the full 3 lanes
+  const wideL = W/2 - LANE_OFFSET*1.6;
+  const wideR = W/2 + LANE_OFFSET*1.6;
+  const narrowL = W/2 - 8;
+  const narrowR = W/2 + 8;
+  ctx.fillStyle = '#1a0d24';
+  ctx.beginPath();
+  ctx.moveTo(narrowL, HORIZON_Y);
+  ctx.lineTo(narrowR, HORIZON_Y);
+  ctx.lineTo(wideR,   GROUND_Y + 20);
+  ctx.lineTo(wideL,   GROUND_Y + 20);
+  ctx.closePath();
+  ctx.fill();
+
+  // Lane divider dashes (scrolling toward camera)
+  const scroll = (state.tick * state.speed) % 0.10;
+  for(const laneCenterI of [0, 1]){                       // dividers at 0.5 + 1.5
+    for(let z = -0.08; z < 1.2; z += 0.10){
+      const zz = z + scroll;
+      if(zz < 0 || zz > 1) continue;
+      const p0 = proj(laneCenterI + 0.5, zz);
+      const p1 = proj(laneCenterI + 0.5, zz + 0.04);
+      if(p1.y <= p0.y) continue;
+      ctx.fillStyle = 'rgba(251,191,36,0.75)';
+      const w = Math.max(1, 5 * p0.scale);
+      ctx.fillRect(p0.x - w/2, p0.y, w, Math.max(2, p1.y - p0.y));
+    }
+  }
+
+  // Edge rails (glowing purple)
+  for(const laneEdge of [-0.5, 2.5]){
+    ctx.strokeStyle = 'rgba(139,92,246,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const p0 = proj(laneEdge, 0.02);
+    const p1 = proj(laneEdge, 1.05);
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+}
+
+// Sort obstacles + coins by depth for correct overlap (far-to-near)
+function drawWorld(){
+  const all = [];
+  for(const o of state.obstacles) all.push({ ...o, _t: 'o' });
+  for(const c of state.coinsArr)  all.push({ ...c, _t: 'c' });
+  all.sort((a,b) => a.z - b.z);
+  for(const it of all){
+    if(it._t === 'o') drawObstacle(it);
+    else drawCoin(it);
+  }
+}
+
+function drawObstacle(o){
+  if(o.z < 0.02) return;
+  const kind = o.kind;
+  const p = proj(o.lane, o.z);
+  const s = p.scale;
+  // Fake ambient occlusion
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(p.x, p.y + 4*s, 40*s, 8*s, 0, 0, Math.PI*2); ctx.fill();
+
+  if(kind === 'lo'){
+    // Low barrier — orange & yellow striped block
+    const bw = 100*s, bh = 40*s;
+    const g = ctx.createLinearGradient(0, p.y - bh, 0, p.y);
+    g.addColorStop(0, '#fbbf24'); g.addColorStop(1, '#b45309');
+    ctx.fillStyle = g;
+    roundRect(p.x - bw/2, p.y - bh, bw, bh, 6*s);
+    // Diagonal stripes
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    for(let i=-6; i<6; i++){
+      ctx.beginPath();
+      ctx.moveTo(p.x - bw/2 + i*20*s,        p.y);
+      ctx.lineTo(p.x - bw/2 + i*20*s + 10*s, p.y);
+      ctx.lineTo(p.x - bw/2 + i*20*s + 10*s + bh, p.y - bh);
+      ctx.lineTo(p.x - bw/2 + i*20*s + bh,   p.y - bh);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.strokeStyle = '#78350f'; ctx.lineWidth = Math.max(1, 2*s);
+    ctx.strokeRect(p.x - bw/2, p.y - bh, bw, bh);
+  }
+  else if(kind === 'hi'){
+    // High bar to slide under — rail + hanging bar
+    const barW = 110*s, barH = 12*s;
+    const yTop = p.y - 130*s;
+    ctx.fillStyle = '#9a9aa5';
+    // Two vertical posts
+    ctx.fillRect(p.x - barW/2, yTop, 5*s, 130*s);
+    ctx.fillRect(p.x + barW/2 - 5*s, yTop, 5*s, 130*s);
+    // Horizontal bar
+    const g = ctx.createLinearGradient(0, yTop, 0, yTop + barH);
+    g.addColorStop(0, '#f43f5e'); g.addColorStop(1, '#7f1d1d');
+    ctx.fillStyle = g;
+    ctx.fillRect(p.x - barW/2, yTop, barW, barH);
+    // Warning stripes
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    for(let i=0; i<8; i++){
+      const bx = p.x - barW/2 + i * (barW/8);
+      if(i%2) ctx.fillRect(bx, yTop, barW/8, barH);
+    }
+  }
+  else {
+    // Full-height wall — must switch lane
+    const bw = 100*s, bh = 160*s;
+    const g = ctx.createLinearGradient(0, p.y - bh, 0, p.y);
+    g.addColorStop(0, '#374151'); g.addColorStop(1, '#111827');
+    ctx.fillStyle = g;
+    roundRect(p.x - bw/2, p.y - bh, bw, bh, 6*s);
+    ctx.strokeStyle = '#7c2d12'; ctx.lineWidth = Math.max(1, 2*s);
+    ctx.strokeRect(p.x - bw/2, p.y - bh, bw, bh);
+    // X mark
+    ctx.strokeStyle = '#f43f5e';
+    ctx.lineWidth = Math.max(2, 4*s);
+    ctx.beginPath();
+    ctx.moveTo(p.x - bw*0.3, p.y - bh*0.75);
+    ctx.lineTo(p.x + bw*0.3, p.y - bh*0.25);
+    ctx.moveTo(p.x + bw*0.3, p.y - bh*0.75);
+    ctx.lineTo(p.x - bw*0.3, p.y - bh*0.25);
+    ctx.stroke();
+  }
+}
+
+function drawCoin(c){
+  if(c.z < 0.02) return;
+  const yOff = c.airborne ? -70 : -30;
+  const p = proj(c.lane, c.z, yOff);
+  const s = p.scale;
+  // Coin body — spinning ellipse
+  const spin = Math.abs(Math.sin(state.tick * 5 + c.z * 8));
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.scale(1, 1);
+  const rx = Math.max(2, 15 * s * (0.2 + 0.8 * spin));
+  const ry = Math.max(3, 15 * s);
+  const g = ctx.createRadialGradient(-rx*0.3, -ry*0.3, 1, 0, 0, rx);
+  g.addColorStop(0, '#fef3c7'); g.addColorStop(0.5, '#fbbf24'); g.addColorStop(1, '#b45309');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#78350f'; ctx.lineWidth = Math.max(1, 1.2*s);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawPlayer(){
+  // Compute lane x from tween (fractional between 0..2)
+  const t = state.laneTween;
+  const laneX = LANE_X[0] + (LANE_X[2] - LANE_X[0]) * (t / 2);
+  const yJump = state.y * 110;                       // negative = up
+  const bodyW = state.slide ? 74 : 46;
+  const bodyH = state.slide ? 32 : 74;
+  const cx = laneX;
+  const cy = GROUND_Y - 20 + yJump - (state.slide ? -20 : 0);
+
+  // Shadow under feet — smaller when jumping
+  const shrink = Math.max(0.3, 1 + state.y);           // y is negative on jump
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(laneX, GROUND_Y + 8, 34 * shrink, 8 * shrink, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Runner body
+  const g = ctx.createLinearGradient(0, cy - bodyH/2, 0, cy + bodyH/2);
+  g.addColorStop(0, '#22d3ee'); g.addColorStop(1, '#0e7490');
+  ctx.fillStyle = g;
+  roundRect(cx - bodyW/2, cy - bodyH/2, bodyW, bodyH, 10);
+  // Belt highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(cx - bodyW/2 + 4, cy - 2, bodyW - 8, 4);
+
+  // Head (only when not sliding)
+  if(!state.slide){
+    ctx.fillStyle = '#f5d0a4';
+    ctx.beginPath();
+    ctx.arc(cx, cy - bodyH/2 - 18, 18, 0, Math.PI*2);
+    ctx.fill();
+    // Cap
+    ctx.fillStyle = '#f43f5e';
+    ctx.beginPath();
+    ctx.arc(cx, cy - bodyH/2 - 18, 19, Math.PI + 0.1, -0.1);
+    ctx.fill();
+    ctx.fillRect(cx - 20, cy - bodyH/2 - 20, 40, 4);
+    // Eyes
+    ctx.fillStyle = '#0a0612';
+    ctx.beginPath(); ctx.arc(cx - 6, cy - bodyH/2 - 16, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 6, cy - bodyH/2 - 16, 2, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Little run-cycle feet (only when grounded and not sliding)
+  if(state.y === 0 && !state.slide){
+    ctx.fillStyle = '#0e7490';
+    const step = Math.sin(state.tick * 14);
+    ctx.fillRect(cx - 18 + step*4, cy + bodyH/2 - 4, 12, 10);
+    ctx.fillRect(cx +  6 - step*4, cy + bodyH/2 - 4, 12, 10);
+  }
+}
+
+function roundRect(x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y,     x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x,     y + h, r);
+  ctx.arcTo(x,     y + h, x,     y,     r);
+  ctx.arcTo(x,     y,     x + w, y,     r);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ── HUD & overlays ────────────────────────────────────────────
+function drawHUD(){
+  ctx.fillStyle = '#fef3c7';
+  ctx.font = 'bold 22px system-ui,sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(Math.floor(state.distance) + 'm', 16, 32);
+  ctx.font = '12px system-ui,sans-serif';
+  ctx.fillStyle = '#c7d2fe';
+  ctx.fillText('BEST ' + best, 16, 48);
+
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 20px system-ui,sans-serif';
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillText('◉ ' + state.coins, W - 16, 32);
+}
+
+function drawTitle(){
+  ctx.fillStyle = 'rgba(10,6,18,0.75)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#c084fc';
+  ctx.font = 'bold 56px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = '#c084fc';
+  ctx.fillText('RAIL RUNNER', W/2, H/2 - 30);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '16px system-ui,sans-serif';
+  ctx.fillText('← → change lane · SPACE jump · ↓ slide', W/2, H/2 + 10);
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = 'bold 18px system-ui,sans-serif';
+  ctx.fillText('Press SPACE / Tap to start', W/2, H/2 + 50);
+}
+
+function drawGameOver(){
+  ctx.fillStyle = 'rgba(10,6,18,0.85)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#f43f5e';
+  ctx.font = 'bold 48px system-ui,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('💥 WIPEOUT', W/2, H/2 - 30);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '20px system-ui,sans-serif';
+  ctx.fillText(Math.floor(state.distance) + 'm · ' + state.coins + ' coins', W/2, H/2 + 6);
+  ctx.fillStyle = '#fbbf24';
+  ctx.font = '14px system-ui,sans-serif';
+  ctx.fillText('BEST ' + best + 'm', W/2, H/2 + 30);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '15px system-ui,sans-serif';
+  ctx.fillText('SPACE / Tap to run again', W/2, H/2 + 62);
+}
+</script>
+</body>
+</html>
