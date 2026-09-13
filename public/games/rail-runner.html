@@ -196,37 +196,87 @@ const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
 scene.add(stars);
 
 // ── Player ─────────────────────────────────────────────────
+// Rebuilt so legs are physically visible below the torso (they
+// used to be hidden inside the body) and each limb rotates from
+// the correct pivot — shoulders and hips — instead of pivoting
+// at their own centre, which gave the weird floating-limb look.
 const playerGroup = new THREE.Group();
 scene.add(playerGroup);
-const bodyMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
-const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.4, 0.6), bodyMat);
-body.position.y = 0.7;
+
+const skinMat  = new THREE.MeshLambertMaterial({ color: 0xf5d0a4 });
+const shirtMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
+const pantsMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a });
+const shoeMat  = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+const packMat  = new THREE.MeshLambertMaterial({ color: 0xf59e0b });
+const capMat   = new THREE.MeshLambertMaterial({ color: 0xf43f5e });
+
+// Torso — sits above the legs so the pants are clearly visible.
+const body = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.85, 0.55), shirtMat);
+body.position.y = 1.25;                            // spans y=0.825 → 1.675
 playerGroup.add(body);
-const head = new THREE.Mesh(
-  new THREE.SphereGeometry(0.4, 12, 10),
-  new THREE.MeshLambertMaterial({ color: 0xf5d0a4 })
-);
-head.position.y = 1.75;
+
+// Little orange backpack — reads as a runner silhouette
+const pack = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.62, 0.28), packMat);
+pack.position.set(0, 1.28, -0.36);
+playerGroup.add(pack);
+const strapMat = new THREE.MeshLambertMaterial({ color: 0xb45309 });
+for(const sx of [-0.28, 0.28]){
+  const strap = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.55, 0.05), strapMat);
+  strap.position.set(sx, 1.28, -0.24);
+  playerGroup.add(strap);
+}
+
+// Head + neck + cap
+const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.15, 8), skinMat);
+neck.position.y = 1.75;
+playerGroup.add(neck);
+const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 12), skinMat);
+head.position.y = 2.05;
 playerGroup.add(head);
-const cap = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.42, 0.42, 0.15, 12),
-  new THREE.MeshLambertMaterial({ color: 0xf43f5e })
-);
-cap.position.y = 2.05;
+const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.17, 12), capMat);
+cap.position.y = 2.35;
 playerGroup.add(cap);
-// Legs
-const legMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a });
-const legL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.35), legMat);
-const legR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.6, 0.35), legMat);
-legL.position.set(-0.24, 0.3, 0);
-legR.position.set(0.24, 0.3, 0);
+const brim = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.04, 0.55), capMat);
+brim.position.set(0, 2.28, 0.14);
+playerGroup.add(brim);
+// Eyes
+const eyeMat = new THREE.MeshBasicMaterial({ color: 0x0a0612 });
+const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), eyeMat);
+const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), eyeMat);
+eyeL.position.set(-0.11, 2.05, 0.31);
+eyeR.position.set( 0.11, 2.05, 0.31);
+playerGroup.add(eyeL); playerGroup.add(eyeR);
+
+// ── Legs (grouped at the hip so they pivot correctly) ───────
+function makeLeg(sx){
+  const hip = new THREE.Group();
+  hip.position.set(sx, 0.85, 0);          // hip joint level
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.55, 0.32), pantsMat);
+  upper.position.y = -0.28;               // hangs below the hip
+  hip.add(upper);
+  const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.16, 0.5), shoeMat);
+  shoe.position.set(0, -0.63, 0.08);
+  hip.add(shoe);
+  return hip;
+}
+const legL = makeLeg(-0.20);
+const legR = makeLeg( 0.20);
 playerGroup.add(legL); playerGroup.add(legR);
-// Arms
-const armMat = new THREE.MeshLambertMaterial({ color: 0x22d3ee });
-const armL = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.3), armMat);
-const armR = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.9, 0.3), armMat);
-armL.position.set(-0.6, 0.9, 0);
-armR.position.set(0.6, 0.9, 0);
+
+// ── Arms (grouped at the shoulder) ──────────────────────────
+function makeArm(sx){
+  const shoulder = new THREE.Group();
+  shoulder.position.set(sx, 1.60, 0);      // shoulder joint level
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.55, 0.26), shirtMat);
+  upper.position.y = -0.28;
+  shoulder.add(upper);
+  const hand = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), skinMat);
+  hand.position.y = -0.62;
+  shoulder.add(hand);
+  return shoulder;
+}
+const armL = makeArm(-0.55);
+const armR = makeArm( 0.55);
 playerGroup.add(armL); playerGroup.add(armR);
 
 playerGroup.position.set(0, 0, 0);
@@ -305,17 +355,21 @@ function spawnObstacle(){
 
   // 15% chance to drop a ramp+train combo in one clear lane (only
   // if we have at least 2 clear lanes so the player has an out).
+  //
+  // Layout: lower z = closer to the player, so the RAMP goes at
+  // the smaller z (arrives first) and the TRAIN follows behind
+  // it at a larger z. The ramp's far edge (z=107) abuts the
+  // train's near edge (z=107) for a seamless step from ramp top
+  // to train roof.
   if(clear.length >= 2 && Math.random() < 0.15){
     const ln = clear[Math.floor(Math.random()*clear.length)];
-    // Ramp at the front (closer to player z=115)
     const ramp = buildObstacle('ramp', ln);
-    ramp.userData = { z: 115, lane: ln, kind: 'ramp' };
-    ramp.position.set(LANE_X[ln], 0, 115);
+    ramp.userData = { z: 105, lane: ln, kind: 'ramp' };
+    ramp.position.set(LANE_X[ln], 0, 105);
     scene.add(ramp); state.obstacles.push(ramp);
-    // Train immediately behind the ramp (train center 12u further away)
     const train = buildObstacle('train', ln);
-    train.userData = { z: 105, lane: ln, kind: 'train' };
-    train.position.set(LANE_X[ln], 0, 105);
+    train.userData = { z: 113, lane: ln, kind: 'train' };
+    train.position.set(LANE_X[ln], 0, 113);
     scene.add(train); state.obstacles.push(train);
     // Bonus: coin trail hovering just above the train's roof —
     // grabbable only while running on top.
@@ -641,29 +695,33 @@ function update(dt){
   if(state.y < ground){ state.y = ground; state.yVel = 0; }
   playerGroup.position.y = state.y;
 
-  // Slide
+  // Slide — squash the whole rig down to roughly half height by
+  // scaling the group on Y. Simpler and keeps limbs proportional
+  // than fiddling with each piece.
   if(state.slideT > 0){
     state.slideT -= dt;
-    body.scale.y = 0.5; body.position.y = 0.35;
-    head.visible = false; cap.visible = false;
-    armL.rotation.z = -1.4; armR.rotation.z = 1.4;
+    playerGroup.scale.y = 0.55;
+    legL.rotation.x = 0.4;
+    legR.rotation.x = -0.4;
+    armL.rotation.x = -0.9; armL.rotation.z = -0.4;
+    armR.rotation.x = -0.9; armR.rotation.z =  0.4;
   } else {
-    body.scale.y = 1; body.position.y = 0.7;
-    head.visible = true; cap.visible = true;
+    playerGroup.scale.y = 1;
     armL.rotation.z = 0; armR.rotation.z = 0;
-  }
 
-  // Running animation (legs + arms swing)
-  const swing = Math.sin(state.tick * 15) * 0.6;
-  if(state.y <= 0.01 && state.slideT <= 0){
-    legL.rotation.x = swing;
-    legR.rotation.x = -swing;
-    armL.rotation.x = -swing * 0.7;
-    armR.rotation.x = swing * 0.7;
-  } else if(state.slideT <= 0){
-    // Jumping pose
-    legL.rotation.x = -0.4; legR.rotation.x = 0.4;
-    armL.rotation.x = -0.7; armR.rotation.x = -0.7;
+    // Running animation (legs + arms swing from the joints)
+    const swing = Math.sin(state.tick * 14) * 0.7;
+    const grounded = state.y <= 0.02 || state.onTrain;
+    if(grounded){
+      legL.rotation.x = swing;
+      legR.rotation.x = -swing;
+      armL.rotation.x = -swing * 0.85;
+      armR.rotation.x =  swing * 0.85;
+    } else {
+      // Airborne pose — tucked knees, arms up
+      legL.rotation.x = -0.6; legR.rotation.x = 0.6;
+      armL.rotation.x = -1.2; armR.rotation.x = -1.2;
+    }
   }
 
   // Scroll ground textures — sleepers, dividers, streetlights, city
