@@ -345,24 +345,31 @@ addEventListener('touchend', e => {
 
 // ── Spawners ───────────────────────────────────────────────
 function spawnObstacle(){
-  const clear = [0, 1, 2].filter(ln => {
-    return !state.coins3D.some(c =>
-      c.userData.lane === ln &&
-      c.userData.z > 85 && c.userData.z < 130
-    );
-  });
-  if(clear.length === 0) return;
+  // "Danger zone" is the z-range where the incoming spawn will
+  // land. If a lane already has ANYTHING (obstacle or coin) in
+  // this window, we treat that lane as taken so we don't stack
+  // two things in the same slot.
+  const Z_MIN = 85, Z_MAX = 130;
+  const occupied = new Set();
+  for(const o of state.obstacles){
+    if(o.userData.z > Z_MIN && o.userData.z < Z_MAX) occupied.add(o.userData.lane);
+  }
+  for(const c of state.coins3D){
+    if(c.userData.z > Z_MIN && c.userData.z < Z_MAX) occupied.add(c.userData.lane);
+  }
+  const free = [0, 1, 2].filter(ln => !occupied.has(ln));
+  // ── Hard rule: the row must NEVER end up with all three lanes
+  // blocked at once. If every lane is already occupied, sit this
+  // one out. Otherwise we must leave at least one of the currently-
+  // free lanes clear — so cap the number of new blocks at
+  // (free.length - 1).
+  const maxNew = free.length - 1;
+  if(maxNew <= 0) return;
 
-  // 15% chance to drop a ramp+train combo in one clear lane (only
-  // if we have at least 2 clear lanes so the player has an out).
-  //
-  // Layout: lower z = closer to the player, so the RAMP goes at
-  // the smaller z (arrives first) and the TRAIN follows behind
-  // it at a larger z. The ramp's far edge (z=107) abuts the
-  // train's near edge (z=107) for a seamless step from ramp top
-  // to train roof.
-  if(clear.length >= 2 && Math.random() < 0.15){
-    const ln = clear[Math.floor(Math.random()*clear.length)];
+  // 15% chance to lay down a ramp+train combo (needs one free
+  // lane, and if we have two free lanes we still keep one open).
+  if(Math.random() < 0.15){
+    const ln = free[Math.floor(Math.random()*free.length)];
     const ramp = buildObstacle('ramp', ln);
     ramp.userData = { z: 105, lane: ln, kind: 'ramp' };
     ramp.position.set(LANE_X[ln], 0, 105);
@@ -371,8 +378,7 @@ function spawnObstacle(){
     train.userData = { z: 113, lane: ln, kind: 'train' };
     train.position.set(LANE_X[ln], 0, 113);
     scene.add(train); state.obstacles.push(train);
-    // Bonus: coin trail hovering just above the train's roof —
-    // grabbable only while running on top.
+    // Rooftop coin trail — only grabbable while on the roof
     for(let i=0; i<6; i++){
       const c = new THREE.Mesh(
         new THREE.TorusGeometry(0.35, 0.13, 8, 20),
@@ -386,10 +392,14 @@ function spawnObstacle(){
     return;
   }
 
-  const takeTwo = clear.length >= 2 && Math.random() < 0.45;
-  const blocked = takeTwo ? shuffle(clear).slice(0, 2) : [clear[Math.floor(Math.random()*clear.length)]];
-  if(blocked.length >= clear.length && clear.length >= 2) blocked.pop();
-  const kind = pick(['lo','lo','hi','wall','train']);   // trains occasionally solo too
+  // Regular spawn — pick 1 or (rarely) 2 free lanes, always
+  // keeping at least one free lane empty.
+  const takeTwo = maxNew >= 2 && Math.random() < 0.35;
+  const count = takeTwo ? 2 : 1;
+  const blocked = shuffle(free.slice()).slice(0, count);
+  // Kind pool skewed toward "easily dodgeable" (low barriers and
+  // slide bars) so unavoidable-looking rows are rarer.
+  const kind = pick(['lo','lo','lo','hi','hi','wall','train']);
   for(const ln of blocked){
     const obj = buildObstacle(kind, ln);
     obj.userData = { z: 100, lane: ln, kind };
@@ -774,18 +784,23 @@ function update(dt){
     if(o.userData.lane !== state.lane) continue;
     let hit = true;
     if(k === 'lo'){
+      // Low barrier tops out at y=0.8; ANY elevated player clears.
       if(state.y > 0.85) hit = false;
     } else if(k === 'hi'){
-      if(state.slideT > 0) hit = false;
+      // Bar occupies y=1.2–1.6. Escape by sliding (y=0–0.7 while
+      // slideT>0) OR by being high enough to fly over it —
+      // matters when descending from a train roof at y=2.4.
+      if(state.slideT > 0 || state.y >= 1.75) hit = false;
+    } else if(k === 'wall'){
+      // Wall spans y=0–3. Only way over is being elevated by a
+      // ramp/train chain — solo jump doesn't reach 3.0.
+      if(state.y >= 3.05) hit = false;
     } else if(k === 'train'){
-      // Crash only if the player is at ground level under the
-      // train. On top (y ≥ 2.0) is safe — that's the mechanic.
+      // Crash if on the ground under a train; safe on top.
       if(state.y >= 2.0) hit = false;
     } else if(k === 'ramp'){
-      // Ramps never kill; they just lift the player.
-      hit = false;
+      hit = false;    // ramps only lift, never kill
     }
-    // 'wall' has no evasion — must have already switched lane
     if(hit){ o.userData.hit = true; endGame(); return; }
     if(!o.userData.dodged){
       o.userData.dodged = true;
