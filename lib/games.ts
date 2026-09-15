@@ -36,9 +36,9 @@ export const GAMES: Game[] = [
     id: "sky-dodge",
     title: "Sky Dodge",
     emoji: "🚀",
-    description: "Fly a starship through an asteroid field. Shoot or weave through.",
+    description: "Hold your lane and dodge incoming asteroids. Steer up and down, shoot to clear.",
     color: "from-indigo-500 to-fuchsia-600",
-    controls: "Arrows / WASD move · Space to fire",
+    controls: "↑ ↓ / W S to steer · Space to fire",
   },
   {
     id: "breakout",

@@ -15,7 +15,7 @@ canvas{border-radius:14px;border:2px solid #1e1e3a;cursor:crosshair}
 <body>
 <a href="/" class="hbtn">← Games</a>
 <canvas id="c"></canvas>
-<p class="hint">↑ ↓ ← → move · Space fire · dodge asteroids, shoot for score</p>
+<p class="hint">↑ ↓ steer · Space fire · dodge asteroids, shoot for score</p>
 <script>
 // ═══════════════════════════════════════════════════════════════
 //   SKY DODGE — free-move space dodger. Player pilots a small
@@ -103,18 +103,14 @@ function update(){
   frame++;
   if(state !== 'play') return;
 
-  const ax = (KEYS.ArrowLeft || KEYS.KeyA ? -1 : 0) + (KEYS.ArrowRight || KEYS.KeyD ? 1 : 0);
-  const ay = (KEYS.ArrowUp   || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown  || KEYS.KeyS ? 1 : 0);
-  let dx = ax, dy = ay;
+  // Horizontal position is locked — the ship only moves up/down.
+  const ay = (KEYS.ArrowUp || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown || KEYS.KeyS ? 1 : 0);
+  let dy = ay;
   if(touchXY){
-    const tdx = touchXY.x - ship.x, tdy = touchXY.y - ship.y;
-    const tm = Math.hypot(tdx, tdy);
-    if(tm > 4){ dx = tdx / tm; dy = tdy / tm; }
-    else { dx = 0; dy = 0; }
+    const tdy = touchXY.y - ship.y;
+    dy = Math.max(-1, Math.min(1, tdy / 60));
   }
-  ship.vx = dx * 4.4;
   ship.vy = dy * 4.4;
-  ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x + ship.vx));
   ship.y = Math.max(ship.r, Math.min(H - ship.r, ship.y + ship.vy));
   ship.cool--;
 
@@ -281,7 +277,7 @@ function draw(){
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#e2e8f0';
     ctx.font = '15px system-ui,sans-serif';
-    ctx.fillText('Arrow keys / WASD to move', W/2, H/2 + 6);
+    ctx.fillText('↑ ↓ / W S to steer up & down', W/2, H/2 + 6);
     ctx.fillText('Hold Space / Ctrl to fire', W/2, H/2 + 26);
     ctx.fillStyle = '#fbbf24';
     ctx.font = 'bold 15px system-ui,sans-serif';
