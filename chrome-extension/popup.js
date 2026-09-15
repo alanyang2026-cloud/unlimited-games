@@ -39,12 +39,16 @@ const GAMES = [
 const grid = document.getElementById('grid');
 const frag = document.createDocumentFragment();
 for(const g of GAMES){
-  const card = document.createElement('div');
+  // Use a real <button> so Tab / Enter / Space "just work" for
+  // keyboard users, no custom key handling needed.
+  const card = document.createElement('button');
+  card.type = 'button';
   card.className = 'card' + (g.live ? ' live' : '');
   card.style.setProperty('--c1', g.c1);
   card.style.setProperty('--c2', g.c2);
   card.title = g.title + (g.live ? ' (live multiplayer)' : '');
   card.dataset.id = g.id;
+  card.setAttribute('aria-label', g.title + (g.live ? ' — live multiplayer' : ''));
   card.innerHTML =
     '<div class="bg"></div>' +
     '<div class="inner">' +
@@ -55,6 +59,11 @@ for(const g of GAMES){
   frag.appendChild(card);
 }
 grid.appendChild(frag);
+
+// Give the first card focus on load so keyboard users can immediately
+// arrow / tab / Enter into a game without clicking first.
+const firstCard = grid.querySelector('.card');
+if(firstCard) firstCard.focus();
 
 // ─── Launch / return ──────────────────────────────────────
 let currentGame = null;
@@ -81,6 +90,13 @@ function launchGame(g){
 
   iframe.src = SITE + g.url;
   document.body.classList.add('playing');
+  // Hand keyboard focus to the iframe as soon as it loads so users
+  // don't have to click into the game before arrow keys / space work.
+  const onLoad = () => {
+    iframe.removeEventListener('load', onLoad);
+    try { iframe.focus(); } catch(_){}
+  };
+  iframe.addEventListener('load', onLoad);
 }
 
 function backToMenu(){
@@ -95,9 +111,21 @@ document.getElementById('back').addEventListener('click', backToMenu);
 // "← Games" link inside a game), the site posts us a message and we
 // swap the popup back to the compact game menu — otherwise the user
 // would see the full 3-column site homepage inside 764×528 instead
-// of our little grid.
+// of our little grid. Games also post this message when the user
+// presses Esc inside them (see public/games/_esc-back.js).
 window.addEventListener('message', ev => {
   if (ev && ev.data && ev.data.type === 'ug-back-to-menu') backToMenu();
+});
+
+// Popup-level Escape: if the popup shell itself has focus (menu view,
+// or right after a game closes) Esc closes the current game or the
+// whole popup. When the iframe has focus, the game's copy of
+// _esc-back.js catches Esc and posts us `ug-back-to-menu` instead.
+window.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape' || ev.defaultPrevented) return;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey) return;
+  if (currentGame) { ev.preventDefault(); backToMenu(); }
+  else { ev.preventDefault(); window.close(); }
 });
 document.getElementById('close').addEventListener('click', () => window.close());
 document.getElementById('newTab').addEventListener('click', () => {

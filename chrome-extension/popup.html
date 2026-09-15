@@ -74,6 +74,10 @@
   .bar button:hover{background:rgba(255,255,255,.2)}
   .bar button.close{background:#dc2626;color:#fff}
   .bar button.close:hover{background:#ef4444}
+  /* Clear focus rings — pure-keyboard users can see where they are */
+  .bar button:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
+  .card:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;box-shadow:0 0 0 3px rgba(251,191,36,.35)}
+  .ftr a:focus-visible{outline:2px solid #a855f7;outline-offset:2px}
   .bar .back{display:none}
   body.playing .bar .back{display:inline-block}
   body.playing .bar .title{display:none}
@@ -96,12 +100,20 @@
     gap:10px;
   }
   .card{
+    /* Rendered as a <button> for a11y — reset native chrome */
+    all:unset;
+    box-sizing:border-box;
+    display:block;
     position:relative;
     aspect-ratio:1/1;
+    width:100%;
     border-radius:12px;
     cursor:pointer;
     overflow:hidden;
     border:1px solid rgba(255,255,255,.06);
+    background:transparent;
+    color:inherit;
+    font:inherit;
     transition:transform .12s ease, box-shadow .12s ease;
   }
   .card:hover{
