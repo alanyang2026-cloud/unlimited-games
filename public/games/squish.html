@@ -39,9 +39,12 @@
 
   .float{position:absolute;font-weight:900;color:#c026d3;text-shadow:0 2px 4px rgba(255,255,255,.8);pointer-events:none;animation:fup 1s ease-out forwards;font-size:20px;z-index:5}
   @keyframes fup{0%{transform:translateY(0) scale(1);opacity:1}100%{transform:translateY(-50px) scale(1.4);opacity:0}}
+  .hbtn{position:fixed;top:10px;left:10px;z-index:110;background:rgba(255,255,255,.75);color:#7c3aed;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:700;backdrop-filter:blur(6px);border:1px solid #f5d0e5;transition:.2s}
+  .hbtn:hover{background:#f0abfc;color:#fff}
 </style>
 </head>
 <body>
+  <a href="/" class="hbtn">← Games</a>
 
   <!-- Material picker -->
   <div class="picker" id="picker">
