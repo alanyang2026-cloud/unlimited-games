@@ -19,9 +19,9 @@ const AVAIL_W = 764, AVAIL_H = 492;
 const GAMES = [
   { id:'snake',           title:'Snake',           emoji:'🐍', url:'/games/snake.html',           c1:'#16a34a', c2:'#0d9488', nw:480, nh:520 },
   { id:'2048',            title:'2048',            emoji:'🔢', url:'/games/2048.html',            c1:'#a855f7', c2:'#6d28d9', nw:420, nh:560 },
-  { id:'tetris',          title:'Tetris',          emoji:'🧱', url:'/games/tetris.html',          c1:'#06b6d4', c2:'#1e40af', nw:400, nh:580 },
-  { id:'flappy',          title:'Flappy',          emoji:'🐦', url:'/games/flappy.html',          c1:'#facc15', c2:'#ea580c', nw:380, nh:540 },
-  { id:'breakout',        title:'Breakout',        emoji:'🏓', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c', nw:480, nh:640 },
+  { id:'tetris',          title:'Blocks',          emoji:'🧱', url:'/games/tetris.html',          c1:'#06b6d4', c2:'#1e40af', nw:400, nh:580 },
+  { id:'sky-dodge',       title:'Sky Dodge',       emoji:'🚀', url:'/games/sky-dodge.html',       c1:'#6366f1', c2:'#c026d3', nw:480, nh:600 },
+  { id:'breakout',        title:'Brick Buster',    emoji:'🧱', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c', nw:400, nh:500 },
   { id:'memory',          title:'Memory',          emoji:'🃏', url:'/games/memory.html',          c1:'#ec4899', c2:'#a21caf', nw:520, nh:560 },
   { id:'snake-battle',    title:'Snake Battle',    emoji:'⚔️', url:'/games/snake-battle.html',   c1:'#7c3aed', c2:'#581c87', live:true, nw:760, nh:540 },
   { id:'arcade-brawl',    title:'Arcade Brawl',    emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true, nw:720, nh:460 },

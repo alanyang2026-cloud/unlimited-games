@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Sky Dodge</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#07070d;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;user-select:none;overflow:hidden}
+canvas{border-radius:14px;border:2px solid #1e1e3a;cursor:crosshair}
+.hint{color:#94a3b8;font-size:14px;margin-top:10px}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.6);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
+.hbtn:hover{background:rgba(168,85,247,.5)}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<canvas id="c"></canvas>
+<p class="hint">↑ ↓ ← → move · Space fire · dodge asteroids, shoot for score</p>
+<script>
+// ═══════════════════════════════════════════════════════════════
+//   SKY DODGE — free-move space dodger. Player pilots a small
+//   ship, moves in 4 directions, fires forward, and survives
+//   incoming asteroids. Original code + concept.
+// ═══════════════════════════════════════════════════════════════
+
+const C = document.getElementById('c'), ctx = C.getContext('2d');
+C.width = 480; C.height = 540;
+const W = C.width, H = C.height;
+
+let ship, bullets, rocks, particles, score, best = +(localStorage.getItem('sd_best') || 0), state, frame;
+const KEYS = {};
+
+function init(){
+  ship = { x: 60, y: H/2, vx: 0, vy: 0, r: 14, cool: 0 };
+  bullets = [];
+  rocks = [];
+  particles = [];
+  score = 0;
+  frame = 0;
+  state = 'ready';
+}
+init();
+
+addEventListener('keydown', e => {
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown',' '].includes(e.key)) e.preventDefault();
+  KEYS[e.code] = true;
+  if(state === 'ready' && (e.key === ' ' || e.key === 'Enter')) state = 'play';
+  else if(state === 'dead' && (e.key === ' ' || e.key === 'Enter')){ init(); state = 'play'; }
+});
+addEventListener('keyup', e => { KEYS[e.code] = false; });
+C.addEventListener('click', () => {
+  if(state === 'ready') state = 'play';
+  else if(state === 'dead'){ init(); state = 'play'; }
+});
+// Touch — drag to steer, tap to start / retry
+let touchXY = null;
+C.addEventListener('touchstart', e => {
+  const r = C.getBoundingClientRect();
+  const t = e.touches[0];
+  touchXY = { x: (t.clientX - r.left) * (W / r.width), y: (t.clientY - r.top) * (H / r.height) };
+  if(state === 'ready') state = 'play';
+  else if(state === 'dead'){ init(); state = 'play'; }
+  e.preventDefault();
+});
+C.addEventListener('touchmove', e => {
+  const r = C.getBoundingClientRect();
+  const t = e.touches[0];
+  touchXY = { x: (t.clientX - r.left) * (W / r.width), y: (t.clientY - r.top) * (H / r.height) };
+  e.preventDefault();
+});
+C.addEventListener('touchend', () => { touchXY = null; }, { passive: true });
+
+function fire(){
+  bullets.push({ x: ship.x + 14, y: ship.y - 3, r: 3 });
+  bullets.push({ x: ship.x + 14, y: ship.y + 3, r: 3 });
+  ship.cool = 8;
+}
+
+function spawnRock(){
+  const r = 12 + Math.random() * 24;
+  rocks.push({
+    x: W + r,
+    y: 40 + Math.random() * (H - 80),
+    vx: -(1.6 + Math.random() * 2.4 + score * 0.003),
+    vy: (Math.random() - 0.5) * 1.4,
+    r, hp: Math.ceil(r / 12),
+    rot: 0, rotV: (Math.random() - 0.5) * 0.08,
+  });
+}
+
+function spawnParticles(x, y, color, n){
+  for(let i = 0; i < n; i++){
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6,
+      life: 1, color,
+    });
+  }
+}
+
+function update(){
+  frame++;
+  if(state !== 'play') return;
+
+  const ax = (KEYS.ArrowLeft || KEYS.KeyA ? -1 : 0) + (KEYS.ArrowRight || KEYS.KeyD ? 1 : 0);
+  const ay = (KEYS.ArrowUp   || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown  || KEYS.KeyS ? 1 : 0);
+  let dx = ax, dy = ay;
+  if(touchXY){
+    const tdx = touchXY.x - ship.x, tdy = touchXY.y - ship.y;
+    const tm = Math.hypot(tdx, tdy);
+    if(tm > 4){ dx = tdx / tm; dy = tdy / tm; }
+    else { dx = 0; dy = 0; }
+  }
+  ship.vx = dx * 4.4;
+  ship.vy = dy * 4.4;
+  ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x + ship.vx));
+  ship.y = Math.max(ship.r, Math.min(H - ship.r, ship.y + ship.vy));
+  ship.cool--;
+
+  if((KEYS.Space || KEYS.ControlLeft) && ship.cool <= 0) fire();
+
+  const rate = Math.max(14, 34 - Math.floor(score / 8));
+  if(frame % rate === 0) spawnRock();
+  if(frame % 240 === 0){ for(let i = 0; i < 3; i++) spawnRock(); }
+
+  for(const b of bullets) b.x += 9;
+  bullets = bullets.filter(b => b.x < W + 20);
+
+  for(const rock of rocks){
+    rock.x += rock.vx;
+    rock.y += rock.vy;
+    rock.rot += rock.rotV;
+    if(rock.y < rock.r || rock.y > H - rock.r) rock.vy *= -1;
+  }
+  for(const b of bullets){
+    for(const rock of rocks){
+      if(rock.hp <= 0) continue;
+      const d = Math.hypot(b.x - rock.x, b.y - rock.y);
+      if(d < b.r + rock.r){
+        rock.hp--;
+        b.dead = true;
+        spawnParticles(b.x, b.y, '#fbbf24', 4);
+        if(rock.hp <= 0){
+          score += Math.ceil(rock.r);
+          spawnParticles(rock.x, rock.y, '#94a3b8', 12);
+        }
+        break;
+      }
+    }
+  }
+  bullets = bullets.filter(b => !b.dead);
+  rocks = rocks.filter(r => r.hp > 0 && r.x > -r.r * 2);
+
+  for(const rock of rocks){
+    const d = Math.hypot(ship.x - rock.x, ship.y - rock.y);
+    if(d < ship.r + rock.r * 0.85){
+      state = 'dead';
+      spawnParticles(ship.x, ship.y, '#f43f5e', 30);
+      if(score > best){ best = score; localStorage.setItem('sd_best', best); }
+      break;
+    }
+  }
+  for(const rock of rocks){
+    if(!rock.passed && rock.x + rock.r < ship.x){ rock.passed = true; score += 1; }
+  }
+
+  for(const p of particles){
+    p.x += p.vx; p.y += p.vy;
+    p.life -= 0.035;
+    p.vx *= 0.94; p.vy *= 0.94;
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+function draw(){
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#050014');
+  g.addColorStop(1, '#0f1030');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  for(let i = 0; i < 45; i++){
+    const sx = ((i * 137 - frame * (i % 3 + 1)) % W + W) % W;
+    const sy = (i * 71) % H;
+    ctx.fillRect(sx, sy, 1, 1);
+  }
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  for(let i = 0; i < 12; i++){
+    const sx = ((i * 113 - frame * (i % 2 + 2)) % W + W) % W;
+    const sy = ((i * 87) + 20) % H;
+    ctx.fillRect(sx, sy, 2, 2);
+  }
+
+  for(const p of particles){
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  for(const rock of rocks){
+    ctx.save();
+    ctx.translate(rock.x, rock.y);
+    ctx.rotate(rock.rot);
+    ctx.fillStyle = rock.hp > 1 ? '#4b5563' : '#6b7280';
+    ctx.beginPath();
+    const SEG = 8;
+    for(let i = 0; i <= SEG; i++){
+      const a = (i / SEG) * Math.PI * 2;
+      const rr = rock.r * (0.75 + 0.35 * ((Math.sin(i * 3.7) + 1) / 2));
+      const px = Math.cos(a) * rr;
+      const py = Math.sin(a) * rr;
+      if(i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#1f2937';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.arc(-rock.r * 0.3, -rock.r * 0.2, rock.r * 0.18, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc( rock.r * 0.15, rock.r * 0.25, rock.r * 0.12, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = '#fbbf24';
+  ctx.fillStyle = '#fbbf24';
+  for(const b of bullets){
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Ship
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+  const eg = ctx.createRadialGradient(-16, 0, 1, -16, 0, 14);
+  eg.addColorStop(0, `rgba(34,211,238,${0.8 - Math.random() * 0.2})`);
+  eg.addColorStop(1, 'rgba(34,211,238,0)');
+  ctx.fillStyle = eg;
+  ctx.fillRect(-32, -12, 22, 24);
+  ctx.fillStyle = '#c4b5fd';
+  ctx.beginPath();
+  ctx.moveTo(15, 0);
+  ctx.lineTo(-10, -10);
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-10, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#7c3aed';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#22d3ee';
+  ctx.beginPath();
+  ctx.ellipse(3, 0, 4, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.fillStyle = '#fef3c7';
+  ctx.font = 'bold 20px system-ui,sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('SCORE ' + score, 12, 26);
+  ctx.font = '12px system-ui,sans-serif';
+  ctx.fillStyle = '#c7d2fe';
+  ctx.fillText('BEST ' + best, 12, 44);
+
+  if(state === 'ready'){
+    ctx.fillStyle = 'rgba(5,0,20,.75)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#c4b5fd';
+    ctx.font = 'bold 40px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowBlur = 20; ctx.shadowColor = '#7c3aed';
+    ctx.fillText('🚀 SKY DODGE', W/2, H/2 - 30);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = '15px system-ui,sans-serif';
+    ctx.fillText('Arrow keys / WASD to move', W/2, H/2 + 6);
+    ctx.fillText('Hold Space / Ctrl to fire', W/2, H/2 + 26);
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 15px system-ui,sans-serif';
+    ctx.fillText('Space / Tap to start', W/2, H/2 + 60);
+  }
+  if(state === 'dead'){
+    ctx.fillStyle = 'rgba(5,0,20,.85)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#f43f5e';
+    ctx.font = 'bold 36px system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('💥 WRECKED', W/2, H/2 - 50);
+    ctx.fillStyle = '#fef3c7';
+    ctx.font = 'bold 22px system-ui,sans-serif';
+    ctx.fillText('Score: ' + score, W/2, H/2);
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText('Best: ' + best, W/2, H/2 + 34);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '14px system-ui,sans-serif';
+    ctx.fillText('Space / Tap to fly again', W/2, H/2 + 70);
+  }
+}
+
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>

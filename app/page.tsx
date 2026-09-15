@@ -4,7 +4,7 @@ const GAME_PATHS: Record<string, string> = {
   "snake":         "/games/snake.html",
   "2048":          "/games/2048.html",
   "tetris":        "/games/tetris.html",
-  "flappy-bird":   "/games/flappy.html",
+  "sky-dodge":     "/games/sky-dodge.html",
   "breakout":      "/games/breakout.html",
   "memory-match":  "/games/memory.html",
   "snake-battle":  "/games/snake-battle.html",
