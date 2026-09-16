@@ -229,7 +229,7 @@ function draw(){
   if(buffs.laser > 0){ ctx.fillStyle='#ef4444'; ctx.fillText(`LASER ${Math.ceil(buffs.laser/60)}s`, 10, by); by -= 14; }
   if(balls.length > 1){ ctx.fillStyle='#fbbf24'; ctx.fillText(`×${balls.length} BALLS`, 10, by); }
   // overlays
-  if(state==='ready'){overlay('🧱 BRICK BUSTER','Click or Space to launch')}
+  if(state==='ready'){overlay('💥 BRICK BUSTER','Click or Space to launch')}
   if(state==='win'){overlay('🎉 YOU WIN!',`Score: ${score} · Click to play again`)}
   if(state==='dead'){overlay('💀 GAME OVER',`Score: ${score} · Click to play again`)}
 }

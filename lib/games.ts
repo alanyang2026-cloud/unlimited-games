@@ -43,7 +43,7 @@ export const GAMES: Game[] = [
   {
     id: "breakout",
     title: "Brick Buster",
-    emoji: "🧱",
+    emoji: "💥",
     description: "Break every brick. Catch power-ups for wide paddle, laser, and multi-ball.",
     color: "from-rose-500 to-red-600",
     controls: "Mouse / Touch to move paddle · Space to launch",
