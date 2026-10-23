@@ -158,11 +158,58 @@
     box-shadow:0 0 6px rgba(236,72,153,.6);
   }
 
-  .ftr{
+  /* Soft prompt row — invite + rate. Sits above the plain footer so
+     it's visible but not pushy (small, muted when idle, lights up on hover) */
+  .promo{
     margin-top:14px;
+    display:flex;
+    gap:8px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .promo button{
+    all:unset;
+    cursor:pointer;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:.3px;
+    padding:6px 12px;
+    border-radius:999px;
+    color:#fef3c7;
+    background:rgba(168,85,247,.15);
+    border:1px solid rgba(168,85,247,.35);
+    transition:background .15s, transform .1s;
+    white-space:nowrap;
+  }
+  .promo button:hover{background:rgba(168,85,247,.35);transform:translateY(-1px)}
+  .promo button:active{transform:translateY(0)}
+  .promo .rate{color:#fde047;border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)}
+  .promo .rate:hover{background:rgba(251,191,36,.25)}
+  .promo button:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
+  .promo .toast{
+    position:fixed;
+    left:50%;
+    bottom:16px;
+    transform:translateX(-50%);
+    background:#065f46;
+    color:#d1fae5;
+    font-size:12px;
+    font-weight:800;
+    padding:8px 14px;
+    border-radius:8px;
+    box-shadow:0 4px 14px rgba(0,0,0,.5);
+    z-index:999;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity .2s;
+  }
+  .promo .toast.show{opacity:1}
+
+  .ftr{
+    margin-top:10px;
     text-align:center;
     border-top:1px solid rgba(255,255,255,.07);
-    padding-top:10px;
+    padding-top:8px;
   }
   .ftr a{
     display:inline-block;
@@ -208,6 +255,11 @@
 
   <div class="menu">
     <div class="grid" id="grid"></div>
+    <div class="promo">
+      <button class="invite" id="inviteBtn" title="Copy install link to clipboard">👯 Invite a friend</button>
+      <button class="rate" id="rateBtn" title="Open our Chrome Web Store page">⭐ Love it? Rate 5 stars</button>
+      <div class="toast" id="toast"></div>
+    </div>
     <div class="ftr">
       <a data-action="full">🌐 Full site</a>
       <span class="sep">·</span>

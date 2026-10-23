@@ -24,7 +24,7 @@ const GAMES = [
   { id:'breakout',        title:'Brick Buster',    emoji:'💥', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c', nw:400, nh:560 },
   { id:'memory',          title:'Memory',          emoji:'🃏', url:'/games/memory.html',          c1:'#ec4899', c2:'#a21caf', nw:520, nh:560 },
   { id:'snake-battle',    title:'Snake Battle',    emoji:'⚔️', url:'/games/snake-battle.html',   c1:'#7c3aed', c2:'#581c87', live:true, nw:760, nh:540 },
-  { id:'arcade-brawl',    title:'Arcade Brawl',    emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true, nw:720, nh:460 },
+  { id:'arcade-brawl',    title:'Arcade Brawl',    emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true, nw:960, nh:560 },
   { id:'doorman',         title:'Night Watch',     emoji:'🚪', url:'/games/doorman.html',         c1:'#7f1d1d', c2:'#1c1917', nw:1100, nh:660 },
   { id:'door-escape',     title:'Find Door',       emoji:'🏃', url:'/games/door-escape.html',     c1:'#b45309', c2:'#78350f', nw:960, nh:540 },
   { id:'downhill',        title:'Downhill',        emoji:'🚵', url:'/games/downhill-brawl.html',  c1:'#15803d', c2:'#b45309', nw:720, nh:520 },
@@ -143,4 +143,33 @@ document.querySelectorAll('.ftr a').forEach(a => {
     chrome.tabs.create({ url });
     window.close();
   });
+});
+
+// Promo row — invite + rate. Both soft prompts: no auto-popups, no
+// recurring nags; the user only sees them if they look at the footer.
+const STORE_URL = 'https://chromewebstore.google.com/detail/nmkkimkicjgjighhnlffpnbjcahliido';
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._tid);
+  showToast._tid = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+document.getElementById('inviteBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(STORE_URL);
+    showToast('Link copied — send it to a friend!');
+  } catch(_){
+    // Clipboard denied — just open the store page they can share from
+    chrome.tabs.create({ url: STORE_URL });
+    window.close();
+  }
+});
+
+document.getElementById('rateBtn').addEventListener('click', () => {
+  chrome.tabs.create({ url: STORE_URL + '/reviews' });
+  window.close();
 });
