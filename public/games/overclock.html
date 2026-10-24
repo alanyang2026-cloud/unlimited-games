@@ -328,15 +328,15 @@ const HEROES = {
   rookie:   { name:'Rookie',   ico:'🤖', slots:6, maxHp:100, moveSpeed:2.6,
     desc:'Balanced build. 6 weapon slots.' },
   oldman:   { name:'One-Arm',  ico:'🦾', slots:1, maxHp:95,  moveSpeed:2.5,
-    desc:'1 slot only (others locked). Weapon: +250% dmg, +150% fire. Passives apply 4× (both good and bad).' },
+    desc:'1 slot. +25% dmg, +15% fire baseline. Weapon: +250% dmg, +150% fire. NEGATIVE passives apply 5×. Overloaded = overheat jam.' },
   glutton:  { name:'Glutton',  ico:'🍖', slots:6, maxHp:130, moveSpeed:2.2,
-    desc:'+30 HP, +10 regen. Every 10 HP you heal → +1% permanent damage. Dodge locked at -50%.' },
+    desc:'+30 HP, +10 regen. Every 15 HP healed → +1% dmg. Each +10% dmg = +8% hitbox. 3+ stacks: move cap drops to 105%. Dodge locked at -50%.' },
   mechanic: { name:'Mechanic', ico:'🔧', slots:6, maxHp:95,  moveSpeed:2.3,
-    desc:'+20 eng. Turrets: +50% dmg & fire. Your own melee/bullet attacks deal 20% damage.' },
+    desc:'+20 eng, +5 armor. Turrets: +50% dmg & fire. Your melee/ranged bonuses are ZEROED. Max 4 turrets.' },
   reckless: { name:'Reckless', ico:'🩸', slots:6, maxHp:85,  moveSpeed:2.5,
-    desc:'Lower HP = more crit (15%/10% missing) & move (8%/10%). <20% HP: +50% lifesteal. Heal capped at 50% HP.' },
+    desc:'+15% crit, +10% move, -10 armor. Each 10% HP missing: +15% crit, +8% move. <20% HP: +50% lifesteal. Heal cap 50%.' },
   miser:    { name:'Miser',    ico:'💰', slots:6, maxHp:95,  moveSpeed:2.5,
-    desc:'+20 harvest. +12% interest on unspent coins. +3% dmg per 100 coins. Shop prices +40%.' },
+    desc:'+20 harvest, -10% luck. +12% interest on coins. +3% dmg per 100 coins. Shop +40% + extra inflation per 50 harvest.' },
 };
 
 // 9 enemies total: 5 basic + 2 elite half-bosses + 2 final bosses.
@@ -568,20 +568,28 @@ function startRun(heroId){
   state.phase = 'battle';
   // Hero-specific starting stats
   const p = state.player;
+  if(heroId === 'oldman'){
+    p.dmgMul *= 1.25;      // baseline +25% dmg
+    p.fireMul *= 0.85;     // baseline +15% fire (cooldown ×0.85)
+  }
   if(heroId === 'glutton'){
     p.maxHpBonus += 30; p.hp += 30;
     p.regenBase += 10;
-    p.dodge = -0.5;        // locked, see applyPassive comment below
+    p.dodge = -0.5;        // locked
     p.dodgeLocked = true;
   }
   if(heroId === 'mechanic'){
     p.engineering = (p.engineering||0) + 20;
+    p.armor += 5;
   }
   if(heroId === 'reckless'){
     p.armor -= 10;
+    p.critChance += 0.15;  // baseline +15% crit
+    p.moveMul *= 1.10;     // baseline +10% move
   }
   if(heroId === 'miser'){
     p.harvest = (p.harvest||0) + 20;
+    p.luck -= 0.10;        // baseline -10% luck
   }
   // Give starting weapon
   addWeapon('slingshot', 0);
@@ -591,17 +599,34 @@ function startRun(heroId){
 
 // ─── Weapon / rarity / merge ────────────────────────────────
 // Apply or remove a weapon's self-passive. sign = +1 to equip, -1 to unequip.
-// One-Arm scales every passive effect 4× — both the goods and the bads.
+// One-Arm's passives scale: positive effects get the normal weapon
+// value but NEGATIVE effects (penalties) are multiplied 5× — the
+// "5倍反噬" the design doc calls for. Classifies by field key.
+const PASSIVE_IS_PENALTY = {
+  rangeAdd: true, dmgMul: true, moveMul: true, reloadMul: true,
+  dodgeAdd: true, armorAdd: true, luckAdd: true, maxHpBonus: true,
+  rangedDmg: true,
+};
+function isPenaltyValue(k, v){
+  if(k === 'dmgMul' || k === 'moveMul' || k === 'rangeMul') return v < 1;
+  if(k === 'reloadMul') return v > 1; // higher reloadMul = slower
+  // Numeric fields: negative = penalty
+  if(typeof v === 'number') return v < 0;
+  return false;
+}
 function applyPassive(wid, sign){
   const pas = WEAPONS[wid].passive;
   if(!pas || !state.player) return;
   const p = state.player;
-  const scale = state.hero === 'oldman' ? 4 : 1;
   for(const [k, raw] of Object.entries(pas)){
     const v = raw;
+    // Oldman: 5× scale on penalty values only
+    const scale = (state.hero === 'oldman' && isPenaltyValue(k, v)) ? 5 : 1;
     const vScaled = v * scale;
     // For multipliers, "4× scaling" means apply the ratio 4 times.
-    const multApply = (cur, base) => sign>0 ? cur * Math.pow(base, scale) : cur / Math.pow(base, scale);
+    // Multiplicative passives: apply the ratio `scale` times total.
+    const mScale = scale;
+    const multApply = (cur, base) => sign>0 ? cur * Math.pow(base, mScale) : cur / Math.pow(base, mScale);
     switch(k){
       case 'critChance':  p.critChance += vScaled * sign; break;
       case 'rangeMul':    p.rangeMul = multApply(p.rangeMul, v); break;
@@ -888,8 +913,8 @@ function applyHeal(amount){
   const gained = p.hp - was;
   if(state.hero === 'glutton' && gained > 0){
     p.gluttonHealTotal = (p.gluttonHealTotal || 0) + gained;
-    while(p.gluttonHealTotal >= 10){
-      p.gluttonHealTotal -= 10;
+    while(p.gluttonHealTotal >= 15){
+      p.gluttonHealTotal -= 15;
       p.gluttonDmgBonus = (p.gluttonDmgBonus || 0) + 0.01;
     }
   }
@@ -966,13 +991,13 @@ function effectiveRange(){
   return Math.min(CAPS.rangeMulMax, state.player.rangeMul);
 }
 function effectiveMoveMul(baseMul){
-  // baseMul is everything from moveSpeedBase×moveMul×tag×stacks×hero×slow.
-  // Armor past 30 subtracts 1% per point.
   const p = state.player;
   const over = Math.max(0, p.armor - CAPS.armorMoveStart);
   let m = baseMul * Math.max(0.1, 1 - over * 0.01);
-  // Hard cap at 140% (clamp — excess is discarded)
-  if(m > CAPS.moveMulMax) m = CAPS.moveMulMax;
+  // Glutton: 3+ dmg-stacks (≥30%) compress move cap from 140% → 105%
+  let cap = CAPS.moveMulMax;
+  if(state.hero === 'glutton' && (p.gluttonDmgBonus || 0) >= 0.3) cap = 1.05;
+  if(m > cap) m = cap;
   return m;
 }
 // Armor diminishing returns: dr = armor / (armor + 20), capped at 75%
@@ -980,11 +1005,17 @@ function armorReduction(armor){
   if(armor <= 0) return 0;
   return Math.min(CAPS.armorMaxReduce, armor / (armor + 20));
 }
-// Max-HP bloat → bigger hitbox: 14 base, +5% radius per 10 HP over 100
+// Max-HP bloat → bigger hitbox: 14 base, +5% radius per 10 HP over 100.
+// Glutton additionally grows +8% per 10% damage stack from heal transfer.
 function playerHitbox(){
   const p = state.player;
   const over = Math.max(0, p.maxHp - 100);
-  return 14 * (1 + Math.floor(over / 10) * 0.05);
+  let r = 14 * (1 + Math.floor(over / 10) * 0.05);
+  if(state.hero === 'glutton'){
+    const dmgStacks = Math.floor((p.gluttonDmgBonus || 0) * 10); // 10%/stack
+    r *= (1 + dmgStacks * 0.08);
+  }
+  return r;
 }
 // Lifesteal: cap chance 30%, ICD 0.1s, +1 HP per proc
 function tryLifesteal(baseLifesteal){
@@ -1089,7 +1120,9 @@ function fireWeapon(w){
   const heroMul = heroDmgMul();
   // Range (bullet/beam/cone/bounce) vs melee split — items like
   // Heavy Barrel, High-Cap Mag add ranged bonus; Wire Grips add melee.
-  const typeBonus = (kind === 'melee') ? (p.meleeBonus || 0) : (p.rangedBonus || 0);
+  // Mechanic: his OWN melee/ranged bonuses are zeroed (turrets only).
+  const typeBonus = state.hero === 'mechanic' ? 0 :
+    ((kind === 'melee') ? (p.meleeBonus || 0) : (p.rangedBonus || 0));
   // Attack-speed excess (over -60% cooldown) converts 2:1 to damage.
   const convertedDmg = (p._fireConvertedDmg || 0);
   const dmgBase = t.dmg * effectiveDmgMul() * (m.dmgMul||1) * critMul * heroMul * (1 + typeBonus + convertedDmg);
@@ -1296,6 +1329,17 @@ function stepBattle(dt){
     // One-Arm: +150% fire rate = cooldown × 0.4
     const monoFire = state.hero === 'oldman' ? 0.4 : 1;
     const fireMult = effectiveFireMul() * (state.tagMultipliers.fireMul||1) * monoFire;
+    // Oldman overheat: when damage is OVERLOADED (dmgMul>150%) and
+    // the weapon has been firing continuously for 3s, force a 0.5s jam.
+    if(state.hero === 'oldman' && p.dmgMul > CAPS.dmgMulOverload){
+      w.heatStreak = (w.heatStreak || 0) + dt;
+      if(w.heatStreak > 3 && !w.jamUntil){
+        w.jamUntil = state.waveTime + 0.5;
+        toast('⚠ OVERHEAT JAM');
+      }
+      if(w.jamUntil && state.waveTime < w.jamUntil){ continue; }
+      if(w.jamUntil && state.waveTime >= w.jamUntil){ w.jamUntil = 0; w.heatStreak = 0; }
+    } else if(w.heatStreak){ w.heatStreak = 0; w.jamUntil = 0; }
     if(w.cool <= 0){
       const res = fireWeapon(w);
       if(res === 'free'){ /* no cool refresh */ }
@@ -1766,10 +1810,12 @@ function openLevelUp(){
 // ─── Shop ────────────────────────────────────────────────
 function priceFor(base){
   const h = Math.max(0, state.player ? (state.player.harvest || 0) : 0);
-  // Harvest inflation: every 50 harvest → +10% permanent shop markup
-  const inflate = 1 + Math.floor(h / 50) * 0.1;
-  const miser = state.hero === 'miser' ? 1.4 : 1;
-  return Math.ceil(base * inflate * miser);
+  // Baseline inflation: every 50 harvest → +10% permanent shop markup
+  const inflateBase = 1 + Math.floor(h / 50) * 0.1;
+  // Miser pays 40% more baseline + an extra +15% per 50 harvest
+  const miserBase = state.hero === 'miser' ? 1.4 : 1;
+  const miserExtra = state.hero === 'miser' ? (1 + Math.floor(h / 50) * 0.15) : 1;
+  return Math.ceil(base * inflateBase * miserBase * miserExtra);
 }
 
 function rollShopCard(){
