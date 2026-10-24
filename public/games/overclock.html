@@ -157,45 +157,45 @@ const SELL_FRAC = 0.5;
 const WEAPONS = {
   pistol:   { name:'Pistol',   ico:'🔫', tags:['Light'],
     tiers:[
-      { fire:0.55, dmg:7,  bullets:1, spread:0.03, speed:9,  range:360 },
-      { fire:0.42, dmg:12, bullets:1, spread:0.02, speed:10, range:380 },
-      { fire:0.30, dmg:18, bullets:2, spread:0.08, speed:11, range:400, pierce:1 },
-      { fire:0.20, dmg:28, bullets:3, spread:0.10, speed:13, range:440, pierce:2 },
+      { fire:0.55, dmg:7,  bullets:1, spread:0.03, speed:9,  range:210 },
+      { fire:0.42, dmg:12, bullets:1, spread:0.02, speed:10, range:230 },
+      { fire:0.30, dmg:18, bullets:2, spread:0.08, speed:11, range:260, pierce:1 },
+      { fire:0.20, dmg:28, bullets:3, spread:0.10, speed:13, range:290, pierce:2 },
     ]},
   shotgun:  { name:'Shotgun',  ico:'💥', tags:['Heavy'],
     tiers:[
-      { fire:1.4, dmg:4, bullets:4,  spread:0.35, speed:7, range:200 },
-      { fire:1.1, dmg:6, bullets:6,  spread:0.4,  speed:8, range:220 },
-      { fire:0.9, dmg:8, bullets:9,  spread:0.5,  speed:9, range:240, pierce:1 },
-      { fire:0.7, dmg:10,bullets:14, spread:0.6,  speed:10,range:260, pierce:3, blast:30 },
+      { fire:1.4, dmg:4, bullets:4,  spread:0.35, speed:7, range:140 },
+      { fire:1.1, dmg:6, bullets:6,  spread:0.4,  speed:8, range:150 },
+      { fire:0.9, dmg:8, bullets:9,  spread:0.5,  speed:9, range:170, pierce:1 },
+      { fire:0.7, dmg:10,bullets:14, spread:0.6,  speed:10,range:190, pierce:3, blast:30 },
     ]},
   smg:      { name:'SMG',      ico:'🔧', tags:['Light'],
     tiers:[
-      { fire:0.16, dmg:3, bullets:1, spread:0.14, speed:10, range:260 },
-      { fire:0.13, dmg:4, bullets:1, spread:0.12, speed:11, range:280 },
-      { fire:0.10, dmg:6, bullets:1, spread:0.10, speed:12, range:300 },
-      { fire:0.07, dmg:9, bullets:2, spread:0.14, speed:13, range:320 },
+      { fire:0.16, dmg:3, bullets:1, spread:0.14, speed:10, range:170 },
+      { fire:0.13, dmg:4, bullets:1, spread:0.12, speed:11, range:180 },
+      { fire:0.10, dmg:6, bullets:1, spread:0.10, speed:12, range:200 },
+      { fire:0.07, dmg:9, bullets:2, spread:0.14, speed:13, range:220 },
     ]},
   laser:    { name:'Laser',    ico:'⚡', tags:['Energy'],
     tiers:[
-      { fire:0.8, dmg:9,  bullets:1, pierce:2,  speed:18, range:420 },
-      { fire:0.65,dmg:14, bullets:1, pierce:3,  speed:21, range:460 },
-      { fire:0.5, dmg:22, bullets:1, pierce:5,  speed:24, range:520 },
-      { fire:0.35,dmg:34, bullets:1, pierce:99, speed:30, range:620 },
+      { fire:0.8, dmg:9,  bullets:1, pierce:2,  speed:18, range:260 },
+      { fire:0.65,dmg:14, bullets:1, pierce:3,  speed:21, range:290 },
+      { fire:0.5, dmg:22, bullets:1, pierce:5,  speed:24, range:330 },
+      { fire:0.35,dmg:34, bullets:1, pierce:99, speed:30, range:380 },
     ]},
   toxin:    { name:'Toxin',    ico:'☣', tags:['Bio'],
     tiers:[
-      { fire:1.0, dmg:4, bullets:1, speed:7, range:240, poison:3 },
-      { fire:0.85,dmg:6, bullets:1, speed:8, range:260, poison:6 },
-      { fire:0.7, dmg:8, bullets:2, speed:9, range:280, poison:10 },
-      { fire:0.55,dmg:11,bullets:3, speed:10,range:300, poison:16, blast:25 },
+      { fire:1.0, dmg:4, bullets:1, speed:7, range:160, poison:3 },
+      { fire:0.85,dmg:6, bullets:1, speed:8, range:170, poison:6 },
+      { fire:0.7, dmg:8, bullets:2, speed:9, range:190, poison:10 },
+      { fire:0.55,dmg:11,bullets:3, speed:10,range:210, poison:16, blast:25 },
     ]},
   medigun:  { name:'Medi-Beam',ico:'💉', tags:['Medic'],
     tiers:[
-      { fire:1.4, dmg:3, bullets:1, speed:11, range:300, heal:1 },
-      { fire:1.1, dmg:5, bullets:1, speed:13, range:320, heal:2 },
-      { fire:0.9, dmg:8, bullets:1, speed:15, range:360, heal:3 },
-      { fire:0.65,dmg:12,bullets:2, speed:17, range:400, heal:5 },
+      { fire:1.4, dmg:3, bullets:1, speed:11, range:200, heal:1 },
+      { fire:1.1, dmg:5, bullets:1, speed:13, range:220, heal:2 },
+      { fire:0.9, dmg:8, bullets:1, speed:15, range:240, heal:3 },
+      { fire:0.65,dmg:12,bullets:2, speed:17, range:260, heal:5 },
     ]},
 };
 const WEAPON_IDS = Object.keys(WEAPONS);
@@ -257,22 +257,22 @@ const HEROES = {
 };
 
 const WAVES = [
-  { dur:20, enemies:[['rat',10]] },
-  { dur:22, enemies:[['rat',14],['bat',4]] },
-  { dur:25, enemies:[['rat',12],['bat',10]] },
-  { dur:28, enemies:[['rat',14],['bat',10],['brute',2]] },
-  { dur:30, enemies:[['rat',18],['bat',14],['brute',4]] },
-  { dur:35, enemies:[['bat',20],['brute',6]] },
-  { dur:38, enemies:[['rat',20],['bat',18],['brute',8]] },
-  { dur:42, enemies:[['rat',30],['bat',20],['brute',10]] },
-  { dur:45, enemies:[['rat',24],['bat',24],['brute',14]] },
-  { dur:70, enemies:[['rat',40],['bat',30],['brute',20],['boss',1]] },
+  { dur:30, enemies:[['rat',18]] },
+  { dur:35, enemies:[['rat',22],['bat',8]] },
+  { dur:40, enemies:[['rat',20],['bat',16]] },
+  { dur:45, enemies:[['rat',22],['bat',16],['brute',3]] },
+  { dur:50, enemies:[['rat',28],['bat',22],['brute',6]] },
+  { dur:55, enemies:[['bat',30],['brute',10]] },
+  { dur:60, enemies:[['rat',30],['bat',28],['brute',12]] },
+  { dur:65, enemies:[['rat',40],['bat',30],['brute',16]] },
+  { dur:70, enemies:[['rat',34],['bat',34],['brute',20]] },
+  { dur:90, enemies:[['rat',50],['bat',40],['brute',24],['boss',1]] },
 ];
 const ENEMY = {
-  rat:   { hp:12, dmg:4,  spd:1.1, rad:10, color:'#78350f', ico:'🐀', xp:1, coin:1 },
-  bat:   { hp:8,  dmg:3,  spd:1.9, rad:9,  color:'#581c87', ico:'🦇', xp:2, coin:1 },
-  brute: { hp:60, dmg:12, spd:0.75,rad:16, color:'#991b1b', ico:'🦍', xp:5, coin:3 },
-  boss:  { hp:800,dmg:20, spd:0.6, rad:34, color:'#450a0a', ico:'👹', xp:50, coin:40 },
+  rat:   { hp:12, dmg:4,  spd:1.7, rad:10, color:'#78350f', ico:'🐀', xp:1, coin:1 },
+  bat:   { hp:8,  dmg:3,  spd:2.7, rad:9,  color:'#581c87', ico:'🦇', xp:2, coin:1 },
+  brute: { hp:60, dmg:12, spd:1.2, rad:16, color:'#991b1b', ico:'🦍', xp:5, coin:3 },
+  boss:  { hp:800,dmg:20, spd:0.9, rad:34, color:'#450a0a', ico:'👹', xp:50, coin:40 },
 };
 
 // Permanent perks offered on level up
@@ -605,11 +605,19 @@ function stepBattle(dt){
     return;
   }
 
-  // Spawn enemies progressively over wave duration
+  // Spawn enemies progressively — compress the spawn window to the
+  // first ~45% of the wave so the arena actually feels full instead
+  // of trickling one enemy at a time.
   const w = WAVES[state.wave-1];
   const total = w.enemies.reduce((s,[,c])=>s+c, 0);
-  const spawnPerSec = total / (w.dur * 0.75);
+  const spawnPerSec = total / (w.dur * 0.45);
   state.spawnAccum += spawnPerSec * dt;
+  // On the very first tick of a wave, dump an initial batch so the
+  // player sees enemies immediately rather than waiting a second.
+  if(state.waveTime - dt <= 0){
+    const burst = Math.min(5, state.pendingEnemies.length);
+    for(let i=0;i<burst;i++) spawnEdgeEnemy(state.pendingEnemies.shift());
+  }
   while(state.spawnAccum >= 1 && state.pendingEnemies.length){
     state.spawnAccum--;
     spawnEdgeEnemy(state.pendingEnemies.shift());
