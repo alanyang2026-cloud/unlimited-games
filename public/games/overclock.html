@@ -165,10 +165,11 @@ const WEAPONS = {
   slingshot: { name:'Slingshot', ico:'🪃', tags:['Light'],
     passive: { critChance: 0.03, rangeAdd: -5 },
     tiers:[
-      { fire:0.8, dmg:12, bullets:1, speed:9,  range:200 },
-      { fire:0.6, dmg:18, bullets:1, speed:10, range:210, critMulAdd:0.2 },
+      { fire:0.8, dmg:12, bullets:1, pierce:0, speed:9,  range:200 },
+      { fire:0.6, dmg:18, bullets:1, pierce:0, speed:10, range:210, critMulAdd:0.2 },
       { fire:0.5, dmg:30, bullets:1, pierce:1, speed:11, range:220 },
-      { fire:0.3, dmg:65, bullets:1, pierce:2, speed:12, range:230, critRefire:true },
+      // RED (重力震荡): single bullet locked, crit → 2m stun AOE on target
+      { fire:0.3, dmg:65, bullets:1, pierce:0, speed:12, range:230, critStunRad:60, critStunDur:0.5 },
     ]},
   medigun: { name:'Medi-Syringe', ico:'💉', tags:['Medic'],
     passive: { regen: 1, lifesteal: 0.02, dmgMul: 0.96 },
@@ -176,7 +177,8 @@ const WEAPONS = {
       { fire:0.5,  dmg:4,  bullets:1, speed:11, range:150, heal:1 },
       { fire:0.4,  dmg:8,  bullets:1, speed:12, range:170, heal:2 },
       { fire:0.3,  dmg:15, bullets:1, speed:13, range:190, heal:2, healFogChance:0.2 },
-      { fire:0.15, dmg:28, bullets:1, speed:14, range:200, heal:3, healFogChance:0.5 },
+      // RED (医疗雾化): no heal bullets, 30% chance stationary field at player
+      { fire:0.15, dmg:28, bullets:1, speed:14, range:200, stationaryFog:0.3 },
     ]},
   flamethrower: { name:'Flamethrower', ico:'🔥', tags:['Heavy'],
     passive: { dmgMul: 1.05, moveMul: 0.97, dodgeAdd: -0.02 },
@@ -185,7 +187,8 @@ const WEAPONS = {
       { fire:1.8, dmg:35,  coneHalf:0.45, range:140 },
       { fire:1.5, dmg:60,  coneHalf:0.5,  range:155 },
       { fire:1.2, dmg:110, coneHalf:0.55, range:170 },
-      { fire:0.9, dmg:240, coneHalf:0.6,  range:190, trail:true },
+      // RED (凝固汽油): single plasma blast → 8% max HP/s DoT (2% bosses)
+      { fire:0.9, dmg:240, coneHalf:0.6,  range:190, napalm:true, napalmPct:0.08, napalmPctBoss:0.02, napalmBlastR:80, napalmDur:2 },
     ]},
   doubleBarrel: { name:'Double-Barrel', ico:'🧨', tags:['Heavy'],
     passive: { rangedDmg: 8, reloadMul: 1.15 },
@@ -193,7 +196,8 @@ const WEAPONS = {
       { fire:1.6, dmg:15, bullets:2, spread:0.45, speed:10, range:170 },
       { fire:1.4, dmg:22, bullets:3, spread:0.5,  speed:10, range:180 },
       { fire:1.2, dmg:38, bullets:4, spread:0.55, speed:11, range:195, pierce:1 },
-      { fire:1.0, dmg:80, bullets:6, spread:0.4,  speed:12, range:220, pierce:3, knockbackAll:true },
+      // RED (空气墙抹除): bullets merge into a single wide true-damage line
+      { fire:1.0, dmg:180, bullets:1, airWall:true, beamWidth:28, pierce:999, trueDmg:true, speed:12, range:280 },
     ]},
   rustyDriver: { name:'Rusty Driver', ico:'🪛', tags:['Bio'],
     passive: { elemDmgAdd: 3, luckAdd: -0.05 },
@@ -202,7 +206,8 @@ const WEAPONS = {
       { fire:0.4,  dmg:6,  range:48, poison:2 },
       { fire:0.35, dmg:10, range:52, poison:5 },
       { fire:0.28, dmg:18, range:56, poison:7, spreadOnDeath:true },
-      { fire:0.2,  dmg:35, range:60, poison:15, spreadOnDeath:true },
+      // RED (生化连锁): poison transfers to 3 nearest within 3m on death
+      { fire:0.2,  dmg:35, range:60, poison:15, spreadOnDeath:true, chainPoison:true, chainR:120, chainN:3 },
     ]},
   skillet: { name:'Skillet', ico:'🍳', tags:['Heavy'],
     passive: { armorAdd: 4, rangedDmg: -5 },
@@ -211,7 +216,8 @@ const WEAPONS = {
       { fire:1.2, dmg:25,  range:56 },
       { fire:1.0, dmg:45,  range:62, knockback:true },
       { fire:0.9, dmg:85,  range:66, knockback:true, shockwave:52 },
-      { fire:0.7, dmg:190, range:70, knockback:true, shockwave:104, stun:1.0 },
+      // RED (地震波): 4m true-damage AOE, 1s stun to ALL in radius
+      { fire:0.7, dmg:190, range:70, knockback:true, shockwave:160, stun:1.0, trueDmg:true },
     ]},
   wrench: { name:'Wrench', ico:'🔧', tags:['Energy'],
     passive: { engineering: 5, critChance: -0.05 },
@@ -220,7 +226,9 @@ const WEAPONS = {
       { fire:1.5, turretDmg:10, turretFire:1.0, turretRange:180, turretHp:30 },
       { fire:1.2, turretDmg:20, turretFire:0.9, turretRange:200, turretHp:40, turretPierce:1 },
       { fire:1.0, turretDmg:35, turretFire:0.8, turretRange:220, turretHp:55, turretPierce:1, nearbyArmor:5 },
-      { fire:0.8, turretDmg:60, turretFire:1.2, turretRange:260, turretHp:80, missile:true, nearbyArmor:5 },
+      // RED (矩阵并联): hard-capped 4 turrets. Overflow engineering
+      // feeds existing turrets' dmg/fire — see fireWeapon's turret path.
+      { fire:0.8, turretDmg:60, turretFire:1.2, turretRange:260, turretHp:80, missile:true, nearbyArmor:5, matrixBoost:true },
     ]},
   flashlight: { name:'Flashlight', ico:'🔦', tags:['Energy'],
     passive: { rangeMul: 1.10, dodgeAdd: -0.02 },
@@ -229,7 +237,9 @@ const WEAPONS = {
       { fire:2.0, dmg:40,  beamWidth:4 },
       { fire:1.6, dmg:70,  beamWidth:5 },
       { fire:1.2, dmg:120, beamWidth:7,  trail:true },
-      { fire:0.8, dmg:280, beamWidth:14, trail:true },
+      // RED (视网膜烧灼): slower (1.5s) but much harder; retina-burn
+      // status = 50 elem dmg every 0.5s + -40% move for 3s.
+      { fire:1.5, dmg:420, beamWidth:21, retinaBurn:true, retinaDmg:50, retinaInterval:0.5, retinaSlow:0.4, retinaDur:3 },
     ]},
   cleaver: { name:'Cleaver', ico:'🔪', tags:['Light'],
     passive: { moveMul: 1.03, maxHpBonus: -3 },
@@ -238,7 +248,8 @@ const WEAPONS = {
       { fire:0.3,  dmg:8,  range:40, baseCritChance:0.3 },
       { fire:0.25, dmg:14, range:42, baseCritChance:0.3 },
       { fire:0.2,  dmg:25, range:44, baseCritChance:0.3, killSpeedStack:true },
-      { fire:0.12, dmg:55, range:48, baseCritChance:0.3, critMulAdd:1.0 },
+      // RED (主厨时间): slower (0.4s) but 2.5× crit; crit clears overload penalty 1s
+      { fire:0.4,  dmg:110, range:48, baseCritChance:0.3, critMulAdd:1.0, chefCrit:true },
     ]},
   piggyBank: { name:'Piggy Bank', ico:'🐷', tags:['Light'],
     passive: { harvest: 5, armorAdd: -1 },
@@ -247,7 +258,8 @@ const WEAPONS = {
       { fire:0.7, dmg:8,  speed:7, bounces:2, range:200 },
       { fire:0.6, dmg:15, speed:7, bounces:3, range:220 },
       { fire:0.5, dmg:28, speed:8, bounces:4, range:240, coinChance:0.1 },
-      { fire:0.4, dmg:60, speed:9, bounces:6, range:260, coinChance:0.3 },
+      // RED (资本收割): no bouncing coins — instant 3m pulse at player
+      { fire:0.4, dmg:80, capitalPulse:true, pulseRad:120, autoCoin:0.4, range:260 },
     ]},
 };
 const WEAPON_IDS = Object.keys(WEAPONS);
@@ -954,8 +966,9 @@ function effectiveDmgMul(){
 function effectiveFireMul(){
   const p = state.player;
   let fm = p.fireMul;
-  // Damage overload reload penalty
-  if(p.dmgMul > CAPS.dmgMulOverload) fm *= 1.2;
+  // Damage overload reload penalty — unless chef crit just cleared it
+  const chefActive = p.overloadClearUntil && state.waveTime < p.overloadClearUntil;
+  if(p.dmgMul > CAPS.dmgMulOverload && !chefActive) fm *= 1.2;
   // Attack-speed cap: fireMul can't go below 0.4; excess converts 2:1 → damage
   if(fm < CAPS.fireMulMin){
     const excess = CAPS.fireMulMin - fm; // positive = would be below cap
@@ -1148,13 +1161,19 @@ function fireWeapon(w){
     }
     if(t.shockwave){
       state.swings.push({ x:p.x, y:p.y, r:t.shockwave, life:0.3, color:'#fef3c7', outline:true });
+      // RED skillet (地震波): true damage + stun 1s on EVERYONE in radius
+      const quakeDmg = t.trueDmg ? dmgBase : dmgBase * 0.5;
       for(const e of state.enemies){
         if(hits.includes(e)) continue;
         const dx = e.x-p.x, dy = e.y-p.y;
         if(dx*dx + dy*dy < (t.shockwave + ENEMY[e.type].rad)**2){
-          damageEnemy(e, dmgBase*0.5, { knockback:true, kick:6, stun:t.stun||0 });
+          damageEnemy(e, quakeDmg, { knockback:true, kick:6, stun:t.stun||0 });
         }
       }
+    }
+    // RED cleaver (主厨时间): on crit, clear overload reload penalty 1s
+    if(crit && t.chefCrit){
+      p.overloadClearUntil = state.waveTime + 1;
     }
     return true;
   }
@@ -1164,6 +1183,23 @@ function fireWeapon(w){
     const target = nearestEnemy(p.x, p.y, rangeBase);
     if(!target) return false;
     const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    // RED flamethrower (凝固汽油): single plasma blast at target
+    // location, applies percent-max-HP DoT. NO cone particles.
+    if(t.napalm){
+      const bx = target.x, by = target.y, br = t.napalmBlastR || 80;
+      state.swings.push({ x:bx, y:by, r:br, life:0.35, color:'#f97316' });
+      for(const e of state.enemies){
+        const dx = e.x-bx, dy = e.y-by;
+        if(dx*dx+dy*dy < (br + ENEMY[e.type].rad)**2){
+          damageEnemy(e, dmgBase, {});
+          // Napalm DoT — percent of max HP per second (lower for bosses)
+          const pct = ENEMY[e.type].elite ? (t.napalmPctBoss||0.02) : (t.napalmPct||0.08);
+          e.napalmDps = pct * e.maxHp;
+          e.napalmDur = t.napalmDur || 2;
+        }
+      }
+      return true;
+    }
     const half = t.coneHalf || 0.5;
     state.swings.push({ x:p.x, y:p.y, r:rangeBase, life:0.25, color:'#f97316', cone:{ang, half} });
     for(const e of state.enemies){
@@ -1173,12 +1209,6 @@ function fireWeapon(w){
       const ea = Math.atan2(dy, dx);
       let delta = Math.abs(((ea - ang + Math.PI*3) % (Math.PI*2)) - Math.PI);
       if(delta < half) damageEnemy(e, dmgBase, {});
-    }
-    // Red: fire trail along the direction (hurts anything entering)
-    if(t.trail){
-      for(let k = 20; k < rangeBase; k += 24){
-        state.trails.push({ x:p.x+Math.cos(ang)*k, y:p.y+Math.sin(ang)*k, r:24, life:2, dmg:dmgBase*0.15, color:'#f97316' });
-      }
     }
     return true;
   }
@@ -1197,11 +1227,10 @@ function fireWeapon(w){
       const perp = Math.abs(-dx*Math.sin(ang) + dy*Math.cos(ang));
       if(perp < (t.beamWidth||4) + ENEMY[e.type].rad){
         damageEnemy(e, dmgBase, {});
-      }
-    }
-    if(t.trail){
-      for(let k = 20; k < rangeBase; k += 28){
-        state.trails.push({ x:p.x+Math.cos(ang)*k, y:p.y+Math.sin(ang)*k, r:14, life:2, dmg:dmgBase*0.1, color:'#fef9c3' });
+        // RED flashlight (视网膜烧灼): apply retina burn status
+        if(t.retinaBurn){
+          e.retina = { dmg: t.retinaDmg, interval: t.retinaInterval, slow: t.retinaSlow, dur: t.retinaDur, tick: 0 };
+        }
       }
     }
     return true;
@@ -1209,8 +1238,17 @@ function fireWeapon(w){
 
   // ─── TURRET: deploy a stationary auto-fire structure ────────
   if(kind === 'turret'){
-    // Hard cap of 4 turrets — drop oldest if at cap so new one spawns
+    // RED wrench (矩阵并联): when at cap, don't spawn — instead
+    // temporarily buff all existing turrets' damage based on
+    // overflow engineering (keeps CPU flat).
     if(state.turrets.length >= CAPS.turretMax){
+      if(t.matrixBoost){
+        for(const tur of state.turrets){
+          tur.matrixDmgMul = 1 + ((p.engineering||0) - 20) * 0.01;
+          tur.cool = Math.max(0, tur.cool - 0.1);
+        }
+        return true;
+      }
       state.turrets.shift();
     }
     state.turrets.push({
@@ -1222,8 +1260,28 @@ function fireWeapon(w){
     return true;
   }
 
-  // ─── BOUNCE: bouncing projectile ───────────────────────────
+  // ─── BOUNCE: bouncing projectile (or RED red: instant pulse) ─
   if(kind === 'bounce'){
+    // RED piggy bank (资本收割): instant AoE pulse at player, no bouncing projectile
+    if(t.capitalPulse){
+      const r = t.pulseRad || 120;
+      state.swings.push({ x:p.x, y:p.y, r, life:0.3, color:'#ec4899', outline:true });
+      let anyHit = false;
+      for(const e of state.enemies){
+        const dx = e.x-p.x, dy = e.y-p.y;
+        if(dx*dx + dy*dy < (r + ENEMY[e.type].rad)**2){
+          const prevHp = e.hp;
+          damageEnemy(e, dmgBase, {});
+          anyHit = true;
+          // On kill, auto-collect coin with autoCoin chance
+          if(prevHp > 0 && e.hp <= 0 && Math.random() < (t.autoCoin || 0)){
+            p.coins += ENEMY[e.type].coin || 1;
+            spawnParticles(e.x, e.y-6, '#fbbf24', 5, 3);
+          }
+        }
+      }
+      return anyHit;
+    }
     const target = nearestEnemy(p.x, p.y, rangeBase);
     if(!target) return false;
     const ang = Math.atan2(target.y-p.y, target.x-p.x);
@@ -1237,6 +1295,23 @@ function fireWeapon(w){
   const target = nearestEnemy(p.x, p.y, rangeBase);
   if(!target) return false;
   const ang = Math.atan2(target.y-p.y, target.x-p.x);
+
+  // RED double-barrel (空气墙抹除): instant wide true-damage line
+  if(t.airWall){
+    const endX = p.x + Math.cos(ang)*rangeBase, endY = p.y + Math.sin(ang)*rangeBase;
+    state.swings.push({ x:p.x, y:p.y, ex:endX, ey:endY, life:0.22, color:'#f59e0b', beam:true, width:t.beamWidth||28 });
+    for(const e of state.enemies){
+      const dx = e.x-p.x, dy = e.y-p.y;
+      const alongB = dx*Math.cos(ang) + dy*Math.sin(ang);
+      if(alongB < 0 || alongB > rangeBase) continue;
+      const perp = Math.abs(-dx*Math.sin(ang) + dy*Math.cos(ang));
+      if(perp < (t.beamWidth||28) + ENEMY[e.type].rad){
+        damageEnemy(e, dmgBase, { knockback:true, kick:5 });
+      }
+    }
+    return true;
+  }
+
   const spd = (t.speed||10) * (m.speedMul||1);
   const pierce = (t.pierce||0) + (m.pierceBonus||0);
   const bullets = t.bullets || 1;
@@ -1248,13 +1323,15 @@ function fireWeapon(w){
         pierce, color: WPN_COLOR[w.id] || '#fde047', wid: w.id, crit,
         poison: t.poison || 0, heal: t.heal || 0, blast: t.blast || 0,
         knockbackAll: !!t.knockbackAll,
+        // RED slingshot (重力震荡): crit → stun AoE around target on hit
+        critStunRad: (crit && t.critStunRad) ? t.critStunRad : 0,
+        critStunDur: t.critStunDur || 0,
       });
   }
-  // Slingshot red: crit triggers an instant free refire.
-  if(crit && t.critRefire) w.cool = -0.001;
-  // Medi-Beam fog on hit — spawn healing cloud at player.
-  if(t.healFogChance && Math.random() < t.healFogChance){
-    state.clouds.push({ x:p.x, y:p.y, r:28, life:4, heal:2 });
+  // RED medigun (医疗雾化): stationary healing field at player's feet
+  const fogChance = t.stationaryFog || t.healFogChance;
+  if(fogChance && Math.random() < fogChance){
+    state.clouds.push({ x:p.x, y:p.y, r: t.stationaryFog ? 44 : 28, life: t.stationaryFog ? 999 : 4, heal:2 });
   }
   if(m.freeShot && Math.random() < m.freeShot) return 'free';
   return true;
@@ -1376,6 +1453,18 @@ function stepBattle(dt){
           p.coins += 1;
           spawnParticles(e.x, e.y-6, '#fbbf24', 4, 3);
         }
+        // RED slingshot (重力震荡): crit → AoE stun around target
+        if(b.critStunRad){
+          state.swings.push({ x:e.x, y:e.y, r:b.critStunRad, life:0.25, color:'#38bdf8', outline:true });
+          for(const o of state.enemies){
+            if(o === e || o.hp <= 0) continue;
+            const dxs = o.x - e.x, dys = o.y - e.y;
+            if(dxs*dxs + dys*dys < (b.critStunRad + ENEMY[o.type].rad)**2){
+              damageEnemy(o, b.dmg, { stun: b.critStunDur || 0.5 });
+            }
+          }
+          e.stun = Math.max(e.stun||0, b.critStunDur || 0.5);
+        }
         // Bouncing — redirect toward next nearest unhit enemy
         if(b.bounces > 0){
           b.bounces--;
@@ -1426,9 +1515,10 @@ function stepBattle(dt){
         const a = Math.atan2(target.y-t.y, target.x-t.x);
         const sp = 10;
         const mechBoost = state.hero === 'mechanic' ? 1.5 : 1;
+        const matrixBoost = t.matrixDmgMul || 1;
         spawnBullet(t.x + Math.cos(a)*12, t.y + Math.sin(a)*12,
           Math.cos(a)*sp, Math.sin(a)*sp,
-          t.def.turretDmg * mechBoost * (1 + (p.engineering||0) * 0.05),
+          t.def.turretDmg * mechBoost * matrixBoost * (1 + (p.engineering||0) * 0.05),
           { color:'#a855f7', pierce:t.def.turretPierce||0, missile:!!t.def.missile, target });
         t.cool = (t.def.turretFire || 1) / mechBoost;
       } else t.cool = 0.3;
@@ -1488,15 +1578,33 @@ function stepBattle(dt){
       e.poisonTimer -= dt;
       if(e.poisonTimer <= 0){ e.poison = 0; }
     }
+    // RED flamethrower napalm DoT (percent-max-HP)
+    if(e.napalmDur && e.napalmDur > 0){
+      e.hp -= e.napalmDps * dt;
+      e.napalmDur -= dt;
+    }
+    // RED flashlight retina burn — periodic damage + slow
+    if(e.retina && e.retina.dur > 0){
+      e.retina.tick += dt;
+      if(e.retina.tick >= e.retina.interval){
+        e.retina.tick = 0;
+        e.hp -= e.retina.dmg;
+      }
+      e.retina.dur -= dt;
+      if(e.retina.dur <= 0) e.retina = null;
+    }
     if(p.thorn > 0 && d < E.rad + 14) e.hp -= p.thorn * dt;
 
     // ─── AI dispatch ─────────────────────────────────────
+    // Retina burn status slows enemy movement
+    const retinaSlow = e.retina ? (1 - e.retina.slow) : 1;
     if(e.stun && e.stun > 0){ e.stun -= dt; }
     else {
       const ai = E.ai || 'chase';
+      const dtE = dt * retinaSlow;  // slowed timestep for move cases
       switch(ai){
         case 'chase': case 'runner': {
-          const step = E.spd * dt * 60;
+          const step = E.spd * dtE * 60;
           e.x += dx/d * step + e.knock.x;
           e.y += dy/d * step + e.knock.y;
           break;
@@ -1506,7 +1614,7 @@ function stepBattle(dt){
           // Keep distance, shoot player.
           const want = E.keepDist;
           const diff = d - want;
-          const step = E.spd * dt * 60;
+          const step = E.spd * dtE * 60;
           if(Math.abs(diff) > 20){
             const sign = diff > 0 ? 1 : -1;
             e.x += dx/d * step * sign + e.knock.x;
@@ -1521,7 +1629,7 @@ function stepBattle(dt){
           break;
         }
         case 'charger': {
-          const step = E.spd * dt * 60;
+          const step = E.spd * dtE * 60;
           if(e.chargeState === 'idle'){
             if(d < E.chargeDist){ e.chargeState = 'windup'; e.chargeTimer = E.windup; e.chargeDx = dx/d; e.chargeDy = dy/d; }
             else { e.x += dx/d * step; e.y += dy/d * step; }
@@ -1539,7 +1647,7 @@ function stepBattle(dt){
         case 'ripper': {
           // Phase: chase → charge(x3) → ring → repeat
           e.phaseTimer -= dt;
-          const step = E.spd * dt * 60;
+          const step = E.spd * dtE * 60;
           if(e.phase === 'chase'){
             e.x += dx/d * step; e.y += dy/d * step;
             if(e.phaseTimer <= 0){ e.phase = 'charge'; e.phaseTimer = 0.3; e.chargeCount = 0; e.chargeDx = dx/d; e.chargeDy = dy/d; }
@@ -1606,7 +1714,7 @@ function stepBattle(dt){
           break;
         }
         case 'spider': {
-          const step = E.spd * dt * 60;
+          const step = E.spd * dtE * 60;
           e.x += dx/d * step + e.knock.x;
           e.y += dy/d * step + e.knock.y;
           e.webCool -= dt;
@@ -1687,15 +1795,20 @@ function stepBattle(dt){
       if(E.deathPuddle){
         state.puddles.push({ x:e.x, y:e.y, r:36, life:3, dmg:5, color:'#15803d' });
       }
-      // Rusty Driver spread-on-death
+      // Rusty Driver spread-on-death — RED tier (chainPoison) picks the
+      // nearest N within radius and 100% copies the poison stack.
       if(hasDriverSpread && e.poison > 0){
-        for(const o of state.enemies){
-          if(o === e || o.hp <= 0) continue;
-          const d2 = (o.x-e.x)**2 + (o.y-e.y)**2;
-          if(d2 < 80*80){
-            o.poison = Math.max(o.poison, e.poison * 0.8);
-            o.poisonTimer = 3;
-          }
+        const chainR = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity === 3) ? 120 : 80;
+        const chainN = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity === 3) ? 3 : 999;
+        const candidates = state.enemies
+          .filter(o => o !== e && o.hp > 0)
+          .map(o => ({ o, d2: (o.x-e.x)**2 + (o.y-e.y)**2 }))
+          .filter(x => x.d2 < chainR*chainR)
+          .sort((a,b) => a.d2 - b.d2)
+          .slice(0, chainN);
+        for(const { o } of candidates){
+          o.poison = Math.max(o.poison, e.poison * 0.9);
+          o.poisonTimer = 3;
         }
       }
     } else alive.push(e);
