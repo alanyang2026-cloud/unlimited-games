@@ -257,16 +257,16 @@ const HEROES = {
 };
 
 const WAVES = [
-  { dur:30, enemies:[['rat',18]] },
-  { dur:35, enemies:[['rat',22],['bat',8]] },
-  { dur:40, enemies:[['rat',20],['bat',16]] },
-  { dur:45, enemies:[['rat',22],['bat',16],['brute',3]] },
-  { dur:50, enemies:[['rat',28],['bat',22],['brute',6]] },
-  { dur:55, enemies:[['bat',30],['brute',10]] },
-  { dur:60, enemies:[['rat',30],['bat',28],['brute',12]] },
-  { dur:65, enemies:[['rat',40],['bat',30],['brute',16]] },
-  { dur:70, enemies:[['rat',34],['bat',34],['brute',20]] },
-  { dur:90, enemies:[['rat',50],['bat',40],['brute',24],['boss',1]] },
+  { dur:25, enemies:[['rat',12]] },
+  { dur:28, enemies:[['rat',14],['bat',5]] },
+  { dur:30, enemies:[['rat',14],['bat',10]] },
+  { dur:32, enemies:[['rat',14],['bat',10],['brute',2]] },
+  { dur:35, enemies:[['rat',16],['bat',14],['brute',4]] },
+  { dur:38, enemies:[['bat',18],['brute',6]] },
+  { dur:40, enemies:[['rat',18],['bat',16],['brute',8]] },
+  { dur:42, enemies:[['rat',22],['bat',18],['brute',10]] },
+  { dur:45, enemies:[['rat',22],['bat',22],['brute',12]] },
+  { dur:60, enemies:[['rat',28],['bat',24],['brute',14],['boss',1]] },
 ];
 const ENEMY = {
   rat:   { hp:12, dmg:4,  spd:1.7, rad:10, color:'#78350f', ico:'🐀', xp:1, coin:1 },
@@ -684,13 +684,15 @@ function stepBattle(dt){
   }
   state.bullets = state.bullets.filter(b=>b.life>0);
 
-  // Enemies
+  // Enemies — speed is px per 60fps frame (same convention as Potato
+  // Bros). Multiply by dt*60 so framerate drops don't slow combat.
   for(const e of state.enemies){
     if(e.hp <= 0) continue;
     const E = ENEMY[e.type];
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-    e.x += dx/d * E.spd * (dt*60/60) + e.knock.x;
-    e.y += dy/d * E.spd * (dt*60/60) + e.knock.y;
+    const step = E.spd * dt * 60;
+    e.x += dx/d * step + e.knock.x;
+    e.y += dy/d * step + e.knock.y;
     e.knock.x *= 0.85; e.knock.y *= 0.85;
     if(e.hitFlash > 0) e.hitFlash -= dt;
     // Poison tick
