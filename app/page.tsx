@@ -17,6 +17,7 @@ const GAME_PATHS: Record<string, string> = {
   "liars-tavern":  "/games/liars-tavern.html",
   "potato-bros":   "/games/potato-bros.html",
   "rail-runner":   "/games/rail-runner.html",
+  "overclock":     "/games/overclock.html",
 };
 
 export default function HomePage() {

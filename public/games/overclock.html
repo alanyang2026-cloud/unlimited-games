@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Overclock</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#05020a;color:#e2e8f0;font-family:'Courier New',ui-monospace,monospace;user-select:none;-webkit-user-select:none}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hbtn{position:fixed;top:10px;left:10px;z-index:200;background:rgba(5,2,10,.75);color:#f0abfc;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;border:1px solid rgba(236,72,153,.4);transition:.2s}
+.hbtn:hover{background:rgba(236,72,153,.3);color:#fff}
+#stage{position:relative;width:900px;height:600px;max-width:100vw;max-height:100vh}
+canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px;box-shadow:0 0 40px rgba(236,72,153,.2),inset 0 0 60px rgba(6,182,212,.08)}
+.hud{position:absolute;inset:0;pointer-events:none}
+.hud .top{position:absolute;top:0;left:0;right:0;padding:10px 14px;display:flex;gap:12px;align-items:center;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+.hud .bar{height:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:6px;overflow:hidden;width:200px}
+.hud .bar>span{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,#06b6d4);transition:width .15s}
+.hud .xp>span{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.hud .stat{background:rgba(5,2,10,.6);padding:4px 10px;border-radius:14px;border:1px solid rgba(168,85,247,.3)}
+.hud .wave{color:#fde047}
+.hud .coins{color:#fbbf24}
+.hud .hp{color:#f87171}
+.hud .slots{position:absolute;bottom:0;left:0;right:0;display:flex;gap:6px;justify-content:center;padding:10px}
+.hud .slot{width:48px;height:48px;border-radius:8px;background:rgba(5,2,10,.75);border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:22px;position:relative;transition:border-color .2s}
+.hud .slot.r0{border-color:#94a3b8}
+.hud .slot.r1{border-color:#38bdf8;box-shadow:0 0 10px rgba(56,189,248,.5)}
+.hud .slot.r2{border-color:#a855f7;box-shadow:0 0 10px rgba(168,85,247,.5)}
+.hud .slot.r3{border-color:#f87171;box-shadow:0 0 14px rgba(248,113,113,.7),inset 0 0 14px rgba(248,113,113,.3)}
+.hud .slot .rk{position:absolute;top:-6px;right:-4px;font-size:9px;font-weight:900;background:#05020a;padding:1px 4px;border-radius:4px;letter-spacing:.1em;border:1px solid currentColor}
+.hud .tags{position:absolute;top:46px;left:14px;display:flex;flex-direction:column;gap:4px;font-size:10px;letter-spacing:.1em;text-transform:uppercase}
+.hud .tagItem{background:rgba(5,2,10,.7);padding:3px 8px;border-radius:4px;border:1px solid rgba(255,255,255,.1);font-weight:800}
+.hud .tagItem.active{border-color:currentColor;box-shadow:0 0 8px currentColor}
+
+/* ─── Modal overlays ────────────────────────────────────────── */
+.ov{position:absolute;inset:0;background:rgba(5,2,10,.92);display:none;flex-direction:column;align-items:center;justify-content:center;padding:16px;z-index:50;pointer-events:auto}
+.ov.show{display:flex}
+.ov h2{font-size:22px;color:#fde047;letter-spacing:.2em;margin-bottom:4px;text-transform:uppercase;text-shadow:0 0 14px rgba(251,191,36,.6)}
+.ov p{color:#c4b5fd;font-size:13px;margin-bottom:16px;text-align:center}
+.cardRow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;width:100%;max-width:720px}
+.card{background:linear-gradient(180deg,#1e1b4b,#0f0620);border:2px solid rgba(168,85,247,.35);border-radius:10px;padding:12px 10px;cursor:pointer;text-align:center;transition:.15s;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:150px}
+.card:hover{transform:translateY(-3px);border-color:#fde047;box-shadow:0 6px 20px rgba(251,191,36,.3)}
+.card.locked{border-color:#fbbf24;box-shadow:0 0 10px rgba(251,191,36,.4)}
+.card.r0{border-color:#94a3b8}
+.card.r1{border-color:#38bdf8}
+.card.r2{border-color:#a855f7}
+.card.r3{border-color:#f87171;box-shadow:0 0 14px rgba(248,113,113,.6)}
+.card .ico{font-size:30px;line-height:1}
+.card .nm{font-size:11px;font-weight:900;color:#fef3c7;letter-spacing:.08em;text-transform:uppercase}
+.card .dc{font-size:9px;color:#c4b5fd;line-height:1.3;flex:1}
+.card .cost{font-size:11px;font-weight:900;color:#fbbf24}
+.card .cost::before{content:'◆ '}
+.card.sold{opacity:.3;cursor:not-allowed;pointer-events:none}
+.card.cantAfford{opacity:.5}
+.btn{background:#ec4899;color:#fff;border:2px solid #fde047;padding:10px 26px;border-radius:6px;font-weight:900;cursor:pointer;font-size:13px;font-family:inherit;letter-spacing:.15em;text-transform:uppercase;transition:.15s}
+.btn:hover{background:#f472b6;transform:translateY(-1px);box-shadow:0 4px 12px rgba(236,72,153,.4)}
+.btn.sec{background:transparent;color:#c4b5fd;border-color:rgba(168,85,247,.4)}
+.btn.sec:hover{background:rgba(168,85,247,.2);color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.shopBtns{display:flex;gap:10px;margin-top:14px;align-items:center;flex-wrap:wrap;justify-content:center}
+
+/* Weapon rack row in shop (6 slots shown) */
+.rack{display:flex;gap:6px;justify-content:center;margin-top:14px}
+.rackSlot{width:52px;height:52px;border-radius:8px;background:rgba(5,2,10,.6);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:24px;position:relative;cursor:pointer;transition:.15s}
+.rackSlot:hover{border-color:#fde047}
+.rackSlot.r0{border-color:#94a3b8}
+.rackSlot.r1{border-color:#38bdf8}
+.rackSlot.r2{border-color:#a855f7}
+.rackSlot.r3{border-color:#f87171}
+.rackSlot .rk{position:absolute;top:-6px;right:-4px;font-size:9px;font-weight:900;background:#05020a;padding:1px 3px;border-radius:3px;border:1px solid currentColor}
+.rackSlot.sel{box-shadow:0 0 0 3px #fde047}
+.rackSlot .mg{position:absolute;top:-20px;font-size:14px;color:#22c55e}
+.tip{position:absolute;background:rgba(0,0,0,.95);border:1px solid #fde047;padding:6px 10px;border-radius:4px;font-size:11px;z-index:100;pointer-events:none;max-width:220px;line-height:1.4}
+
+/* Hero pick */
+.heroCard{min-height:180px;max-width:280px}
+.heroCard h3{font-size:14px;color:#fde047;letter-spacing:.15em}
+.heroCard .dc{font-size:11px}
+
+.hint{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);color:#64748b;font-size:11px;pointer-events:none;letter-spacing:.1em}
+.toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:#065f46;color:#d1fae5;padding:6px 14px;border-radius:6px;font-weight:800;font-size:12px;opacity:0;transition:.2s;z-index:150}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<div id="stage">
+  <canvas id="c" width="900" height="600"></canvas>
+
+  <div class="hud" id="hud">
+    <div class="top">
+      <div class="stat hp">❤ <span id="hpTxt">100/100</span></div>
+      <div class="bar"><span id="hpBar" style="width:100%"></span></div>
+      <div class="bar xp"><span id="xpBar" style="width:0%"></span></div>
+      <div class="stat">LV <span id="lvTxt">1</span></div>
+      <div class="stat wave">WAVE <span id="wvTxt">1/10</span></div>
+      <div class="stat">⏱ <span id="timerTxt">20</span></div>
+      <div class="stat coins">◆ <span id="coinsTxt">0</span></div>
+    </div>
+    <div class="tags" id="tagsPanel"></div>
+    <div class="slots" id="slotsPanel"></div>
+    <div class="hint" id="hint">WASD / arrows · auto-fire · pick up ◆ crystals</div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- Hero pick (start of run) -->
+  <div class="ov show" id="heroOv">
+    <h2>⚡ Overclock</h2>
+    <p>Pick your rig. 10 waves, auto-fire, merge weapons for insane payoffs.</p>
+    <div class="cardRow" style="grid-template-columns:repeat(2,1fr);max-width:600px" id="heroPicks"></div>
+  </div>
+
+  <!-- Level up pick -->
+  <div class="ov" id="levelOv">
+    <h2>Level Up!</h2>
+    <p>Pick a permanent perk</p>
+    <div class="cardRow" id="levelPicks"></div>
+  </div>
+
+  <!-- Shop -->
+  <div class="ov" id="shopOv">
+    <h2>Overclock Bench</h2>
+    <p id="shopSub">Wave 1 cleared · spend ◆ coins to prep for the next</p>
+    <div class="cardRow" id="shopCards"></div>
+    <div class="rack" id="shopRack"></div>
+    <div class="shopBtns">
+      <button class="btn sec" id="refreshBtn">↻ Refresh (10◆)</button>
+      <button class="btn sec" id="sellBtn" style="display:none">Sell selected</button>
+      <button class="btn" id="nextWaveBtn">Next Wave ▶</button>
+    </div>
+  </div>
+
+  <!-- End screens -->
+  <div class="ov" id="winOv">
+    <h2>🏆 Rig Pushed to the Limit</h2>
+    <p id="winTxt">You cleared all 10 waves.</p>
+    <button class="btn" onclick="location.reload()">Play Again</button>
+  </div>
+  <div class="ov" id="deadOv">
+    <h2>💀 System Fried</h2>
+    <p id="deadTxt">Wrecked on wave 1.</p>
+    <button class="btn" onclick="location.reload()">Retry</button>
+  </div>
+</div>
+
+<script src="_esc-back.js"></script>
+<script>
+'use strict';
+
+// ─── Core data ──────────────────────────────────────────────
+const RARITY_NAMES = ['WHITE','BLUE','PURPLE','RED'];
+const RARITY_PRICES = [10, 25, 60, 150];
+const SELL_FRAC = 0.5;
+
+// Each weapon: 4 tiers (white/blue/purple/red). Firing is auto, auto-aim.
+// fire = seconds between shots. bullets = projectiles per shot.
+const WEAPONS = {
+  pistol:   { name:'Pistol',   ico:'🔫', tags:['Light'],
+    tiers:[
+      { fire:0.55, dmg:7,  bullets:1, spread:0.03, speed:9,  range:360 },
+      { fire:0.42, dmg:12, bullets:1, spread:0.02, speed:10, range:380 },
+      { fire:0.30, dmg:18, bullets:2, spread:0.08, speed:11, range:400, pierce:1 },
+      { fire:0.20, dmg:28, bullets:3, spread:0.10, speed:13, range:440, pierce:2 },
+    ]},
+  shotgun:  { name:'Shotgun',  ico:'💥', tags:['Heavy'],
+    tiers:[
+      { fire:1.4, dmg:4, bullets:4,  spread:0.35, speed:7, range:200 },
+      { fire:1.1, dmg:6, bullets:6,  spread:0.4,  speed:8, range:220 },
+      { fire:0.9, dmg:8, bullets:9,  spread:0.5,  speed:9, range:240, pierce:1 },
+      { fire:0.7, dmg:10,bullets:14, spread:0.6,  speed:10,range:260, pierce:3, blast:30 },
+    ]},
+  smg:      { name:'SMG',      ico:'🔧', tags:['Light'],
+    tiers:[
+      { fire:0.16, dmg:3, bullets:1, spread:0.14, speed:10, range:260 },
+      { fire:0.13, dmg:4, bullets:1, spread:0.12, speed:11, range:280 },
+      { fire:0.10, dmg:6, bullets:1, spread:0.10, speed:12, range:300 },
+      { fire:0.07, dmg:9, bullets:2, spread:0.14, speed:13, range:320 },
+    ]},
+  laser:    { name:'Laser',    ico:'⚡', tags:['Energy'],
+    tiers:[
+      { fire:0.8, dmg:9,  bullets:1, pierce:2,  speed:18, range:420 },
+      { fire:0.65,dmg:14, bullets:1, pierce:3,  speed:21, range:460 },
+      { fire:0.5, dmg:22, bullets:1, pierce:5,  speed:24, range:520 },
+      { fire:0.35,dmg:34, bullets:1, pierce:99, speed:30, range:620 },
+    ]},
+  toxin:    { name:'Toxin',    ico:'☣', tags:['Bio'],
+    tiers:[
+      { fire:1.0, dmg:4, bullets:1, speed:7, range:240, poison:3 },
+      { fire:0.85,dmg:6, bullets:1, speed:8, range:260, poison:6 },
+      { fire:0.7, dmg:8, bullets:2, speed:9, range:280, poison:10 },
+      { fire:0.55,dmg:11,bullets:3, speed:10,range:300, poison:16, blast:25 },
+    ]},
+  medigun:  { name:'Medi-Beam',ico:'💉', tags:['Medic'],
+    tiers:[
+      { fire:1.4, dmg:3, bullets:1, speed:11, range:300, heal:1 },
+      { fire:1.1, dmg:5, bullets:1, speed:13, range:320, heal:2 },
+      { fire:0.9, dmg:8, bullets:1, speed:15, range:360, heal:3 },
+      { fire:0.65,dmg:12,bullets:2, speed:17, range:400, heal:5 },
+    ]},
+};
+const WEAPON_IDS = Object.keys(WEAPONS);
+
+// Tag resonance 2/4/6
+const TAGS = {
+  Light: { name:'LIGHT', color:'#38bdf8',
+    tiers:[
+      { count:2, text:'+15% fire · +5% move', fireMul:0.85, moveMul:1.05 },
+      { count:4, text:'+30% fire · +10% move', fireMul:0.70, moveMul:1.10 },
+      { count:6, text:'+50% fire · +20% move · 10% free shots', fireMul:0.50, moveMul:1.20, freeShot:0.10 },
+    ]},
+  Heavy: { name:'HEAVY', color:'#f59e0b',
+    tiers:[
+      { count:2, text:'+20% damage', dmgMul:1.2 },
+      { count:4, text:'+40% damage · +15% range', dmgMul:1.4, rangeMul:1.15 },
+      { count:6, text:'+70% damage · +25% range · knockback', dmgMul:1.7, rangeMul:1.25, knockback:true },
+    ]},
+  Bio: { name:'BIOHAZARD', color:'#84cc16',
+    tiers:[
+      { count:2, text:'Hits poison enemies', poisonChance:0.3 },
+      { count:4, text:'Poison 2× · bursts on kill', poisonMul:2, bioCloud:true },
+      { count:6, text:'Cloud heals you +1/s · +25% dmg inside', poisonMul:2, bioCloud:true, healCloud:1, dmgInCloud:1.25 },
+    ]},
+  Medic: { name:'MEDIC', color:'#f472b6',
+    tiers:[
+      { count:2, text:'Regen +0.5 HP/s', regen:0.5 },
+      { count:4, text:'Regen +1 HP/s · Max HP +20', regen:1, maxHpBonus:20 },
+      { count:6, text:'Regen +2 HP/s · Max HP +50 · 20% lifesteal', regen:2, maxHpBonus:50, lifesteal:0.2 },
+    ]},
+  Energy: { name:'ENERGY', color:'#a855f7',
+    tiers:[
+      { count:2, text:'+10% proj speed · +1 pierce', speedMul:1.1, pierceBonus:1 },
+      { count:4, text:'+20% proj speed · +2 pierce · splash', speedMul:1.2, pierceBonus:2, splash:true },
+      { count:6, text:'+30% proj speed · chain lightning', speedMul:1.3, pierceBonus:3, chain:true },
+    ]},
+};
+const TAG_IDS = Object.keys(TAGS);
+
+// Items — most carry both ends of a tradeoff.
+const ITEMS = {
+  energyDrink:    { name:'Energy Drink',   ico:'🥤', cost:15, desc:'+10% move speed',           apply:(p)=>{p.moveMul*=1.1;} },
+  firstAid:       { name:'First Aid',      ico:'➕', cost:12, desc:'Heal 25 HP now',             apply:(p)=>{p.hp=Math.min(p.maxHp,p.hp+25);} },
+  luckyCharm:     { name:'Lucky Charm',    ico:'🍀', cost:25, desc:'+10% crit chance',          apply:(p)=>{p.critChance+=0.1;} },
+  heavyVest:      { name:'Heavy Vest',     ico:'🦺', cost:35, desc:'+15 armor, +30 max HP; -15% move', apply:(p)=>{p.armor+=15;p.maxHpBonus+=30;p.moveMul*=0.85;} },
+  catalyst:       { name:'Unstable Cat.',  ico:'🧪', cost:40, desc:'+40% blast size, +25% blast dmg; -20 max HP', apply:(p)=>{p.blastRadMul*=1.4;p.blastDmgMul*=1.25;p.maxHpBonus-=20;p.selfBlast=true;} },
+  bloodFurnace:   { name:'Blood Furnace',  ico:'🔥', cost:50, desc:'Armor → %dmg (then armor = 0)', apply:(p)=>{const a=p.armor;p.dmgMul*=(1+a*0.015);p.armor=0;p.armorZeroed=true;} },
+  caffeinePills:  { name:'Caffeine Pills', ico:'💊', cost:30, desc:'+15% fire rate; -15 max HP', apply:(p)=>{p.fireMul*=0.85;p.maxHpBonus-=15;} },
+  heavyBarrels:   { name:'Heavy Barrels',  ico:'⚙',  cost:30, desc:'+25% damage; -20% fire rate', apply:(p)=>{p.dmgMul*=1.25;p.fireMul*=1.2;} },
+  nightVision:    { name:'Night Vision',   ico:'👁', cost:25, desc:'+30% range; -10% damage',    apply:(p)=>{p.rangeMul*=1.3;p.dmgMul*=0.9;} },
+  overclockChip:  { name:'Overclock Chip', ico:'🔋', cost:60, desc:'+40% fire rate; -25% damage', apply:(p)=>{p.fireMul*=0.6;p.dmgMul*=0.75;} },
+  luckyPendant:   { name:'Thorn',          ico:'🌵', cost:35, desc:'Enemies touching you take 2 dmg/s', apply:(p)=>{p.thorn+=2;} },
+};
+const ITEM_IDS = Object.keys(ITEMS);
+
+const HEROES = {
+  rookie:    { name:'Rookie',    ico:'🤖', slots:6, maxHp:100, moveSpeed:2.6, desc:'Balanced build. 6 weapon slots.' },
+  monowield: { name:'Monowield', ico:'⚔',  slots:1, maxHp:90,  moveSpeed:2.8, desc:'Only 1 slot. +200% dmg, +100% fire; tag bonuses always count as 6-piece.' },
+};
+
+const WAVES = [
+  { dur:20, enemies:[['rat',10]] },
+  { dur:22, enemies:[['rat',14],['bat',4]] },
+  { dur:25, enemies:[['rat',12],['bat',10]] },
+  { dur:28, enemies:[['rat',14],['bat',10],['brute',2]] },
+  { dur:30, enemies:[['rat',18],['bat',14],['brute',4]] },
+  { dur:35, enemies:[['bat',20],['brute',6]] },
+  { dur:38, enemies:[['rat',20],['bat',18],['brute',8]] },
+  { dur:42, enemies:[['rat',30],['bat',20],['brute',10]] },
+  { dur:45, enemies:[['rat',24],['bat',24],['brute',14]] },
+  { dur:70, enemies:[['rat',40],['bat',30],['brute',20],['boss',1]] },
+];
+const ENEMY = {
+  rat:   { hp:12, dmg:4,  spd:1.1, rad:10, color:'#78350f', ico:'🐀', xp:1, coin:1 },
+  bat:   { hp:8,  dmg:3,  spd:1.9, rad:9,  color:'#581c87', ico:'🦇', xp:2, coin:1 },
+  brute: { hp:60, dmg:12, spd:0.75,rad:16, color:'#991b1b', ico:'🦍', xp:5, coin:3 },
+  boss:  { hp:800,dmg:20, spd:0.6, rad:34, color:'#450a0a', ico:'👹', xp:50, coin:40 },
+};
+
+// Permanent perks offered on level up
+const PERKS = [
+  { name:'Vitality',     ico:'❤', apply:(p)=>{p.maxHpBonus+=15;p.hp+=15;}, desc:'+15 Max HP' },
+  { name:'Swift',        ico:'🏃', apply:(p)=>{p.moveMul*=1.08;}, desc:'+8% move speed' },
+  { name:'Deadly',       ico:'🎯', apply:(p)=>{p.dmgMul*=1.1;}, desc:'+10% damage' },
+  { name:'Trigger',      ico:'🔥', apply:(p)=>{p.fireMul*=0.92;}, desc:'+8% fire rate' },
+  { name:'Scope',        ico:'🔭', apply:(p)=>{p.rangeMul*=1.1;}, desc:'+10% range' },
+  { name:'Crit Mastery', ico:'⚡', apply:(p)=>{p.critChance+=0.05;p.critMul+=0.3;}, desc:'+5% crit, +30% crit dmg' },
+  { name:'Regen',        ico:'🩹', apply:(p)=>{p.regenBase+=0.5;}, desc:'+0.5 HP/s regen' },
+  { name:'Luck',         ico:'🍀', apply:(p)=>{p.luck+=0.1;}, desc:'+10% drop & crit chance' },
+];
+
+// ─── Game state ──────────────────────────────────────────────
+const C = document.getElementById('c'), ctx = C.getContext('2d');
+const W = 900, H = 600;
+const KEYS = {};
+let state = {
+  phase: 'hero',   // hero | battle | shop | levelup | win | dead
+  hero: null,
+  wave: 0,
+  waveTime: 0,
+  waveCountdown: 0,
+  pendingEnemies: [],
+  spawnAccum: 0,
+  player: null,
+  weapons: [],     // [{id, rarity, cool}]
+  items: [],       // item ids
+  enemies: [],
+  bullets: [],
+  crystals: [],
+  particles: [],
+  clouds: [],
+  shop: { cards:[], locked:[false,false,false,false], refreshed:0 },
+  tagCounts: {},
+  tagMultipliers: {},
+  rackSel: -1,
+  frame: 0,
+};
+
+// Mutable multipliers (reset on reapply from items/perks)
+function newPlayerStats(hero){
+  return {
+    x: W/2, y: H/2,
+    hp: hero.maxHp, maxHpBase: hero.maxHp, maxHpBonus: 0,
+    moveSpeedBase: hero.moveSpeed, moveMul: 1,
+    xp: 0, xpNext: 5, level: 1, coins: 0,
+    armor: 0, armorZeroed: false, thorn: 0,
+    dmgMul: 1, fireMul: 1, rangeMul: 1,
+    critChance: 0.05, critMul: 1.5, luck: 0,
+    blastRadMul: 1, blastDmgMul: 1, selfBlast: false,
+    regenBase: 0,
+    invuln: 0,
+    get maxHp(){ return this.maxHpBase + this.maxHpBonus; },
+  };
+}
+
+// ─── UI setup ──────────────────────────────────────────────
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(()=>t.classList.remove('show'), 1600);
+}
+
+// Hero pick screen
+function renderHeroPicks(){
+  const el = document.getElementById('heroPicks');
+  el.innerHTML = '';
+  for(const [id, h] of Object.entries(HEROES)){
+    const c = document.createElement('button');
+    c.className = 'card heroCard';
+    c.innerHTML = `<div class="ico" style="font-size:40px">${h.ico}</div>
+      <h3>${h.name}</h3>
+      <div class="dc">${h.desc}</div>
+      <div class="cost">HP ${h.maxHp} · ${h.slots} slot${h.slots>1?'s':''}</div>`;
+    c.onclick = () => startRun(id);
+    el.appendChild(c);
+  }
+}
+renderHeroPicks();
+
+function startRun(heroId){
+  const hero = HEROES[heroId];
+  state.hero = heroId;
+  state.player = newPlayerStats(hero);
+  state.weapons = [];
+  state.items = [];
+  state.wave = 0;
+  state.phase = 'battle';
+  // Give starting weapon
+  addWeapon('pistol', 0);
+  document.getElementById('heroOv').classList.remove('show');
+  nextWave();
+}
+
+// ─── Weapon / rarity / merge ────────────────────────────────
+function addWeapon(id, rarity, allowOverCap){
+  const hero = HEROES[state.hero];
+  if(!allowOverCap && state.weapons.length >= hero.slots){
+    toast('Inventory full — sell or merge first');
+    return false;
+  }
+  state.weapons.push({ id, rarity, cool: WEAPONS[id].tiers[rarity].fire });
+  rebuildTagCounts();
+  renderSlots();
+  return true;
+}
+
+function removeWeapon(idx){
+  state.weapons.splice(idx, 1);
+  rebuildTagCounts();
+  renderSlots();
+}
+
+function tryMergeAt(idx){
+  const w = state.weapons[idx];
+  if(!w || w.rarity >= 3) return false;
+  // Find another same id + rarity (and not the same idx)
+  const j = state.weapons.findIndex((o,i)=>i!==idx && o.id===w.id && o.rarity===w.rarity);
+  if(j < 0) return false;
+  // Merge: upgrade the earlier slot, remove the other
+  const keep = Math.min(idx, j), drop = Math.max(idx, j);
+  state.weapons[keep].rarity++;
+  state.weapons[keep].cool = WEAPONS[w.id].tiers[state.weapons[keep].rarity].fire;
+  state.weapons.splice(drop, 1);
+  rebuildTagCounts();
+  renderSlots();
+  toast(`${WEAPONS[w.id].name} → ${RARITY_NAMES[w.rarity+1]}`);
+  spawnParticles(state.player.x, state.player.y - 20, '#fbbf24', 20, 4);
+  return true;
+}
+
+function rebuildTagCounts(){
+  const counts = {};
+  for(const t of TAG_IDS) counts[t] = 0;
+  const monowield = state.hero === 'monowield';
+  for(const w of state.weapons){
+    for(const tag of WEAPONS[w.id].tags){
+      counts[tag] = (counts[tag] || 0) + (monowield ? 6 : 1);
+    }
+  }
+  state.tagCounts = counts;
+  // Derive multipliers
+  const m = { fireMul:1, moveMul:1, dmgMul:1, rangeMul:1, speedMul:1, pierceBonus:0,
+    poisonChance:0, poisonMul:1, bioCloud:false, healCloud:0, dmgInCloud:1,
+    regen:0, maxHpBonus:0, lifesteal:0, freeShot:0, knockback:false, splash:false, chain:false };
+  const tiers = {};
+  for(const tag of TAG_IDS){
+    const c = counts[tag];
+    let best = null;
+    for(const t of TAGS[tag].tiers){
+      if(c >= t.count) best = t;
+    }
+    tiers[tag] = best;
+    if(!best) continue;
+    for(const k of Object.keys(best)){
+      if(k === 'count' || k === 'text') continue;
+      if(typeof best[k] === 'number'){
+        if(['fireMul','moveMul','dmgMul','rangeMul','speedMul','poisonMul','dmgInCloud'].includes(k)){
+          m[k] = (m[k] || 1) * best[k];
+        } else {
+          m[k] = (m[k] || 0) + best[k];
+        }
+      } else if(best[k] === true) m[k] = true;
+    }
+  }
+  state.tagMultipliers = m;
+  state.tagTiers = tiers;
+  renderTags();
+}
+
+// ─── Rendering (HUD) ────────────────────────────────────────
+function renderSlots(){
+  const el = document.getElementById('slotsPanel');
+  const hero = HEROES[state.hero];
+  el.innerHTML = '';
+  for(let i = 0; i < hero.slots; i++){
+    const w = state.weapons[i];
+    const d = document.createElement('div');
+    d.className = 'slot';
+    if(w){
+      d.classList.add('r' + w.rarity);
+      d.innerHTML = `<span style="font-size:22px">${WEAPONS[w.id].ico}</span><span class="rk" style="color:${['#94a3b8','#38bdf8','#a855f7','#f87171'][w.rarity]}">${RARITY_NAMES[w.rarity][0]}</span>`;
+      d.title = `${WEAPONS[w.id].name} · ${RARITY_NAMES[w.rarity]}`;
+    }
+    el.appendChild(d);
+  }
+}
+
+function renderTags(){
+  const el = document.getElementById('tagsPanel');
+  el.innerHTML = '';
+  for(const tag of TAG_IDS){
+    const c = state.tagCounts[tag] || 0;
+    if(c === 0) continue;
+    const t = state.tagTiers[tag];
+    const d = document.createElement('div');
+    d.className = 'tagItem' + (t ? ' active' : '');
+    d.style.color = TAGS[tag].color;
+    d.textContent = `${TAGS[tag].name} ${c}${t ? ' · '+t.text : ''}`;
+    el.appendChild(d);
+  }
+}
+
+function updateTopHUD(){
+  const p = state.player;
+  document.getElementById('hpTxt').textContent = Math.max(0,Math.ceil(p.hp)) + '/' + p.maxHp;
+  document.getElementById('hpBar').style.width = Math.max(0, 100*p.hp/p.maxHp) + '%';
+  document.getElementById('xpBar').style.width = Math.max(0, 100*p.xp/p.xpNext) + '%';
+  document.getElementById('lvTxt').textContent = p.level;
+  document.getElementById('wvTxt').textContent = (state.wave) + '/10';
+  document.getElementById('timerTxt').textContent = Math.max(0, Math.ceil(state.waveCountdown));
+  document.getElementById('coinsTxt').textContent = p.coins;
+}
+
+// ─── Wave / combat ────────────────────────────────────────
+function nextWave(){
+  state.wave++;
+  if(state.wave > WAVES.length){ winRun(); return; }
+  const w = WAVES[state.wave - 1];
+  state.waveCountdown = w.dur;
+  state.waveTime = 0;
+  state.pendingEnemies = [];
+  for(const [type, count] of w.enemies){
+    for(let i=0;i<count;i++) state.pendingEnemies.push(type);
+  }
+  // Shuffle
+  state.pendingEnemies.sort(()=>Math.random()-0.5);
+  state.spawnAccum = 0;
+  state.phase = 'battle';
+  state.enemies = [];
+  state.bullets = [];
+  state.crystals = [];
+  state.clouds = [];
+  document.getElementById('shopOv').classList.remove('show');
+  updateTopHUD();
+}
+
+function spawnEnemyAt(type, x, y){
+  const e = ENEMY[type];
+  state.enemies.push({ type, x, y, hp: e.hp, maxHp: e.hp, poison: 0, poisonTimer: 0, knock:{x:0,y:0}, hitFlash:0 });
+}
+
+function spawnEdgeEnemy(type){
+  const side = Math.floor(Math.random()*4);
+  let x, y;
+  if(side===0){ x=-20; y=Math.random()*H; }
+  else if(side===1){ x=W+20; y=Math.random()*H; }
+  else if(side===2){ x=Math.random()*W; y=-20; }
+  else { x=Math.random()*W; y=H+20; }
+  spawnEnemyAt(type, x, y);
+}
+
+function spawnParticles(x,y,color,n,speed){
+  speed = speed || 3;
+  for(let i=0;i<n;i++){
+    particles.push({ x, y, vx:(Math.random()-0.5)*speed*2, vy:(Math.random()-0.5)*speed*2, life:1, color, r:2+Math.random()*2 });
+  }
+}
+const particles = []; state.particles = particles;
+
+function fireWeapon(w){
+  const t = WEAPONS[w.id].tiers[w.rarity];
+  const m = state.tagMultipliers;
+  const p = state.player;
+  // Find nearest enemy within range
+  const range = (t.range || 300) * (p.rangeMul||1) * (m.rangeMul||1);
+  let target = null, bd = range*range;
+  for(const e of state.enemies){
+    const dx=e.x-p.x, dy=e.y-p.y, d2=dx*dx+dy*dy;
+    if(d2 < bd){ bd = d2; target = e; }
+  }
+  if(!target) return false;
+  const ang = Math.atan2(target.y-p.y, target.x-p.x);
+  const dmg = t.dmg * p.dmgMul * (m.dmgMul||1);
+  const spd = (t.speed||10) * (m.speedMul||1);
+  const pierce = (t.pierce||0) + (m.pierceBonus||0);
+  const crit = Math.random() < (p.critChance + p.luck);
+  const finalDmg = crit ? dmg * p.critMul : dmg;
+  const bullets = t.bullets || 1;
+  for(let i=0;i<bullets;i++){
+    const spread = (t.spread||0) * (Math.random()-0.5) * 2;
+    const a = ang + spread + (bullets>1 && !t.spread ? (i - (bullets-1)/2)*0.08 : 0);
+    state.bullets.push({
+      x: p.x + Math.cos(ang)*18,
+      y: p.y + Math.sin(ang)*18,
+      vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
+      dmg: finalDmg,
+      pierce,
+      hit: new Set(),
+      life: 120,
+      color: w.id==='laser' ? '#a855f7' : w.id==='toxin' ? '#84cc16' : w.id==='medigun' ? '#f472b6' : w.id==='shotgun' ? '#f59e0b' : '#fde047',
+      poison: t.poison || 0,
+      heal: t.heal || 0,
+      blast: t.blast || 0,
+      crit,
+      wid: w.id,
+    });
+  }
+  // Free shot refund?
+  if(m.freeShot && Math.random() < m.freeShot) return 'free';
+  return true;
+}
+
+function stepBattle(dt){
+  const p = state.player;
+  // Movement
+  const ax = (KEYS.ArrowLeft || KEYS.KeyA ? -1 : 0) + (KEYS.ArrowRight || KEYS.KeyD ? 1 : 0);
+  const ay = (KEYS.ArrowUp || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown || KEYS.KeyS ? 1 : 0);
+  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1);
+  const m = Math.hypot(ax, ay) || 1;
+  p.x = Math.max(14, Math.min(W-14, p.x + ax/m*spd));
+  p.y = Math.max(14, Math.min(H-14, p.y + ay/m*spd));
+  // Regen
+  const regen = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
+  if(regen) p.hp = Math.min(p.maxHp, p.hp + regen*dt);
+  if(p.invuln > 0) p.invuln -= dt;
+
+  // Wave timing
+  state.waveTime += dt;
+  state.waveCountdown -= dt;
+  if(state.waveCountdown <= 0){
+    // Kill all remaining enemies (no drops)
+    state.enemies = [];
+    state.crystals = state.crystals.filter(c=>c.life>0);
+    endWave();
+    return;
+  }
+
+  // Spawn enemies progressively over wave duration
+  const w = WAVES[state.wave-1];
+  const total = w.enemies.reduce((s,[,c])=>s+c, 0);
+  const spawnPerSec = total / (w.dur * 0.75);
+  state.spawnAccum += spawnPerSec * dt;
+  while(state.spawnAccum >= 1 && state.pendingEnemies.length){
+    state.spawnAccum--;
+    spawnEdgeEnemy(state.pendingEnemies.shift());
+  }
+
+  // Fire weapons
+  for(const w of state.weapons){
+    w.cool -= dt;
+    const monoFire = state.hero === 'monowield' ? 0.5 : 1; // -50% cooldown = 2x fire
+    const fireMult = p.fireMul * (state.tagMultipliers.fireMul||1) * monoFire;
+    if(w.cool <= 0){
+      const res = fireWeapon(w);
+      if(res === 'free'){ /* no cool refresh */ }
+      else if(res) w.cool = WEAPONS[w.id].tiers[w.rarity].fire * fireMult;
+      else w.cool = 0.1; // no target, retry soon
+    }
+  }
+
+  // Bullets
+  for(const b of state.bullets){
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if(b.x < -10 || b.x > W+10 || b.y < -10 || b.y > H+10) b.life = 0;
+    if(b.life <= 0) continue;
+    for(const e of state.enemies){
+      if(e.hp <= 0 || b.hit.has(e)) continue;
+      const dx = e.x-b.x, dy = e.y-b.y, R = ENEMY[e.type].rad + 4;
+      if(dx*dx+dy*dy < R*R){
+        const monoBuff = state.hero === 'monowield' ? 3 : 1;
+        const dealt = b.dmg * monoBuff;
+        e.hp -= dealt;
+        e.hitFlash = 0.1;
+        if(state.tagMultipliers.knockback){
+          const a = Math.atan2(e.y-b.y, e.x-b.x);
+          e.knock.x += Math.cos(a)*5; e.knock.y += Math.sin(a)*5;
+        }
+        if(b.poison || (state.tagMultipliers.poisonChance && Math.random()<state.tagMultipliers.poisonChance)){
+          const poi = (b.poison || 2) * (state.tagMultipliers.poisonMul||1);
+          e.poison = Math.max(e.poison, poi);
+          e.poisonTimer = 3;
+        }
+        if(b.heal){ p.hp = Math.min(p.maxHp, p.hp + b.heal); spawnParticles(p.x, p.y-10, '#f472b6', 2, 2); }
+        if(state.tagMultipliers.lifesteal) p.hp = Math.min(p.maxHp, p.hp + dealt * state.tagMultipliers.lifesteal);
+        b.hit.add(e);
+        spawnParticles(e.x, e.y, b.color, 3, 2);
+        if(b.pierce <= 0) b.life = 0;
+        else b.pierce--;
+        // Blast?
+        if(b.blast && b.life===0){
+          const rad = b.blast * p.blastRadMul;
+          for(const o of state.enemies){
+            if(o.hp<=0) continue;
+            const d2 = (o.x-b.x)**2 + (o.y-b.y)**2;
+            if(d2 < rad*rad) o.hp -= b.dmg * 0.5 * p.blastDmgMul;
+          }
+          spawnParticles(b.x, b.y, '#fbbf24', 14, 4);
+          if(p.selfBlast){
+            const d2 = (p.x-b.x)**2 + (p.y-b.y)**2;
+            if(d2 < rad*rad){ p.hp -= b.dmg * 0.05; }
+          }
+        }
+        if(b.life === 0) break;
+      }
+    }
+  }
+  state.bullets = state.bullets.filter(b=>b.life>0);
+
+  // Enemies
+  for(const e of state.enemies){
+    if(e.hp <= 0) continue;
+    const E = ENEMY[e.type];
+    const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
+    e.x += dx/d * E.spd * (dt*60/60) + e.knock.x;
+    e.y += dy/d * E.spd * (dt*60/60) + e.knock.y;
+    e.knock.x *= 0.85; e.knock.y *= 0.85;
+    if(e.hitFlash > 0) e.hitFlash -= dt;
+    // Poison tick
+    if(e.poison > 0 && e.poisonTimer > 0){
+      e.hp -= e.poison * dt;
+      e.poisonTimer -= dt;
+      if(e.poisonTimer <= 0){ e.poison = 0; }
+    }
+    // Thorn damage if touching
+    if(p.thorn > 0){
+      const td = Math.hypot(p.x-e.x, p.y-e.y);
+      if(td < E.rad + 14) e.hp -= p.thorn * dt;
+    }
+    // Damage player
+    if(d < E.rad + 14 && p.invuln <= 0){
+      let incoming = E.dmg;
+      incoming = Math.max(1, incoming - p.armor);
+      p.hp -= incoming;
+      p.invuln = 0.6;
+      spawnParticles(p.x, p.y, '#f87171', 8, 3);
+      if(p.hp <= 0){ p.hp = 0; dieRun(); return; }
+    }
+  }
+  // Kill enemies with hp<=0 → drop crystal
+  const alive = [];
+  for(const e of state.enemies){
+    if(e.hp <= 0){
+      const E = ENEMY[e.type];
+      state.crystals.push({ x: e.x, y: e.y, xp: E.xp, coin: E.coin, life: 30, spin: Math.random()*Math.PI*2 });
+      spawnParticles(e.x, e.y, E.color, 12, 4);
+      // Bio cloud on bursts?
+      if(state.tagMultipliers.bioCloud && e.poison > 0){
+        for(let i=0;i<3;i++){
+          state.clouds.push({ x: e.x+(Math.random()-0.5)*30, y: e.y+(Math.random()-0.5)*30, r: 36, life: 4 });
+        }
+      }
+    } else alive.push(e);
+  }
+  state.enemies = alive;
+
+  // Crystals
+  for(const c of state.crystals){
+    c.life -= dt; c.spin += dt*2;
+    const d = Math.hypot(p.x-c.x, p.y-c.y);
+    if(d < 20){
+      // Pull toward player
+      c.x += (p.x-c.x)*0.3; c.y += (p.y-c.y)*0.3;
+    }
+    if(d < 10){
+      p.xp += c.xp;
+      p.coins += c.coin;
+      c.life = -1;
+      while(p.xp >= p.xpNext){
+        p.xp -= p.xpNext;
+        p.level++;
+        p.xpNext = Math.ceil(5 + p.level * 3);
+        // Trigger levelup overlay (queue, triggered after wave if mid-wave)
+        state.levelsPending = (state.levelsPending||0) + 1;
+      }
+    }
+  }
+  state.crystals = state.crystals.filter(c=>c.life>0);
+
+  // Clouds
+  for(const cl of state.clouds){
+    cl.life -= dt;
+    if(state.tagMultipliers.healCloud){
+      const d = Math.hypot(p.x-cl.x, p.y-cl.y);
+      if(d < cl.r) p.hp = Math.min(p.maxHp, p.hp + state.tagMultipliers.healCloud * dt);
+    }
+  }
+  state.clouds = state.clouds.filter(c=>c.life>0);
+
+  // Particles
+  for(const pa of particles){
+    pa.x += pa.vx; pa.y += pa.vy; pa.life -= dt*2;
+    pa.vx *= 0.95; pa.vy *= 0.95;
+  }
+  for(let i=particles.length-1;i>=0;i--) if(particles[i].life<=0) particles.splice(i,1);
+}
+
+function endWave(){
+  state.phase = 'shop';
+  // Trigger level-ups first
+  if(state.levelsPending > 0){
+    openLevelUp();
+    return;
+  }
+  openShop();
+}
+
+function dieRun(){
+  state.phase = 'dead';
+  document.getElementById('deadTxt').textContent = `Wrecked on wave ${state.wave}.`;
+  document.getElementById('deadOv').classList.add('show');
+}
+
+function winRun(){
+  state.phase = 'win';
+  document.getElementById('winTxt').textContent = `You cleared all ${WAVES.length} waves at level ${state.player.level}.`;
+  document.getElementById('winOv').classList.add('show');
+}
+
+// ─── Level Up ────────────────────────────────────────────
+function openLevelUp(){
+  if(!state.levelsPending){ openShop(); return; }
+  state.phase = 'levelup';
+  const el = document.getElementById('levelPicks');
+  el.innerHTML = '';
+  const pool = PERKS.slice().sort(()=>Math.random()-0.5).slice(0,4);
+  for(const perk of pool){
+    const c = document.createElement('button');
+    c.className = 'card';
+    c.innerHTML = `<div class="ico">${perk.ico}</div><div class="nm">${perk.name}</div><div class="dc">${perk.desc}</div>`;
+    c.onclick = () => {
+      perk.apply(state.player);
+      state.levelsPending--;
+      updateTopHUD();
+      renderSlots();
+      renderTags();
+      document.getElementById('levelOv').classList.remove('show');
+      if(state.levelsPending > 0) setTimeout(openLevelUp, 100);
+      else setTimeout(openShop, 100);
+    };
+    el.appendChild(c);
+  }
+  document.getElementById('levelOv').classList.add('show');
+}
+
+// ─── Shop ────────────────────────────────────────────────
+function rollShopCard(){
+  // 60% weapon, 40% item
+  if(Math.random() < 0.6){
+    const id = WEAPON_IDS[Math.floor(Math.random()*WEAPON_IDS.length)];
+    // Rarity bias by wave
+    const roll = Math.random() + state.wave * 0.03 + state.player.luck;
+    let rarity = 0;
+    if(roll > 2.3) rarity = 3;
+    else if(roll > 1.5) rarity = 2;
+    else if(roll > 0.75) rarity = 1;
+    return { kind:'weapon', id, rarity, cost: RARITY_PRICES[rarity] };
+  } else {
+    const id = ITEM_IDS[Math.floor(Math.random()*ITEM_IDS.length)];
+    return { kind:'item', id, cost: ITEMS[id].cost };
+  }
+}
+
+function openShop(){
+  state.phase = 'shop';
+  document.getElementById('shopSub').textContent = `Wave ${state.wave}/10 cleared · ${state.wave < WAVES.length ? 'spend ◆ to prep for the next' : 'final checkpoint before boss!'}`;
+  // Roll fresh cards for unlocked slots
+  if(state.shop.cards.length === 0){
+    state.shop.cards = [rollShopCard(), rollShopCard(), rollShopCard(), rollShopCard()];
+    state.shop.locked = [false, false, false, false];
+  } else {
+    for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = rollShopCard();
+  }
+  state.shop.refreshed = 0;
+  state.rackSel = -1;
+  renderShop();
+  document.getElementById('shopOv').classList.add('show');
+}
+
+function renderShop(){
+  const el = document.getElementById('shopCards');
+  el.innerHTML = '';
+  for(let i=0;i<4;i++){
+    const c = state.shop.cards[i];
+    const d = document.createElement('button');
+    d.className = 'card';
+    if(c.sold) d.classList.add('sold');
+    if(c.cost > state.player.coins && !c.sold) d.classList.add('cantAfford');
+    if(state.shop.locked[i]) d.classList.add('locked');
+    if(c.kind === 'weapon'){
+      d.classList.add('r' + c.rarity);
+      const w = WEAPONS[c.id];
+      const t = w.tiers[c.rarity];
+      d.innerHTML = `<div class="ico">${w.ico}</div>
+        <div class="nm">${w.name}</div>
+        <div class="dc" style="color:${['#94a3b8','#38bdf8','#a855f7','#f87171'][c.rarity]}">${RARITY_NAMES[c.rarity]}</div>
+        <div class="dc">${w.tags.join(' · ')}</div>
+        <div class="dc">${t.dmg} dmg · ${(1/t.fire).toFixed(1)}/s${t.bullets>1?` · ×${t.bullets}`:''}${t.pierce?` · pierce ${t.pierce}`:''}</div>
+        <div class="cost">${c.cost}</div>`;
+    } else {
+      const it = ITEMS[c.id];
+      d.innerHTML = `<div class="ico">${it.ico}</div>
+        <div class="nm">${it.name}</div>
+        <div class="dc">${it.desc}</div>
+        <div class="cost">${c.cost}</div>`;
+    }
+    d.oncontextmenu = (e) => { e.preventDefault(); state.shop.locked[i] = !state.shop.locked[i]; renderShop(); };
+    d.onclick = (e) => {
+      if(e.shiftKey){ state.shop.locked[i] = !state.shop.locked[i]; renderShop(); return; }
+      buyCard(i);
+    };
+    d.title = 'Click to buy · Shift+Click or right-click to lock';
+    el.appendChild(d);
+  }
+  // Weapon rack (owned)
+  const rack = document.getElementById('shopRack');
+  rack.innerHTML = '';
+  const hero = HEROES[state.hero];
+  for(let i=0;i<hero.slots;i++){
+    const w = state.weapons[i];
+    const d = document.createElement('div');
+    d.className = 'rackSlot';
+    if(state.rackSel === i) d.classList.add('sel');
+    if(w){
+      d.classList.add('r' + w.rarity);
+      // Merge indicator
+      const canMerge = state.weapons.some((o,j)=>j!==i && o.id===w.id && o.rarity===w.rarity && w.rarity<3);
+      d.innerHTML = `<span>${WEAPONS[w.id].ico}</span><span class="rk" style="color:${['#94a3b8','#38bdf8','#a855f7','#f87171'][w.rarity]}">${RARITY_NAMES[w.rarity][0]}</span>${canMerge?'<span class="mg">⇅</span>':''}`;
+      d.title = `${WEAPONS[w.id].name} · ${RARITY_NAMES[w.rarity]}`;
+    }
+    d.onclick = () => {
+      if(!w) return;
+      // Click to select; if we already have another same-tier same-id selected, merge
+      if(state.rackSel >= 0 && state.rackSel !== i){
+        const o = state.weapons[state.rackSel];
+        if(o && o.id === w.id && o.rarity === w.rarity && w.rarity < 3){
+          tryMergeAt(i); // merges with the matching one
+          state.rackSel = -1;
+          renderShop();
+          return;
+        }
+      }
+      state.rackSel = (state.rackSel === i) ? -1 : i;
+      renderShop();
+    };
+    rack.appendChild(d);
+  }
+  document.getElementById('sellBtn').style.display = state.rackSel >= 0 ? '' : 'none';
+}
+
+function buyCard(i){
+  const c = state.shop.cards[i];
+  if(c.sold) return;
+  if(c.cost > state.player.coins){ toast('Not enough coins'); return; }
+  if(c.kind === 'weapon'){
+    if(state.weapons.length >= HEROES[state.hero].slots){
+      toast('Inventory full — sell or merge first');
+      return;
+    }
+    state.player.coins -= c.cost;
+    addWeapon(c.id, c.rarity);
+    c.sold = true;
+  } else {
+    state.player.coins -= c.cost;
+    ITEMS[c.id].apply(state.player);
+    state.items.push(c.id);
+    c.sold = true;
+    toast(`+ ${ITEMS[c.id].name}`);
+  }
+  renderShop();
+  updateTopHUD();
+}
+
+document.getElementById('refreshBtn').onclick = () => {
+  const cost = 10 + state.shop.refreshed * 5;
+  if(state.player.coins < cost){ toast('Not enough coins to refresh'); return; }
+  state.player.coins -= cost;
+  state.shop.refreshed++;
+  for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = rollShopCard();
+  document.getElementById('refreshBtn').textContent = `↻ Refresh (${10 + state.shop.refreshed*5}◆)`;
+  renderShop();
+  updateTopHUD();
+};
+document.getElementById('sellBtn').onclick = () => {
+  if(state.rackSel < 0) return;
+  const w = state.weapons[state.rackSel];
+  if(!w) return;
+  const refund = Math.ceil(RARITY_PRICES[w.rarity] * SELL_FRAC);
+  state.player.coins += refund;
+  removeWeapon(state.rackSel);
+  state.rackSel = -1;
+  renderShop();
+  updateTopHUD();
+  toast(`+${refund}◆`);
+};
+document.getElementById('nextWaveBtn').onclick = () => {
+  // Reset shop state (so next shop reroll replaces unlocked)
+  for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = null;
+  state.shop.cards = state.shop.cards.map(c => c || rollShopCard());
+  state.shop.refreshed = 0;
+  document.getElementById('refreshBtn').textContent = `↻ Refresh (10◆)`;
+  nextWave();
+};
+
+// ─── Draw ────────────────────────────────────────────────
+function draw(){
+  ctx.fillStyle = '#07040d';
+  ctx.fillRect(0, 0, W, H);
+  // Grid
+  ctx.strokeStyle = 'rgba(168,85,247,0.06)';
+  ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=40){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=0;y<H;y+=40){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+
+  // Clouds
+  for(const cl of state.clouds){
+    const a = Math.min(0.4, cl.life/4);
+    ctx.fillStyle = `rgba(132,204,22,${a})`;
+    ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Crystals
+  for(const c of state.crystals){
+    const flick = c.life < 5 ? (Math.sin(c.life*10)+1)/2 * 0.5 + 0.5 : 1;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.spin);
+    ctx.fillStyle = `rgba(251,191,36,${flick})`;
+    ctx.shadowBlur = 10; ctx.shadowColor = '#fbbf24';
+    ctx.beginPath();
+    ctx.moveTo(0,-5); ctx.lineTo(5,0); ctx.lineTo(0,5); ctx.lineTo(-5,0);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.shadowBlur = 0;
+  }
+
+  // Bullets
+  for(const b of state.bullets){
+    ctx.fillStyle = b.color;
+    ctx.shadowBlur = 8; ctx.shadowColor = b.color;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.crit ? 5 : 3, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Enemies
+  for(const e of state.enemies){
+    const E = ENEMY[e.type];
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    ctx.fillStyle = e.hitFlash > 0 ? '#fff' : E.color;
+    ctx.beginPath(); ctx.arc(0,0,E.rad,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = (E.rad*1.2) + 'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(E.ico, 0, 1);
+    ctx.restore();
+    // HP bar
+    if(e.hp < e.maxHp){
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(e.x-E.rad, e.y-E.rad-6, E.rad*2, 3);
+      ctx.fillStyle = '#f87171'; ctx.fillRect(e.x-E.rad, e.y-E.rad-6, E.rad*2*e.hp/e.maxHp, 3);
+    }
+    if(e.poison > 0){
+      ctx.strokeStyle = '#84cc16'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(e.x, e.y, E.rad+3, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+
+  // Player
+  const p = state.player;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if(p.invuln > 0 && Math.floor(p.invuln*20)%2) ctx.globalAlpha = 0.5;
+  ctx.fillStyle = HEROES[state.hero].ico === '⚔' ? '#f59e0b' : '#06b6d4';
+  ctx.shadowBlur = 12; ctx.shadowColor = ctx.fillStyle;
+  ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff'; ctx.font = '18px serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(HEROES[state.hero].ico, 0, 1);
+  ctx.restore();
+
+  // Particles
+  for(const pa of particles){
+    ctx.globalAlpha = Math.max(0, Math.min(1, pa.life));
+    ctx.fillStyle = pa.color;
+    ctx.beginPath(); ctx.arc(pa.x, pa.y, pa.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── Loop ────────────────────────────────────────────────
+let lastT = performance.now();
+function loop(now){
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  state.frame++;
+  if(state.phase === 'battle'){
+    stepBattle(dt);
+    updateTopHUD();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ─── Input ────────────────────────────────────────────────
+addEventListener('keydown', (e) => {
+  // Keep extension-popup Esc handler working — _esc-back.js already handles it
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) e.preventDefault();
+  KEYS[e.code] = true;
+});
+addEventListener('keyup', (e) => { KEYS[e.code] = false; });
+</script>
+</body>
+</html>

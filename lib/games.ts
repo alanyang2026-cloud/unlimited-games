@@ -136,6 +136,14 @@ export const GAMES: Game[] = [
     color: "from-indigo-700 to-fuchsia-700",
     controls: "← → change lane · Space jump · ↓ slide · swipe on mobile",
   },
+  {
+    id: "overclock",
+    title: "Overclock",
+    emoji: "⚡",
+    description: "10-wave shoot-'em-up roguelike. 6-slot inventory, merge same-rarity weapons, tag resonance 2/4/6, tradeoff items. Pick Rookie or Monowield.",
+    color: "from-pink-600 to-cyan-500",
+    controls: "WASD / arrows · auto-fire · click shop · shift-click to lock",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -155,6 +163,7 @@ const URL_MAP: Record<string, string> = {
   "liars-tavern": "/games/liars-tavern.html",
   "potato-bros": "/games/potato-bros.html",
   "rail-runner": "/games/rail-runner.html",
+  "overclock": "/games/overclock.html",
 };
 
 export function getGameUrl(id: string): string {

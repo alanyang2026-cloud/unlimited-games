@@ -32,6 +32,7 @@ const GAMES = [
   { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:640 },
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true, nw:760, nh:520 },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d', nw:820, nh:640 },
+  { id:'overclock',       title:'Overclock',       emoji:'⚡', url:'/games/overclock.html',        c1:'#ec4899', c2:'#06b6d4', nw:900, nh:600 },
   // Rail Runner intentionally excluded from the Chrome Web Store
   // build — style overlap with Subway Surfers is high enough that a
   // store reviewer could flag it. Still ships on unlimitedgames.vercel.app.
