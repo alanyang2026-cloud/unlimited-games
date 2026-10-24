@@ -287,19 +287,40 @@ const TAGS = {
 };
 const TAG_IDS = Object.keys(TAGS);
 
-// Items — most carry both ends of a tradeoff.
+// Items — the full 10-item tradeoff set from the design doc. Every
+// item splits a strong boost against a real cost so the choice is
+// always a stance, not a stat stack.
 const ITEMS = {
-  energyDrink:    { name:'Energy Drink',   ico:'🥤', cost:15, desc:'+10% move speed',           apply:(p)=>{p.moveMul*=1.1;} },
-  firstAid:       { name:'First Aid',      ico:'➕', cost:12, desc:'Heal 25 HP now',             apply:(p)=>{p.hp=Math.min(p.maxHp,p.hp+25);} },
-  luckyCharm:     { name:'Lucky Charm',    ico:'🍀', cost:25, desc:'+10% crit chance',          apply:(p)=>{p.critChance+=0.1;} },
-  heavyVest:      { name:'Heavy Vest',     ico:'🦺', cost:35, desc:'+15 armor, +30 max HP; -15% move', apply:(p)=>{p.armor+=15;p.maxHpBonus+=30;p.moveMul*=0.85;} },
-  catalyst:       { name:'Unstable Cat.',  ico:'🧪', cost:40, desc:'+40% blast size, +25% blast dmg; -20 max HP', apply:(p)=>{p.blastRadMul*=1.4;p.blastDmgMul*=1.25;p.maxHpBonus-=20;p.selfBlast=true;} },
-  bloodFurnace:   { name:'Blood Furnace',  ico:'🔥', cost:50, desc:'Armor → %dmg (then armor = 0)', apply:(p)=>{const a=p.armor;p.dmgMul*=(1+a*0.015);p.armor=0;p.armorZeroed=true;} },
-  caffeinePills:  { name:'Caffeine Pills', ico:'💊', cost:30, desc:'+15% fire rate; -15 max HP', apply:(p)=>{p.fireMul*=0.85;p.maxHpBonus-=15;} },
-  heavyBarrels:   { name:'Heavy Barrels',  ico:'⚙',  cost:30, desc:'+25% damage; -20% fire rate', apply:(p)=>{p.dmgMul*=1.25;p.fireMul*=1.2;} },
-  nightVision:    { name:'Night Vision',   ico:'👁', cost:25, desc:'+30% range; -10% damage',    apply:(p)=>{p.rangeMul*=1.3;p.dmgMul*=0.9;} },
-  overclockChip:  { name:'Overclock Chip', ico:'🔋', cost:60, desc:'+40% fire rate; -25% damage', apply:(p)=>{p.fireMul*=0.6;p.dmgMul*=0.75;} },
-  luckyPendant:   { name:'Thorn',          ico:'🌵', cost:35, desc:'Enemies touching you take 2 dmg/s', apply:(p)=>{p.thorn+=2;} },
+  scope: { name:'High-Mag Scope', ico:'🎯', cost:30,
+    desc:'+12% crit, +25 range · -3 armor',
+    apply:(p)=>{ p.critChance += 0.12; p.rangeMul += 0.125; p.armor -= 3; } },
+  piston: { name:'Light Piston', ico:'⚙', cost:30,
+    desc:'+20% fire rate · -4 ranged dmg, -4 melee dmg',
+    apply:(p)=>{ p.fireMul *= 0.8; p.rangedBonus = (p.rangedBonus||0) - 0.04; p.meleeBonus = (p.meleeBonus||0) - 0.04; } },
+  heavyBarrel: { name:'Heavy Barrel', ico:'🧱', cost:35,
+    desc:'+15% damage, +6 ranged · -15% reload',
+    apply:(p)=>{ p.dmgMul *= 1.15; p.rangedBonus = (p.rangedBonus||0) + 0.06; p.fireMul *= 1.15; } },
+  highCapMag: { name:'High-Cap Mag', ico:'📦', cost:30,
+    desc:'+10 ranged dmg · -10% fire rate, -5% move',
+    apply:(p)=>{ p.rangedBonus = (p.rangedBonus||0) + 0.10; p.fireMul *= 1.1; p.moveMul *= 0.95; } },
+  ledger: { name:'Pocket Ledger', ico:'📒', cost:25,
+    desc:'+15 harvest, +8% luck · -8% damage',
+    apply:(p)=>{ p.harvest = (p.harvest||0) + 15; p.luck += 0.08; p.dmgMul *= 0.92; } },
+  grips: { name:'Wire-Mesh Grips', ico:'🧤', cost:30,
+    desc:'+6 melee dmg, +4 armor · -6% move',
+    apply:(p)=>{ p.meleeBonus = (p.meleeBonus||0) + 0.06; p.armor += 4; p.moveMul *= 0.94; } },
+  tourniquet: { name:'Combat Tourniquet', ico:'🩹', cost:35,
+    desc:'+8% lifesteal · -8% dodge',
+    apply:(p)=>{ p.lifestealWeap = (p.lifestealWeap||0) + 0.08; if(!p.dodgeLocked) p.dodge = (p.dodge||0) - 0.08; } },
+  canteen: { name:'Filter Canteen', ico:'💧', cost:25,
+    desc:'+6 regen/s · -4% lifesteal',
+    apply:(p)=>{ p.regenBase += 6; p.lifestealWeap = (p.lifestealWeap||0) - 0.04; } },
+  exoskeleton: { name:'Reinforced Exo', ico:'🤖', cost:50,
+    desc:'+12 armor · dodge LOCKED at -20%',
+    apply:(p)=>{ p.armor += 12; if(!p.dodgeLocked){ p.dodge = -0.2; p.dodgeLocked = true; } } },
+  adrenaline: { name:'Adrenaline Shot', ico:'💉', cost:35,
+    desc:'+15% move, +6% dodge · -10 max HP',
+    apply:(p)=>{ p.moveMul *= 1.15; if(!p.dodgeLocked) p.dodge = (p.dodge||0) + 0.06; p.maxHpBonus -= 10; if(p.hp > p.maxHp) p.hp = p.maxHp; } },
 };
 const ITEM_IDS = Object.keys(ITEMS);
 
@@ -963,7 +984,10 @@ function fireWeapon(w){
   const critMul = crit ? localCritMul : 1;
   // Hero global damage mult (One-Arm +250%, Mechanic 20% on own weapons, Miser scales w/ coins, Glutton heal-stack, Reckless broke penalty)
   const heroMul = heroDmgMul();
-  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul * heroMul;
+  // Range (bullet/beam/cone/bounce) vs melee split — items like
+  // Heavy Barrel, High-Cap Mag add ranged bonus; Wire Grips add melee.
+  const typeBonus = (kind === 'melee') ? (p.meleeBonus || 0) : (p.rangedBonus || 0);
+  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul * heroMul * (1 + typeBonus);
 
   // ─── MELEE: swing in a radius around the player ──────────────
   if(kind === 'melee'){
