@@ -351,23 +351,46 @@ const HEROES = {
     desc:'+20 harvest, -10% luck. +12% interest on coins. +3% dmg per 100 coins. Shop +40% + extra inflation per 50 harvest.' },
 };
 
-// 9 enemies total: 5 basic + 2 elite half-bosses + 2 final bosses.
-// `ai` selects behavior in stepEnemyAI(e, p, dt).
+// 9 enemies: 5 basic + 2 elite half-bosses + 2 final bosses. Each
+// basic enemy ships with an `evolve` table — stats upgrade at the
+// listed wave thresholds (design doc: wave 11 and wave 16 power-ups).
+// `fixedArmor` is flat damage reduction (hardened skin). Weapons with
+// trueDmg bypass it. Hits still floor to 1 damage.
 const ENEMY = {
-  crawler: { hp:12, dmg:4,  spd:1.0, rad:11, color:'#78350f', ico:'🐛', xp:1, coin:1, ai:'chase' },
-  flea:    { hp:5,  dmg:3,  spd:2.6, rad:7,  color:'#581c87', ico:'🦟', xp:1, coin:1, ai:'chase' },
-  fly:     { hp:15, dmg:4,  spd:0.7, rad:12, color:'#4b5563', ico:'🪰', xp:3, coin:2, ai:'ranged', keepDist:180, shootEvery:2.0, shotDmg:6, shotSpd:3.5 },
-  beetle:  { hp:35, dmg:10, spd:1.0, rad:14, color:'#991b1b', ico:'🪲', xp:3, coin:2, ai:'charger', chargeDist:150, windup:0.5, dashSpd:7, dashDur:0.6 },
-  toxinsac:{ hp:18, dmg:4,  spd:1.0, rad:13, color:'#15803d', ico:'🫛', xp:2, coin:1, ai:'chase', deathPuddle:true },
-  goldFlea:{ hp:1,  dmg:0,  spd:3.2, rad:7,  color:'#fbbf24', ico:'🪙', xp:1, coin:5, ai:'runner' },
-  coinEgg: { hp:1,  dmg:0,  spd:0,   rad:14, color:'#fbbf24', ico:'🥚', xp:2, coin:12, ai:'static' },
-  // Elites (wave 10 & 15)
-  ripper:  { hp:800,  dmg:15, spd:1.0, rad:30, color:'#450a0a', ico:'🪱', xp:40, coin:30, ai:'ripper',  elite:true },
-  hive:    { hp:600,  dmg:8,  spd:0.3, rad:26, color:'#4c1d95', ico:'🏺', xp:40, coin:30, ai:'hive',    elite:true },
-  // Final bosses (wave 20)
-  lightq:  { hp:1500, dmg:0,  spd:0,   rad:34, color:'#fbbf24', ico:'👑', xp:200, coin:120, ai:'bulletHell', elite:true },
-  spiderk: { hp:1200, dmg:25, spd:1.5, rad:32, color:'#1e1b4b', ico:'🕷', xp:200, coin:120, ai:'spider',   elite:true },
+  crawler: { hp:15, dmg:3,  fixedArmor:0,  spd:0.8, rad:11, color:'#e9d5ff', ico:'🐛', xp:1, coin:1, ai:'chase',
+    evolve:{ 11:{hp:38, dmg:8,  fixedArmor:10}, 16:{hp:60, dmg:15, fixedArmor:25} } },
+  flea:    { hp:8,  dmg:2,  fixedArmor:0,  spd:2.8, rad:7,  color:'#1f2937', ico:'🦟', xp:1, coin:1, ai:'zigzag',
+    evolve:{ 11:{hp:20, dmg:5, fixedArmor:0}, 16:{hp:32, dmg:10, fixedArmor:0} } },
+  fly:     { hp:35, dmg:1,  fixedArmor:0,  spd:0.6, rad:12, color:'#4b5563', ico:'🪰', xp:3, coin:2, ai:'ranged',
+    keepDist:200, shootEvery:2.0, shotDmg:4, shotSpd:3.2,
+    evolve:{ 11:{hp:88, dmg:1, fixedArmor:5}, 16:{hp:140, dmg:1, fixedArmor:5} } },
+  beetle:  { hp:80, dmg:8,  fixedArmor:2,  spd:0.9, rad:14, color:'#1c1917', ico:'🪲', xp:3, coin:2, ai:'charger',
+    chargeDist:150, windup:0.6, dashSpd:7, dashDur:0.7, dashDmg:16,
+    evolve:{ 11:{hp:200, dmg:8, fixedArmor:15}, 16:{hp:320, dmg:8, fixedArmor:30} } },
+  toxinsac:{ hp:50, dmg:4,  fixedArmor:0,  spd:1.0, rad:13, color:'#15803d', ico:'🫛', xp:2, coin:1, ai:'chase', deathPuddle:true,
+    evolve:{ 11:{hp:125, dmg:4, fixedArmor:0}, 16:{hp:200, dmg:4, fixedArmor:0} } },
+  goldFlea:{ hp:1,  dmg:0, fixedArmor:0,  spd:3.2, rad:7,  color:'#fbbf24', ico:'🪙', xp:1, coin:5, ai:'runner' },
+  coinEgg: { hp:1,  dmg:0, fixedArmor:0,  spd:0,   rad:14, color:'#fbbf24', ico:'🥚', xp:2, coin:12, ai:'static' },
+  // Elites — wave-10 ripper, wave-12 hive (both can appear scaled at wave 15 duet)
+  ripper:  { hp:3500, dmg:15, fixedArmor:5, spd:1.0, rad:30, color:'#450a0a', ico:'🪱', xp:60, coin:40, ai:'ripper', elite:true,
+    evolve:{ 15:{hp:6000, dmg:15, fixedArmor:5} } },
+  hive:    { hp:2800, dmg:10, fixedArmor:3, spd:0.4, rad:26, color:'#4c1d95', ico:'🏺', xp:60, coin:40, ai:'hive', elite:true },
+  // Final bosses (wave 20) — grid-array queen + chasing spider king
+  lightq:  { hp:25000, dmg:20, fixedArmor:25, spd:0, rad:36, color:'#fbbf24', ico:'👑', xp:300, coin:200, ai:'bulletHell', elite:true },
+  spiderk: { hp:18000, dmg:25, fixedArmor:15, spd:1.5, rad:34, color:'#1e1b4b', ico:'🕷', xp:300, coin:200, ai:'spider', elite:true },
 };
+
+// Pick evolved stats based on current wave threshold.
+function evolvedStats(type){
+  const base = ENEMY[type];
+  if(!base.evolve) return base;
+  let best = base;
+  const w = state.wave;
+  for(const thr of Object.keys(base.evolve).map(Number).sort((a,b)=>a-b)){
+    if(w >= thr) best = Object.assign({}, base, base.evolve[thr]);
+  }
+  return best;
+}
 
 // Each wave is a script of spawn directives:
 //   { t:startSec, until:endSec, type, every:sec, count:perTick, ...opts }
@@ -518,6 +541,9 @@ let state = {
   swings: [],    // short-lived melee arc + beam visuals
   trails: [],    // persistent ground burn / fire trails
   puddles: [],   // toxin / web / goo on floor
+  grids: [],     // Light Queen's exploding floor tiles
+  slams: [],     // Spider King's slam telegraphs
+  spiderAura: false,  // set by spider AI, read by effectiveRegen/tryLifesteal
   spawned: [],   // which script directives already ticked (keyed by index)
   spawnTimers: [],
   shop: { cards:[], locked:[false,false,false,false], refreshed:0 },
@@ -798,6 +824,8 @@ function nextWave(){
   state.bullets = [];
   state.enemyBullets = [];
   state.puddles = [];
+  state.grids = [];
+  state.slams = [];
   state.crystals = [];
   state.clouds = [];
   state.turrets = [];
@@ -808,23 +836,22 @@ function nextWave(){
 }
 
 function spawnEnemyAt(type, x, y){
-  const e = ENEMY[type];
-  const w = WAVES[state.wave-1] || {};
-  const hpScale = w.scaleHp || 1;
-  const dmgScale = w.scaleDmg || 1;
+  const e = evolvedStats(type);
   const inst = {
     type, x, y,
-    hp: e.hp * hpScale, maxHp: e.hp * hpScale,
-    dmg: e.dmg * dmgScale,
+    hp: e.hp, maxHp: e.hp,
+    dmg: e.dmg,
+    fixedArmor: e.fixedArmor || 0,
     poison: 0, poisonTimer: 0, knock:{x:0,y:0}, hitFlash:0,
   };
   // AI-specific state
   if(e.ai === 'ranged') inst.shootCool = e.shootEvery;
-  if(e.ai === 'charger') inst.chargeState = 'idle'; inst.chargeTimer = 0;
-  if(e.ai === 'ripper'){ inst.phase = 'chase'; inst.phaseTimer = 0; inst.chargeCount = 0; }
-  if(e.ai === 'hive'){ inst.spawnCool = 2; inst.gooCool = 5; }
-  if(e.ai === 'bulletHell'){ inst.spin = 0; inst.pattern = 0; inst.shootCool = 0; }
-  if(e.ai === 'spider'){ inst.webCool = 3; }
+  if(e.ai === 'charger'){ inst.chargeState = 'idle'; inst.chargeTimer = 0; }
+  if(e.ai === 'zigzag'){ inst.zigT = 0; inst.zigSign = Math.random() < 0.5 ? -1 : 1; inst.dashCool = 1 + Math.random()*2; inst.restT = 0; }
+  if(e.ai === 'ripper'){ inst.phase = 'charges'; inst.phaseTimer = 0; inst.chargeCount = 0; inst.ringCool = 0; }
+  if(e.ai === 'hive'){ inst.spawnCool = 1.5; inst.gooCool = 4; }
+  if(e.ai === 'bulletHell'){ inst.gridCool = 2; inst.phase = 1; inst.subPhase = 0; }
+  if(e.ai === 'spider'){ inst.slamCool = 5; inst.slamState = 'idle'; inst.slamTimer = 0; }
   state.enemies.push(inst);
 }
 
@@ -997,7 +1024,9 @@ function effectiveDodge(){
 }
 function effectiveRegen(){
   const p = state.player;
-  const raw = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
+  let raw = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
+  // Spider King aura: within 1.5 body-lengths, regen crippled 80%
+  if(state.spiderAura) raw *= 0.2;
   return Math.min(CAPS.regenMax, raw);
 }
 function effectiveRange(){
@@ -1036,7 +1065,9 @@ function tryLifesteal(baseLifesteal){
   const p = state.player;
   const now = state.waveTime;
   if((p.lastLifesteal || 0) + CAPS.lifestealIcd > now) return 0;
-  const chance = Math.min(CAPS.lifestealMax, baseLifesteal);
+  let chance = Math.min(CAPS.lifestealMax, baseLifesteal);
+  // Spider King aura: within 1.5 body-lengths, lifesteal chance crippled 80%
+  if(state.spiderAura) chance *= 0.2;
   if(Math.random() > chance) return 0;
   p.lastLifesteal = now;
   return 1;
@@ -1063,7 +1094,12 @@ function damageEnemy(e, dmg, opts){
   opts = opts || {};
   const p = state.player;
   const was = e.hp;
-  e.hp -= dmg;
+  // Hardened skin — subtract flat armor unless caller said trueDmg.
+  const armor = opts.trueDmg ? 0 : (e.fixedArmor || 0);
+  let applied = Math.max(1, dmg - armor);
+  // Ripper shield phase: 50% damage reduction (trueDmg still passes through)
+  if(e.shieldMul && !opts.trueDmg) applied *= e.shieldMul;
+  e.hp -= applied;
   e.hitFlash = 0.1;
   if(opts.knockback){
     const dx = e.x - (opts.from && opts.from.x !== undefined ? opts.from.x : p.x);
@@ -1167,7 +1203,7 @@ function fireWeapon(w){
         if(hits.includes(e)) continue;
         const dx = e.x-p.x, dy = e.y-p.y;
         if(dx*dx + dy*dy < (t.shockwave + ENEMY[e.type].rad)**2){
-          damageEnemy(e, quakeDmg, { knockback:true, kick:6, stun:t.stun||0 });
+          damageEnemy(e, quakeDmg, { knockback:true, kick:6, stun:t.stun||0, trueDmg:t.trueDmg });
         }
       }
     }
@@ -1306,7 +1342,7 @@ function fireWeapon(w){
       if(alongB < 0 || alongB > rangeBase) continue;
       const perp = Math.abs(-dx*Math.sin(ang) + dy*Math.cos(ang));
       if(perp < (t.beamWidth||28) + ENEMY[e.type].rad){
-        damageEnemy(e, dmgBase, { knockback:true, kick:5 });
+        damageEnemy(e, dmgBase, { knockback:true, kick:5, trueDmg:t.trueDmg });
       }
     }
     return true;
@@ -1562,9 +1598,17 @@ function stepBattle(dt){
     }
   }
 
+  // Track player velocity for Hive's predictive goo targeting
+  const prevPX = p._lastX === undefined ? p.x : p._lastX;
+  const prevPY = p._lastY === undefined ? p.y : p._lastY;
+  p.lastVx = (p.x - prevPX);
+  p.lastVy = (p.y - prevPY);
+  p._lastX = p.x; p._lastY = p.y;
+
   // Enemies — dispatch by AI type. Speed is px per 60fps frame.
   // Multiply by dt*60 so framerate drops don't slow combat.
   const playerSlow = state.playerSlow || 1; // reset below based on puddles
+  state.spiderAura = false; // re-set by Spider King AI each tick
   for(const e of state.enemies){
     if(e.hp <= 0) continue;
     const E = ENEMY[e.type];
@@ -1628,6 +1672,29 @@ function stepBattle(dt){
           }
           break;
         }
+        case 'zigzag': {
+          // Flea: Z-zigzag 2s → dash 0.5s → rest 0.5s → repeat
+          const step = E.spd * dtE * 60;
+          if(e.restT > 0){ e.restT -= dt; break; }
+          e.dashCool -= dt;
+          if(e.dashCool <= 0){
+            // Fast lunge toward player
+            const lunge = step * 2.5;
+            e.x += dx/d * lunge; e.y += dy/d * lunge;
+            e.restT = 0.5;
+            e.dashCool = 2 + Math.random();
+          } else {
+            // Zigzag around the beeline
+            e.zigT += dt;
+            if(e.zigT > 0.5){ e.zigT = 0; e.zigSign *= -1; }
+            const perpX = -dy/d, perpY = dx/d;
+            const ang = Math.PI/6 * e.zigSign;
+            const cx = dx/d * Math.cos(ang) - dy/d * Math.sin(ang);
+            const cy = dx/d * Math.sin(ang) + dy/d * Math.cos(ang);
+            e.x += cx * step; e.y += cy * step;
+          }
+          break;
+        }
         case 'charger': {
           const step = E.spd * dtE * 60;
           if(e.chargeState === 'idle'){
@@ -1640,89 +1707,140 @@ function stepBattle(dt){
             e.chargeTimer -= dt;
             e.x += e.chargeDx * E.dashSpd * dt * 60;
             e.y += e.chargeDy * E.dashSpd * dt * 60;
-            if(e.chargeTimer <= 0){ e.chargeState = 'idle'; }
+            if(e.chargeTimer <= 0){
+              // Post-dash: 1s stunned with armor = 0 (hard-skin bypass window)
+              e.chargeState = 'idle';
+              e.stun = Math.max(e.stun||0, 1);
+              e.fixedArmor = 0; // vulnerable until re-spawn conceptually; cleared on wave reset
+            }
           }
           break;
         }
         case 'ripper': {
-          // Phase: chase → charge(x3) → ring → repeat
+          // Phase: triple-charge 6s → shield-ring 6s → repeat.
           e.phaseTimer -= dt;
           const step = E.spd * dtE * 60;
-          if(e.phase === 'chase'){
-            e.x += dx/d * step; e.y += dy/d * step;
-            if(e.phaseTimer <= 0){ e.phase = 'charge'; e.phaseTimer = 0.3; e.chargeCount = 0; e.chargeDx = dx/d; e.chargeDy = dy/d; }
-          } else if(e.phase === 'charge'){
-            if(e.phaseTimer > 0){
-              // short winding
-            } else {
+          if(e.phase === 'charges'){
+            e.shieldMul = 1;
+            if(e.chargeCount === 0 && e.phaseTimer === 0) e.phaseTimer = 0.3;
+            if(e.subPhase === 'windup'){
+              if(e.phaseTimer <= 0){ e.subPhase = 'dash'; e.phaseTimer = 0.6; e.chargeDx = dx/d; e.chargeDy = dy/d; }
+            } else if(e.subPhase === 'dash'){
               e.x += e.chargeDx * 7 * dt * 60;
               e.y += e.chargeDy * 7 * dt * 60;
-              if(e.phaseTimer < -0.6){
+              if(e.phaseTimer <= 0){
                 e.chargeCount++;
-                if(e.chargeCount >= 3){ e.phase = 'ring'; e.phaseTimer = 0.1; }
-                else { e.phaseTimer = 0.3; e.chargeDx = dx/d; e.chargeDy = dy/d; }
+                if(e.chargeCount >= 3){ e.phase = 'shield'; e.phaseTimer = 6; e.ringCool = 0; e.chargeCount = 0; }
+                else { e.subPhase = 'windup'; e.phaseTimer = 0.4; }
               }
+            } else {
+              e.subPhase = 'windup'; e.phaseTimer = 0.4;
             }
-          } else if(e.phase === 'ring'){
-            if(e.phaseTimer <= 0){
+          } else if(e.phase === 'shield'){
+            e.shieldMul = 0.5; // 50% DR
+            e.ringCool -= dt;
+            if(e.ringCool <= 0){
+              e.ringCool = 1.5;
               for(let a=0; a<Math.PI*2; a+=Math.PI/8){
-                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*3, vy:Math.sin(a)*3, dmg:8, life:160, color:'#dc2626', r:5 });
+                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*3, vy:Math.sin(a)*3, dmg:10, life:200, color:'#dc2626', r:6 });
               }
-              e.phase = 'chase'; e.phaseTimer = 3;
             }
+            if(e.phaseTimer <= 0){ e.phase = 'charges'; e.subPhase = 'windup'; e.phaseTimer = 0.4; }
           }
           break;
         }
         case 'hive': {
-          // Stay in corner, spawn fleas, shoot goo
+          // Stay in corner, spawn 3 fleas every 4s, drop predictive goo every 4s
           e.spawnCool -= dt;
-          if(e.spawnCool <= 0){ e.spawnCool = 2.5; spawnEnemyAt('flea', e.x + (Math.random()-0.5)*40, e.y + (Math.random()-0.5)*40); }
+          if(e.spawnCool <= 0){
+            e.spawnCool = 4;
+            for(let i=0;i<3;i++){
+              spawnEnemyAt('flea', e.x + (Math.random()-0.5)*80, e.y + (Math.random()-0.5)*80);
+            }
+          }
           e.gooCool -= dt;
           if(e.gooCool <= 0){
-            e.gooCool = 5;
-            // Shoot goo at player — slows on hit
-            const a = Math.atan2(dy, dx);
-            state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*2.5, vy:Math.sin(a)*2.5, dmg:4, life:240, color:'#84cc16', r:9, goo:true });
+            e.gooCool = 4;
+            // Predictive: aim where player is heading, not where they stand
+            const vx = p.lastVx || 0, vy = p.lastVy || 0;
+            const px = p.x + vx * 30, py = p.y + vy * 30;
+            // Warning telegraph via a swing; 1s later convert to a goo puddle
+            state.swings.push({ x:px, y:py, r:60, life:1, color:'#fde047', outline:true, telegraph:true });
+            setTimeout(()=>{
+              if(state.phase === 'battle'){
+                state.puddles.push({ x:px, y:py, r:60, life:4, slow:0.01, resetMove:true, dodgeDebuff:true, color:'#eab308' });
+              }
+            }, 1000);
           }
           break;
         }
         case 'bulletHell': {
-          // Light Queen: stays center, pours bullets in rotating patterns
-          e.spin += dt * 1.4;
-          e.shootCool -= dt;
-          if(e.shootCool <= 0){
-            e.shootCool = 0.5;
-            e.pattern = (e.pattern + 1) % 3;
-            if(e.pattern === 0){
-              // 12-way rotating
-              for(let a=0; a<Math.PI*2; a+=Math.PI/6){
-                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+e.spin)*2.6, vy:Math.sin(a+e.spin)*2.6, dmg:8, life:260, color:'#fbbf24', r:5 });
-              }
-            } else if(e.pattern === 1){
-              // Cross spiral
-              for(let a=0; a<Math.PI*2; a+=Math.PI/2){
-                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+e.spin*2)*3.2, vy:Math.sin(a+e.spin*2)*3.2, dmg:10, life:260, color:'#f59e0b', r:7 });
-              }
-            } else {
-              // Toward player burst
-              const a = Math.atan2(dy, dx);
-              for(let o=-0.3; o<=0.3; o+=0.15){
-                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+o)*3.5, vy:Math.sin(a+o)*3.5, dmg:9, life:260, color:'#fde047', r:6 });
-              }
+          // Light Queen: no bullets — paints exploding grid cells.
+          e.gridCool -= dt;
+          if(e.gridCool <= 0){
+            // Phase progresses by elapsed boss time
+            const t = state.waveTime;
+            const phase = t < 30 ? 1 : (t < 60 ? 2 : 3);
+            e.gridCool = (phase === 3) ? 1.5 : (phase === 2) ? 2 : 3;
+            // Grid cell dimensions
+            const cellsX = 6, cellsY = 4;
+            const cw = W / cellsX, ch = H / cellsY;
+            const picks = [];
+            if(phase >= 1){
+              // Rows alternating
+              const row = Math.floor(Math.random() * cellsY);
+              for(let cx=0; cx<cellsX; cx++) picks.push([cx, row]);
+            }
+            if(phase >= 2){
+              // Pinwheel cross through center
+              const col = Math.floor(Math.random() * cellsX);
+              for(let cy=0; cy<cellsY; cy++) picks.push([col, cy]);
+            }
+            if(phase >= 3){
+              // Extra random pepper
+              for(let i=0;i<4;i++) picks.push([Math.floor(Math.random()*cellsX), Math.floor(Math.random()*cellsY)]);
+            }
+            for(const [cx, cy] of picks){
+              state.grids.push({
+                x: cx*cw, y: cy*ch, w: cw, h: ch,
+                telegraphUntil: state.waveTime + 1.5,
+                detonateUntil: state.waveTime + 1.5 + 0.6,
+                dmgTick: 20, lastTick: 0,
+              });
             }
           }
           break;
         }
         case 'spider': {
           const step = E.spd * dtE * 60;
-          e.x += dx/d * step + e.knock.x;
-          e.y += dy/d * step + e.knock.y;
-          e.webCool -= dt;
-          if(e.webCool <= 0){
-            e.webCool = 2.5;
-            // Spawn a web puddle at player's current position
-            state.puddles.push({ x:p.x, y:p.y, r:50, life:5, slow:0.5, color:'#4b5563' });
+          // Slam attack every 5s
+          e.slamCool -= dt;
+          if(e.slamState === 'idle'){
+            e.x += dx/d * step + e.knock.x;
+            e.y += dy/d * step + e.knock.y;
+            if(e.slamCool <= 0){
+              e.slamState = 'jump'; e.slamTimer = 0.5;
+              e.slamTx = p.x; e.slamTy = p.y;
+            }
+          } else if(e.slamState === 'jump'){
+            e.slamTimer -= dt;
+            // Visually off-screen; just hold position
+            if(e.slamTimer <= 0){
+              e.slamState = 'idle'; e.slamCool = 5;
+              // Land at predicted spot — telegraph + damage radius
+              state.slams.push({ x:e.slamTx, y:e.slamTy, r:120, life:0.3, dmg:25 });
+              e.x = e.slamTx; e.y = e.slamTy;
+              const sdx = p.x - e.slamTx, sdy = p.y - e.slamTy, sd = Math.hypot(sdx, sdy)||1;
+              if(sd < 120 && p.invuln <= 0){
+                p.hp -= Math.max(1, 25 * (1 - armorReduction(p.armor + (p.turretArmor||0))));
+                p.invuln = 0.4;
+                // Knockback
+                p.x += sdx/sd * 60; p.y += sdy/sd * 60;
+              }
+            }
           }
+          // Aura: within 1.5 body-lengths, cripple player's lifesteal + regen
+          if(d < 90) state.spiderAura = true;
           break;
         }
       }
@@ -1772,10 +1890,42 @@ function stepBattle(dt){
     const d = Math.hypot(p.x - pd.x, p.y - pd.y);
     if(d < pd.r){
       if(pd.slow) state.playerSlow = Math.min(state.playerSlow, pd.slow);
+      // Toxinsac death puddle: true damage, bypasses player armor
       if(pd.dmg) p.hp -= pd.dmg * dt;
+      // Hive goo: reset movement to 1.0 and -30% dodge for 4s (one-shot)
+      if(pd.resetMove && !pd.applied){
+        pd.applied = true;
+        p.moveMul = 1.0;
+        if(!p.dodgeLocked) p.dodge = (p.dodge||0) - 0.3;
+        p.dodgeRestoreAt = state.waveTime + 4;
+      }
     }
   }
   state.puddles = state.puddles.filter(pd => pd.life > 0);
+  // Restore dodge after hive debuff timer
+  if(p.dodgeRestoreAt && state.waveTime >= p.dodgeRestoreAt){
+    if(!p.dodgeLocked) p.dodge = (p.dodge||0) + 0.3;
+    p.dodgeRestoreAt = 0;
+  }
+
+  // Light Queen's exploding grid tiles
+  for(const g of state.grids){
+    const now = state.waveTime;
+    if(now >= g.telegraphUntil && now < g.detonateUntil){
+      // Inside detonation window — tick damage every 0.2s
+      if(p.x >= g.x && p.x <= g.x+g.w && p.y >= g.y && p.y <= g.y+g.h){
+        g.lastTick += dt;
+        if(g.lastTick >= 0.2){
+          g.lastTick = 0;
+          if(p.invuln <= 0) p.hp -= g.dmgTick;
+          spawnParticles(p.x, p.y, '#fbbf24', 4, 2);
+        }
+      }
+    }
+  }
+  state.grids = state.grids.filter(g => state.waveTime < g.detonateUntil);
+  for(const s of state.slams) s.life -= dt;
+  state.slams = state.slams.filter(s => s.life > 0);
   // Kill enemies with hp<=0 → drop crystal
   const alive = [];
   const hasDriverSpread = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity >= 2);
@@ -2135,6 +2285,31 @@ function draw(){
     // Outline
     ctx.strokeStyle = pd.color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5;
     ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
+  // Light Queen grid tiles — telegraph red → white detonation
+  for(const g of state.grids){
+    const now = state.waveTime;
+    if(now < g.telegraphUntil){
+      // Pulsing telegraph
+      const t = (g.telegraphUntil - now) / 1.5;
+      ctx.fillStyle = `rgba(220,38,38,${0.25 + 0.25*Math.sin(now*8)})`;
+      ctx.fillRect(g.x, g.y, g.w, g.h);
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+      ctx.strokeRect(g.x, g.y, g.w, g.h);
+    } else {
+      // Detonation flash
+      ctx.fillStyle = 'rgba(255,255,255,.5)';
+      ctx.fillRect(g.x, g.y, g.w, g.h);
+    }
+  }
+
+  // Spider slam shockwave
+  for(const s of state.slams){
+    const a = Math.max(0, s.life / 0.3);
+    ctx.strokeStyle = `rgba(255,255,255,${a})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.stroke();
   }
 
   // Turrets
