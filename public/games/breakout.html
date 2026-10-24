@@ -19,11 +19,11 @@ canvas{border-radius:8px;border:2px solid #ec4899;display:block;cursor:none;box-
 <p class="hint">Mouse / Touch to move paddle · Space to launch</p>
 <script>
 const C=document.getElementById('c'),ctx=C.getContext('2d');
-C.width=400;C.height=500;
+C.width=540;C.height=500;
 const W=C.width,H=C.height;
 
-const ROWS=6,COLS=8,BRICK_W=42,BRICK_H=18,BRICK_PAD=4,BRICK_TOP=50;
-const PAD_W=80,PAD_H=12,PAD_Y=H-40,BALL_R=8;
+const ROWS=6,COLS=10,BRICK_W=50,BRICK_H=18,BRICK_PAD=4,BRICK_TOP=50;
+const PAD_W=90,PAD_H=12,PAD_Y=H-40,BALL_R=8;
 
 // Synthwave brick palette — magenta to cyan through purple/pink
 const COLORS=['#ec4899','#d946ef','#a855f7','#8b5cf6','#3b82f6','#06b6d4'];

@@ -2690,7 +2690,10 @@ document.getElementById("end-menu-btn").addEventListener("click", showMenu);
 function fit() {
   const vw = window.innerWidth;
   const vh = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-  const pad = IS_TOUCH ? 0 : 36;
+  // When embedded in the extension popup, drop the breathing-room pad
+  // so the game fills the iframe instead of floating with a dark gap.
+  const inIframe = window.top !== window;
+  const pad = (IS_TOUCH || inIframe) ? 0 : 36;
   const scale = Math.min((vw - pad) / W, (vh - pad) / H);
   const cw = Math.round(W * scale), ch = Math.round(H * scale);
   cv.style.width = cw + "px";

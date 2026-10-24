@@ -21,7 +21,7 @@ const GAMES = [
   { id:'2048',            title:'2048',            emoji:'🔢', url:'/games/2048.html',            c1:'#a855f7', c2:'#6d28d9', nw:420, nh:560 },
   { id:'tetris',          title:'Blocks',          emoji:'🧱', url:'/games/tetris.html',          c1:'#06b6d4', c2:'#1e40af', nw:400, nh:580 },
   { id:'sky-dodge',       title:'Sky Dodge',       emoji:'🚀', url:'/games/sky-dodge.html',       c1:'#6366f1', c2:'#c026d3', nw:480, nh:600 },
-  { id:'breakout',        title:'Brick Buster',    emoji:'💥', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c', nw:400, nh:560 },
+  { id:'breakout',        title:'Brick Buster',    emoji:'💥', url:'/games/breakout.html',        c1:'#f43f5e', c2:'#b91c1c', nw:540, nh:560 },
   { id:'memory',          title:'Memory',          emoji:'🃏', url:'/games/memory.html',          c1:'#ec4899', c2:'#a21caf', nw:520, nh:560 },
   { id:'snake-battle',    title:'Snake Battle',    emoji:'⚔️', url:'/games/snake-battle.html',   c1:'#7c3aed', c2:'#581c87', live:true, nw:760, nh:540 },
   { id:'arcade-brawl',    title:'Arcade Brawl',    emoji:'🥊', url:'/games/arcade-brawl.html',   c1:'#e11d48', c2:'#b45309', live:true, nw:960, nh:560 },
@@ -29,7 +29,7 @@ const GAMES = [
   { id:'door-escape',     title:'Find Door',       emoji:'🏃', url:'/games/door-escape.html',     c1:'#b45309', c2:'#78350f', nw:960, nh:540 },
   { id:'downhill',        title:'Downhill',        emoji:'🚵', url:'/games/downhill-brawl.html',  c1:'#15803d', c2:'#b45309', nw:720, nh:520 },
   { id:'chess',           title:'Rated Chess',     emoji:'♔', url:'/games/chess.html',            c1:'#d97706', c2:'#292524', nw:900, nh:820 },
-  { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:520 },
+  { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:640 },
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true, nw:760, nh:520 },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d', nw:820, nh:640 },
   // Rail Runner intentionally excluded from the Chrome Web Store
