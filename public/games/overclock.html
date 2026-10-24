@@ -153,49 +153,101 @@ const RARITY_PRICES = [10, 25, 60, 150];
 const SELL_FRAC = 0.5;
 
 // Each weapon: 4 tiers (white/blue/purple/red). Firing is auto, auto-aim.
-// fire = seconds between shots. bullets = projectiles per shot.
+// Weapons also carry a passive{} that is additively applied for EVERY
+// equipped copy, and may introduce attack types beyond plain bullets:
+//   'bullet' (default)  — projectile fired at nearest enemy
+//   'cone'              — damages all enemies in a forward arc
+//   'beam'              — instant line from player past the nearest enemy
+//   'melee'             — radial swing around the player
+//   'bounce'            — projectile that hops between enemies
+//   'turret'            — on fire, drops a stationary auto-firing turret
 const WEAPONS = {
-  pistol:   { name:'Pistol',   ico:'🔫', tags:['Light'],
+  slingshot: { name:'Slingshot', ico:'🪃', tags:['Light'],
+    passive: { critChance: 0.03, rangeAdd: -5 },
     tiers:[
-      { fire:0.55, dmg:7,  bullets:1, spread:0.03, speed:9,  range:210 },
-      { fire:0.42, dmg:12, bullets:1, spread:0.02, speed:10, range:230 },
-      { fire:0.30, dmg:18, bullets:2, spread:0.08, speed:11, range:260, pierce:1 },
-      { fire:0.20, dmg:28, bullets:3, spread:0.10, speed:13, range:290, pierce:2 },
+      { fire:0.8, dmg:12, bullets:1, speed:9,  range:200 },
+      { fire:0.6, dmg:18, bullets:1, speed:10, range:210, critMulAdd:0.2 },
+      { fire:0.5, dmg:30, bullets:1, pierce:1, speed:11, range:220 },
+      { fire:0.3, dmg:65, bullets:1, pierce:2, speed:12, range:230, critRefire:true },
     ]},
-  shotgun:  { name:'Shotgun',  ico:'💥', tags:['Heavy'],
+  medigun: { name:'Medi-Syringe', ico:'💉', tags:['Medic'],
+    passive: { regen: 1, lifesteal: 0.02, dmgMul: 0.96 },
     tiers:[
-      { fire:1.4, dmg:4, bullets:4,  spread:0.35, speed:7, range:140 },
-      { fire:1.1, dmg:6, bullets:6,  spread:0.4,  speed:8, range:150 },
-      { fire:0.9, dmg:8, bullets:9,  spread:0.5,  speed:9, range:170, pierce:1 },
-      { fire:0.7, dmg:10,bullets:14, spread:0.6,  speed:10,range:190, pierce:3, blast:30 },
+      { fire:0.5,  dmg:4,  bullets:1, speed:11, range:150, heal:1 },
+      { fire:0.4,  dmg:8,  bullets:1, speed:12, range:170, heal:2 },
+      { fire:0.3,  dmg:15, bullets:1, speed:13, range:190, heal:2, healFogChance:0.2 },
+      { fire:0.15, dmg:28, bullets:1, speed:14, range:200, heal:3, healFogChance:0.5 },
     ]},
-  smg:      { name:'SMG',      ico:'🔧', tags:['Light'],
+  flamethrower: { name:'Flamethrower', ico:'🔥', tags:['Heavy'],
+    passive: { dmgMul: 1.05, moveMul: 0.97, dodgeAdd: -0.02 },
+    attack:'cone',
     tiers:[
-      { fire:0.16, dmg:3, bullets:1, spread:0.14, speed:10, range:170 },
-      { fire:0.13, dmg:4, bullets:1, spread:0.12, speed:11, range:180 },
-      { fire:0.10, dmg:6, bullets:1, spread:0.10, speed:12, range:200 },
-      { fire:0.07, dmg:9, bullets:2, spread:0.14, speed:13, range:220 },
+      { fire:1.8, dmg:35,  coneHalf:0.45, range:140 },
+      { fire:1.5, dmg:60,  coneHalf:0.5,  range:155 },
+      { fire:1.2, dmg:110, coneHalf:0.55, range:170 },
+      { fire:0.9, dmg:240, coneHalf:0.6,  range:190, trail:true },
     ]},
-  laser:    { name:'Laser',    ico:'⚡', tags:['Energy'],
+  doubleBarrel: { name:'Double-Barrel', ico:'🧨', tags:['Heavy'],
+    passive: { rangedDmg: 8, reloadMul: 1.15 },
     tiers:[
-      { fire:0.8, dmg:9,  bullets:1, pierce:2,  speed:18, range:260 },
-      { fire:0.65,dmg:14, bullets:1, pierce:3,  speed:21, range:290 },
-      { fire:0.5, dmg:22, bullets:1, pierce:5,  speed:24, range:330 },
-      { fire:0.35,dmg:34, bullets:1, pierce:99, speed:30, range:380 },
+      { fire:1.6, dmg:15, bullets:2, spread:0.45, speed:10, range:170 },
+      { fire:1.4, dmg:22, bullets:3, spread:0.5,  speed:10, range:180 },
+      { fire:1.2, dmg:38, bullets:4, spread:0.55, speed:11, range:195, pierce:1 },
+      { fire:1.0, dmg:80, bullets:6, spread:0.4,  speed:12, range:220, pierce:3, knockbackAll:true },
     ]},
-  toxin:    { name:'Toxin',    ico:'☣', tags:['Bio'],
+  rustyDriver: { name:'Rusty Driver', ico:'🪛', tags:['Bio'],
+    passive: { elemDmgAdd: 3, luckAdd: -0.05 },
+    attack:'melee',
     tiers:[
-      { fire:1.0, dmg:4, bullets:1, speed:7, range:160, poison:3 },
-      { fire:0.85,dmg:6, bullets:1, speed:8, range:170, poison:6 },
-      { fire:0.7, dmg:8, bullets:2, speed:9, range:190, poison:10 },
-      { fire:0.55,dmg:11,bullets:3, speed:10,range:210, poison:16, blast:25 },
+      { fire:0.4,  dmg:6,  range:48, poison:2 },
+      { fire:0.35, dmg:10, range:52, poison:5 },
+      { fire:0.28, dmg:18, range:56, poison:7, spreadOnDeath:true },
+      { fire:0.2,  dmg:35, range:60, poison:15, spreadOnDeath:true },
     ]},
-  medigun:  { name:'Medi-Beam',ico:'💉', tags:['Medic'],
+  skillet: { name:'Skillet', ico:'🍳', tags:['Heavy'],
+    passive: { armorAdd: 4, rangedDmg: -5 },
+    attack:'melee',
     tiers:[
-      { fire:1.4, dmg:3, bullets:1, speed:11, range:200, heal:1 },
-      { fire:1.1, dmg:5, bullets:1, speed:13, range:220, heal:2 },
-      { fire:0.9, dmg:8, bullets:1, speed:15, range:240, heal:3 },
-      { fire:0.65,dmg:12,bullets:2, speed:17, range:260, heal:5 },
+      { fire:1.2, dmg:25,  range:56 },
+      { fire:1.0, dmg:45,  range:62, knockback:true },
+      { fire:0.9, dmg:85,  range:66, knockback:true, shockwave:52 },
+      { fire:0.7, dmg:190, range:70, knockback:true, shockwave:104, stun:1.0 },
+    ]},
+  wrench: { name:'Wrench', ico:'🔧', tags:['Energy'],
+    passive: { engineering: 5, critChance: -0.05 },
+    attack:'turret',
+    tiers:[
+      { fire:1.5, turretDmg:10, turretFire:1.0, turretRange:180, turretHp:30 },
+      { fire:1.2, turretDmg:20, turretFire:0.9, turretRange:200, turretHp:40, turretPierce:1 },
+      { fire:1.0, turretDmg:35, turretFire:0.8, turretRange:220, turretHp:55, turretPierce:1, nearbyArmor:5 },
+      { fire:0.8, turretDmg:60, turretFire:1.2, turretRange:260, turretHp:80, missile:true, nearbyArmor:5 },
+    ]},
+  flashlight: { name:'Flashlight', ico:'🔦', tags:['Energy'],
+    passive: { rangeMul: 1.10, dodgeAdd: -0.02 },
+    attack:'beam',
+    tiers:[
+      { fire:2.0, dmg:40,  beamWidth:4 },
+      { fire:1.6, dmg:70,  beamWidth:5 },
+      { fire:1.2, dmg:120, beamWidth:7,  trail:true },
+      { fire:0.8, dmg:280, beamWidth:14, trail:true },
+    ]},
+  cleaver: { name:'Cleaver', ico:'🔪', tags:['Light'],
+    passive: { moveMul: 1.03, maxHpBonus: -3 },
+    attack:'melee',
+    tiers:[
+      { fire:0.3,  dmg:8,  range:40, baseCritChance:0.3 },
+      { fire:0.25, dmg:14, range:42, baseCritChance:0.3 },
+      { fire:0.2,  dmg:25, range:44, baseCritChance:0.3, killSpeedStack:true },
+      { fire:0.12, dmg:55, range:48, baseCritChance:0.3, critMulAdd:1.0 },
+    ]},
+  piggyBank: { name:'Piggy Bank', ico:'🐷', tags:['Light'],
+    passive: { harvest: 5, armorAdd: -1 },
+    attack:'bounce',
+    tiers:[
+      { fire:0.7, dmg:8,  speed:7, bounces:2, range:200 },
+      { fire:0.6, dmg:15, speed:7, bounces:3, range:220 },
+      { fire:0.5, dmg:28, speed:8, bounces:4, range:240, coinChance:0.1 },
+      { fire:0.4, dmg:60, speed:9, bounces:6, range:260, coinChance:0.3 },
     ]},
 };
 const WEAPON_IDS = Object.keys(WEAPONS);
@@ -307,6 +359,9 @@ let state = {
   crystals: [],
   particles: [],
   clouds: [],
+  turrets: [],    // deployed by Wrench
+  swings: [],    // short-lived melee arc + beam visuals
+  trails: [],    // persistent ground burn / fire trails
   shop: { cards:[], locked:[false,false,false,false], refreshed:0 },
   tagCounts: {},
   tagMultipliers: {},
@@ -366,25 +421,56 @@ function startRun(heroId){
   state.wave = 0;
   state.phase = 'battle';
   // Give starting weapon
-  addWeapon('pistol', 0);
+  addWeapon('slingshot', 0);
   document.getElementById('heroOv').classList.remove('show');
   nextWave();
 }
 
 // ─── Weapon / rarity / merge ────────────────────────────────
+// Apply or remove a weapon's self-passive. sign = +1 to equip, -1 to unequip.
+function applyPassive(wid, sign){
+  const pas = WEAPONS[wid].passive;
+  if(!pas || !state.player) return;
+  const p = state.player;
+  for(const [k, raw] of Object.entries(pas)){
+    const v = raw;
+    switch(k){
+      case 'critChance':  p.critChance += v * sign; break;
+      case 'rangeMul':    p.rangeMul = sign>0 ? p.rangeMul * v : p.rangeMul / v; break;
+      case 'rangeAdd':    p.rangeMul = Math.max(0.1, p.rangeMul + (v/200) * sign); break;
+      case 'dmgMul':      p.dmgMul = sign>0 ? p.dmgMul * v : p.dmgMul / v; break;
+      case 'moveMul':     p.moveMul = sign>0 ? p.moveMul * v : p.moveMul / v; break;
+      case 'reloadMul':   p.fireMul = sign>0 ? p.fireMul * v : p.fireMul / v; break;
+      case 'regen':       p.regenBase += v * sign; break;
+      case 'lifesteal':   p.lifestealWeap = (p.lifestealWeap||0) + v * sign; break;
+      case 'dodgeAdd':    p.dodge = (p.dodge||0) + v * sign; break;
+      case 'armorAdd':    p.armor += v * sign; break;
+      case 'engineering': p.engineering = (p.engineering||0) + v * sign; break;
+      case 'harvest':     p.harvest = (p.harvest||0) + v * sign; break;
+      case 'elemDmgAdd':  p.elemDmg = (p.elemDmg||0) + v * sign; break;
+      case 'luckAdd':     p.luck += v * sign; break;
+      case 'rangedDmg':   p.rangedDmg = (p.rangedDmg||0) + v * sign; break;
+      case 'maxHpBonus':  p.maxHpBonus += v * sign; break;
+    }
+  }
+}
+
 function addWeapon(id, rarity, allowOverCap){
   const hero = HEROES[state.hero];
   if(!allowOverCap && state.weapons.length >= hero.slots){
     toast('Inventory full — sell or merge first');
     return false;
   }
-  state.weapons.push({ id, rarity, cool: WEAPONS[id].tiers[rarity].fire });
+  state.weapons.push({ id, rarity, cool: WEAPONS[id].tiers[rarity].fire, stacks:0, stackTime:0 });
+  applyPassive(id, +1);
   rebuildTagCounts();
   renderSlots();
   return true;
 }
 
 function removeWeapon(idx){
+  const w = state.weapons[idx];
+  if(w) applyPassive(w.id, -1);
   state.weapons.splice(idx, 1);
   rebuildTagCounts();
   renderSlots();
@@ -393,11 +479,11 @@ function removeWeapon(idx){
 function tryMergeAt(idx){
   const w = state.weapons[idx];
   if(!w || w.rarity >= 3) return false;
-  // Find another same id + rarity (and not the same idx)
   const j = state.weapons.findIndex((o,i)=>i!==idx && o.id===w.id && o.rarity===w.rarity);
   if(j < 0) return false;
-  // Merge: upgrade the earlier slot, remove the other
   const keep = Math.min(idx, j), drop = Math.max(idx, j);
+  // Dropped slot's passive still counts (it was equipped), remove it now.
+  applyPassive(state.weapons[drop].id, -1);
   state.weapons[keep].rarity++;
   state.weapons[keep].cool = WEAPONS[w.id].tiers[state.weapons[keep].rarity].fire;
   state.weapons.splice(drop, 1);
@@ -510,6 +596,9 @@ function nextWave(){
   state.bullets = [];
   state.crystals = [];
   state.clouds = [];
+  state.turrets = [];
+  state.swings = [];
+  state.trails = [];
   document.getElementById('shopOv').classList.remove('show');
   updateTopHUD();
 }
@@ -537,45 +626,218 @@ function spawnParticles(x,y,color,n,speed){
 }
 const particles = []; state.particles = particles;
 
+// Colors per weapon id for projectile/beam/swing tints.
+const WPN_COLOR = {
+  slingshot:'#fde047', medigun:'#f472b6', flamethrower:'#f97316',
+  doubleBarrel:'#f59e0b', rustyDriver:'#84cc16', skillet:'#94a3b8',
+  wrench:'#a855f7', flashlight:'#fef3c7', cleaver:'#e2e8f0', piggyBank:'#ec4899',
+};
+
+// Find nearest enemy to (x,y) within range r. Returns enemy or null.
+function nearestEnemy(x, y, r){
+  let best = null, bd = r*r;
+  for(const e of state.enemies){
+    const d2 = (e.x-x)*(e.x-x) + (e.y-y)*(e.y-y);
+    if(d2 < bd){ bd = d2; best = e; }
+  }
+  return best;
+}
+
+function damageEnemy(e, dmg, opts){
+  opts = opts || {};
+  const p = state.player;
+  const was = e.hp;
+  e.hp -= dmg;
+  e.hitFlash = 0.1;
+  if(opts.knockback){
+    const dx = e.x - (opts.from && opts.from.x !== undefined ? opts.from.x : p.x);
+    const dy = e.y - (opts.from && opts.from.y !== undefined ? opts.from.y : p.y);
+    const d = Math.hypot(dx,dy) || 1;
+    const kick = opts.kick || 5;
+    e.knock.x += dx/d * kick; e.knock.y += dy/d * kick;
+  }
+  if(opts.poison){
+    const poi = opts.poison * (state.tagMultipliers.poisonMul||1);
+    e.poison = Math.max(e.poison, poi);
+    e.poisonTimer = 3;
+  }
+  if(state.tagMultipliers.poisonChance && Math.random() < state.tagMultipliers.poisonChance){
+    e.poison = Math.max(e.poison, 2 * (state.tagMultipliers.poisonMul||1));
+    e.poisonTimer = 3;
+  }
+  if(opts.stun){ e.stun = Math.max(e.stun||0, opts.stun); }
+  if(opts.heal){ p.hp = Math.min(p.maxHp, p.hp + opts.heal); }
+  const dealt = Math.max(0, was - e.hp);
+  if(dealt > 0){
+    const ls = (state.tagMultipliers.lifesteal||0) + (p.lifestealWeap||0);
+    if(ls) p.hp = Math.min(p.maxHp, p.hp + dealt * ls);
+  }
+  return dealt;
+}
+
+// Launch a single bullet with given velocity + traits.
+function spawnBullet(x, y, vx, vy, dmg, opts){
+  opts = opts || {};
+  state.bullets.push({
+    x, y, vx, vy, dmg,
+    pierce: opts.pierce || 0,
+    hit: new Set(),
+    life: opts.life || 120,
+    color: opts.color || '#fde047',
+    poison: opts.poison || 0, heal: opts.heal || 0, blast: opts.blast || 0,
+    crit: opts.crit || false,
+    wid: opts.wid || '',
+    bounces: opts.bounces || 0,
+    coinChance: opts.coinChance || 0,
+    knockbackAll: !!opts.knockbackAll,
+    stun: opts.stun || 0,
+    isTurret: !!opts.isTurret,
+    missile: !!opts.missile,
+    target: opts.target || null,
+  });
+}
+
 function fireWeapon(w){
-  const t = WEAPONS[w.id].tiers[w.rarity];
+  const def = WEAPONS[w.id];
+  const t = def.tiers[w.rarity];
   const m = state.tagMultipliers;
   const p = state.player;
-  // Find nearest enemy within range
-  const range = (t.range || 300) * (p.rangeMul||1) * (m.rangeMul||1);
-  let target = null, bd = range*range;
-  for(const e of state.enemies){
-    const dx=e.x-p.x, dy=e.y-p.y, d2=dx*dx+dy*dy;
-    if(d2 < bd){ bd = d2; target = e; }
+  const kind = def.attack || 'bullet';
+
+  const rangeBase = (t.range || t.turretRange || 300) * (p.rangeMul||1) * (m.rangeMul||1);
+  // Base crit — some weapons carry their own crit chance (cleaver).
+  const localCritChance = (t.baseCritChance || 0) + p.critChance + p.luck;
+  const localCritMul = p.critMul + (t.critMulAdd || 0);
+  const crit = Math.random() < localCritChance;
+  const critMul = crit ? localCritMul : 1;
+  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul;
+
+  // ─── MELEE: swing in a radius around the player ──────────────
+  if(kind === 'melee'){
+    const r = (t.range || 50) * (p.rangeMul||1);
+    const hits = [];
+    for(const e of state.enemies){
+      const dx = e.x-p.x, dy = e.y-p.y;
+      if(dx*dx + dy*dy < (r + ENEMY[e.type].rad)**2) hits.push(e);
+    }
+    if(!hits.length) return false;
+    state.swings.push({ x:p.x, y:p.y, r, life:0.18, color:WPN_COLOR[w.id] });
+    const killsBefore = p.cleaverKills || 0;
+    for(const e of hits){
+      const dealt = damageEnemy(e, dmgBase, { poison:t.poison||0, knockback:t.knockback, kick:7, stun:t.stun||0 });
+      if(e.hp <= 0 && w.id === 'cleaver' && t.killSpeedStack){
+        p.cleaverKills = (p.cleaverKills||0) + 1;
+        w.stacks = Math.min(5, (w.stacks||0) + 1);
+        w.stackTime = 2;
+      }
+    }
+    if(t.shockwave){
+      state.swings.push({ x:p.x, y:p.y, r:t.shockwave, life:0.3, color:'#fef3c7', outline:true });
+      for(const e of state.enemies){
+        if(hits.includes(e)) continue;
+        const dx = e.x-p.x, dy = e.y-p.y;
+        if(dx*dx + dy*dy < (t.shockwave + ENEMY[e.type].rad)**2){
+          damageEnemy(e, dmgBase*0.5, { knockback:true, kick:6, stun:t.stun||0 });
+        }
+      }
+    }
+    return true;
   }
+
+  // ─── CONE: forward arc damage ──────────────────────────────
+  if(kind === 'cone'){
+    const target = nearestEnemy(p.x, p.y, rangeBase);
+    if(!target) return false;
+    const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    const half = t.coneHalf || 0.5;
+    state.swings.push({ x:p.x, y:p.y, r:rangeBase, life:0.25, color:'#f97316', cone:{ang, half} });
+    for(const e of state.enemies){
+      const dx = e.x-p.x, dy = e.y-p.y;
+      const d2 = dx*dx+dy*dy;
+      if(d2 > rangeBase*rangeBase) continue;
+      const ea = Math.atan2(dy, dx);
+      let delta = Math.abs(((ea - ang + Math.PI*3) % (Math.PI*2)) - Math.PI);
+      if(delta < half) damageEnemy(e, dmgBase, {});
+    }
+    // Red: fire trail along the direction (hurts anything entering)
+    if(t.trail){
+      for(let k = 20; k < rangeBase; k += 24){
+        state.trails.push({ x:p.x+Math.cos(ang)*k, y:p.y+Math.sin(ang)*k, r:24, life:2, dmg:dmgBase*0.15, color:'#f97316' });
+      }
+    }
+    return true;
+  }
+
+  // ─── BEAM: instant line that pierces everything in path ────
+  if(kind === 'beam'){
+    const target = nearestEnemy(p.x, p.y, rangeBase);
+    if(!target) return false;
+    const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    const endX = p.x + Math.cos(ang)*rangeBase, endY = p.y + Math.sin(ang)*rangeBase;
+    state.swings.push({ x:p.x, y:p.y, ex:endX, ey:endY, life:0.2, color:'#fef9c3', beam:true, width:t.beamWidth||4 });
+    for(const e of state.enemies){
+      const dx = e.x-p.x, dy = e.y-p.y;
+      const alongB = dx*Math.cos(ang) + dy*Math.sin(ang);
+      if(alongB < 0 || alongB > rangeBase) continue;
+      const perp = Math.abs(-dx*Math.sin(ang) + dy*Math.cos(ang));
+      if(perp < (t.beamWidth||4) + ENEMY[e.type].rad){
+        damageEnemy(e, dmgBase, {});
+      }
+    }
+    if(t.trail){
+      for(let k = 20; k < rangeBase; k += 28){
+        state.trails.push({ x:p.x+Math.cos(ang)*k, y:p.y+Math.sin(ang)*k, r:14, life:2, dmg:dmgBase*0.1, color:'#fef9c3' });
+      }
+    }
+    return true;
+  }
+
+  // ─── TURRET: deploy a stationary auto-fire structure ────────
+  if(kind === 'turret'){
+    // Place near player facing outward
+    state.turrets.push({
+      x: p.x + (Math.random()-0.5)*40, y: p.y + 20 + (Math.random()*20),
+      cool: 0, def: t, color:'#a855f7', life: 25,
+      hp: t.turretHp || 30,
+    });
+    spawnParticles(p.x, p.y+16, '#a855f7', 10, 3);
+    return true;
+  }
+
+  // ─── BOUNCE: bouncing projectile ───────────────────────────
+  if(kind === 'bounce'){
+    const target = nearestEnemy(p.x, p.y, rangeBase);
+    if(!target) return false;
+    const ang = Math.atan2(target.y-p.y, target.x-p.x);
+    spawnBullet(p.x + Math.cos(ang)*18, p.y + Math.sin(ang)*18,
+      Math.cos(ang)*(t.speed||7), Math.sin(ang)*(t.speed||7),
+      dmgBase, { color:WPN_COLOR[w.id], wid:w.id, bounces:t.bounces||2, coinChance:t.coinChance||0, crit });
+    return true;
+  }
+
+  // ─── BULLET (default): one or more projectiles toward nearest ─
+  const target = nearestEnemy(p.x, p.y, rangeBase);
   if(!target) return false;
   const ang = Math.atan2(target.y-p.y, target.x-p.x);
-  const dmg = t.dmg * p.dmgMul * (m.dmgMul||1);
   const spd = (t.speed||10) * (m.speedMul||1);
   const pierce = (t.pierce||0) + (m.pierceBonus||0);
-  const crit = Math.random() < (p.critChance + p.luck);
-  const finalDmg = crit ? dmg * p.critMul : dmg;
   const bullets = t.bullets || 1;
   for(let i=0;i<bullets;i++){
     const spread = (t.spread||0) * (Math.random()-0.5) * 2;
     const a = ang + spread + (bullets>1 && !t.spread ? (i - (bullets-1)/2)*0.08 : 0);
-    state.bullets.push({
-      x: p.x + Math.cos(ang)*18,
-      y: p.y + Math.sin(ang)*18,
-      vx: Math.cos(a)*spd, vy: Math.sin(a)*spd,
-      dmg: finalDmg,
-      pierce,
-      hit: new Set(),
-      life: 120,
-      color: w.id==='laser' ? '#a855f7' : w.id==='toxin' ? '#84cc16' : w.id==='medigun' ? '#f472b6' : w.id==='shotgun' ? '#f59e0b' : '#fde047',
-      poison: t.poison || 0,
-      heal: t.heal || 0,
-      blast: t.blast || 0,
-      crit,
-      wid: w.id,
-    });
+    spawnBullet(p.x + Math.cos(ang)*18, p.y + Math.sin(ang)*18,
+      Math.cos(a)*spd, Math.sin(a)*spd, dmgBase, {
+        pierce, color: WPN_COLOR[w.id] || '#fde047', wid: w.id, crit,
+        poison: t.poison || 0, heal: t.heal || 0, blast: t.blast || 0,
+        knockbackAll: !!t.knockbackAll,
+      });
   }
-  // Free shot refund?
+  // Slingshot red: crit triggers an instant free refire.
+  if(crit && t.critRefire) w.cool = -0.001;
+  // Medi-Beam fog on hit — spawn healing cloud at player.
+  if(t.healFogChance && Math.random() < t.healFogChance){
+    state.clouds.push({ x:p.x, y:p.y, r:28, life:4, heal:2 });
+  }
   if(m.freeShot && Math.random() < m.freeShot) return 'free';
   return true;
 }
@@ -585,7 +847,12 @@ function stepBattle(dt){
   // Movement
   const ax = (KEYS.ArrowLeft || KEYS.KeyA ? -1 : 0) + (KEYS.ArrowRight || KEYS.KeyD ? 1 : 0);
   const ay = (KEYS.ArrowUp || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown || KEYS.KeyS ? 1 : 0);
-  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1);
+  // Cleaver kill-stack boosts move speed (10% per stack, max 50%)
+  let stackBoost = 1;
+  for(const wn of state.weapons){
+    if(wn.id === 'cleaver' && wn.stacks > 0) stackBoost *= (1 + 0.1 * Math.min(5, wn.stacks));
+  }
+  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost;
   const m = Math.hypot(ax, ay) || 1;
   p.x = Math.max(14, Math.min(W-14, p.x + ax/m*spd));
   p.y = Math.max(14, Math.min(H-14, p.y + ay/m*spd));
@@ -638,6 +905,14 @@ function stepBattle(dt){
 
   // Bullets
   for(const b of state.bullets){
+    // Missile homing: steer toward current target.
+    if(b.missile && (!b.target || b.target.hp <= 0)) b.target = nearestEnemy(b.x, b.y, 600);
+    if(b.missile && b.target){
+      const dx = b.target.x - b.x, dy = b.target.y - b.y, d = Math.hypot(dx,dy)||1;
+      const sp = Math.hypot(b.vx, b.vy);
+      b.vx = (b.vx + dx/d*0.6) * 0.85 + (dx/d*sp)*0.15;
+      b.vy = (b.vy + dy/d*0.6) * 0.85 + (dy/d*sp)*0.15;
+    }
     b.x += b.vx; b.y += b.vy; b.life--;
     if(b.x < -10 || b.x > W+10 || b.y < -10 || b.y > H+10) b.life = 0;
     if(b.life <= 0) continue;
@@ -646,36 +921,48 @@ function stepBattle(dt){
       const dx = e.x-b.x, dy = e.y-b.y, R = ENEMY[e.type].rad + 4;
       if(dx*dx+dy*dy < R*R){
         const monoBuff = state.hero === 'monowield' ? 3 : 1;
-        const dealt = b.dmg * monoBuff;
-        e.hp -= dealt;
-        e.hitFlash = 0.1;
-        if(state.tagMultipliers.knockback){
-          const a = Math.atan2(e.y-b.y, e.x-b.x);
-          e.knock.x += Math.cos(a)*5; e.knock.y += Math.sin(a)*5;
-        }
-        if(b.poison || (state.tagMultipliers.poisonChance && Math.random()<state.tagMultipliers.poisonChance)){
-          const poi = (b.poison || 2) * (state.tagMultipliers.poisonMul||1);
-          e.poison = Math.max(e.poison, poi);
-          e.poisonTimer = 3;
-        }
-        if(b.heal){ p.hp = Math.min(p.maxHp, p.hp + b.heal); spawnParticles(p.x, p.y-10, '#f472b6', 2, 2); }
-        if(state.tagMultipliers.lifesteal) p.hp = Math.min(p.maxHp, p.hp + dealt * state.tagMultipliers.lifesteal);
+        const dmgAdj = b.dmg * monoBuff;
+        const opts = { from:{x:b.x,y:b.y}, poison:b.poison, heal:b.heal, knockback:b.knockbackAll||state.tagMultipliers.knockback, stun:b.stun||0 };
+        damageEnemy(e, dmgAdj, opts);
         b.hit.add(e);
         spawnParticles(e.x, e.y, b.color, 3, 2);
+        // Piggy bank coin steal
+        if(b.coinChance && Math.random() < b.coinChance){
+          p.coins += 1;
+          spawnParticles(e.x, e.y-6, '#fbbf24', 4, 3);
+        }
+        // Bouncing — redirect toward next nearest unhit enemy
+        if(b.bounces > 0){
+          b.bounces--;
+          let next = null, bd = 240*240;
+          for(const o of state.enemies){
+            if(o.hp<=0 || b.hit.has(o)) continue;
+            const d2 = (o.x-b.x)**2 + (o.y-b.y)**2;
+            if(d2 < bd){ bd = d2; next = o; }
+          }
+          if(next){
+            const a = Math.atan2(next.y-b.y, next.x-b.x);
+            const sp = Math.hypot(b.vx, b.vy);
+            b.vx = Math.cos(a)*sp; b.vy = Math.sin(a)*sp;
+            b.life = Math.max(b.life, 90);
+          } else {
+            b.life = 0;
+          }
+          break;
+        }
         if(b.pierce <= 0) b.life = 0;
         else b.pierce--;
-        // Blast?
         if(b.blast && b.life===0){
           const rad = b.blast * p.blastRadMul;
           for(const o of state.enemies){
             if(o.hp<=0) continue;
             const d2 = (o.x-b.x)**2 + (o.y-b.y)**2;
-            if(d2 < rad*rad) o.hp -= b.dmg * 0.5 * p.blastDmgMul;
+            if(d2 < rad*rad) damageEnemy(o, b.dmg * 0.5 * p.blastDmgMul, {});
           }
           spawnParticles(b.x, b.y, '#fbbf24', 14, 4);
           if(p.selfBlast){
             const d2 = (p.x-b.x)**2 + (p.y-b.y)**2;
-            if(d2 < rad*rad){ p.hp -= b.dmg * 0.05; }
+            if(d2 < rad*rad) p.hp -= b.dmg * 0.05;
           }
         }
         if(b.life === 0) break;
@@ -684,32 +971,89 @@ function stepBattle(dt){
   }
   state.bullets = state.bullets.filter(b=>b.life>0);
 
+  // Turrets — stationary auto-fire structures. Take damage from touching enemies.
+  for(const t of state.turrets){
+    t.life -= dt;
+    t.cool -= dt;
+    if(t.cool <= 0){
+      let target = nearestEnemy(t.x, t.y, t.def.turretRange || 180);
+      if(target){
+        const a = Math.atan2(target.y-t.y, target.x-t.x);
+        const sp = 10;
+        spawnBullet(t.x + Math.cos(a)*12, t.y + Math.sin(a)*12,
+          Math.cos(a)*sp, Math.sin(a)*sp,
+          t.def.turretDmg * (1 + (p.engineering||0) * 0.05),
+          { color:'#a855f7', pierce:t.def.turretPierce||0, missile:!!t.def.missile, target });
+        t.cool = t.def.turretFire || 1;
+      } else t.cool = 0.3;
+    }
+    for(const e of state.enemies){
+      if(e.hp <= 0) continue;
+      const dx = e.x-t.x, dy = e.y-t.y;
+      if(dx*dx+dy*dy < (ENEMY[e.type].rad+16)**2){
+        t.hp -= ENEMY[e.type].dmg * dt * 2;
+      }
+    }
+    // Nearby-armor aura
+    if(t.def.nearbyArmor && Math.hypot(p.x-t.x, p.y-t.y) < 120){
+      p.turretArmor = Math.max(p.turretArmor||0, t.def.nearbyArmor);
+    }
+  }
+  state.turrets = state.turrets.filter(t => t.life > 0 && t.hp > 0);
+  // Clear per-frame aura
+  if(p.turretArmor !== undefined && !state.turrets.some(t => t.def.nearbyArmor && Math.hypot(p.x-t.x, p.y-t.y) < 120)){
+    p.turretArmor = 0;
+  }
+
+  // Swings & trails
+  for(const s of state.swings) s.life -= dt;
+  state.swings = state.swings.filter(s => s.life > 0);
+  for(const tr of state.trails){
+    tr.life -= dt;
+    for(const e of state.enemies){
+      if(e.hp <= 0) continue;
+      const dx = e.x-tr.x, dy = e.y-tr.y;
+      if(dx*dx+dy*dy < tr.r*tr.r) damageEnemy(e, tr.dmg * dt * 4, {});
+    }
+  }
+  state.trails = state.trails.filter(tr => tr.life > 0);
+
+  // Cleaver speed-stack decay
+  for(const w of state.weapons){
+    if(w.id === 'cleaver' && w.stackTime > 0){
+      w.stackTime -= dt;
+      if(w.stackTime <= 0){ w.stacks = 0; }
+    }
+  }
+
   // Enemies — speed is px per 60fps frame (same convention as Potato
   // Bros). Multiply by dt*60 so framerate drops don't slow combat.
   for(const e of state.enemies){
     if(e.hp <= 0) continue;
     const E = ENEMY[e.type];
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-    const step = E.spd * dt * 60;
-    e.x += dx/d * step + e.knock.x;
-    e.y += dy/d * step + e.knock.y;
+    if(e.stun && e.stun > 0){ e.stun -= dt; }
+    else {
+      const step = E.spd * dt * 60;
+      e.x += dx/d * step + e.knock.x;
+      e.y += dy/d * step + e.knock.y;
+    }
     e.knock.x *= 0.85; e.knock.y *= 0.85;
     if(e.hitFlash > 0) e.hitFlash -= dt;
-    // Poison tick
     if(e.poison > 0 && e.poisonTimer > 0){
       e.hp -= e.poison * dt;
       e.poisonTimer -= dt;
       if(e.poisonTimer <= 0){ e.poison = 0; }
     }
-    // Thorn damage if touching
     if(p.thorn > 0){
       const td = Math.hypot(p.x-e.x, p.y-e.y);
       if(td < E.rad + 14) e.hp -= p.thorn * dt;
     }
     // Damage player
     if(d < E.rad + 14 && p.invuln <= 0){
-      let incoming = E.dmg;
-      incoming = Math.max(1, incoming - p.armor);
+      // Dodge chance from items; armor zeroing from Blood Furnace still works
+      if(p.dodge && Math.random() < p.dodge){ p.invuln = 0.25; continue; }
+      const incoming = Math.max(1, E.dmg - p.armor - (p.turretArmor||0));
       p.hp -= incoming;
       p.invuln = 0.6;
       spawnParticles(p.x, p.y, '#f87171', 8, 3);
@@ -718,15 +1062,28 @@ function stepBattle(dt){
   }
   // Kill enemies with hp<=0 → drop crystal
   const alive = [];
+  const hasDriverSpread = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity >= 2);
   for(const e of state.enemies){
     if(e.hp <= 0){
       const E = ENEMY[e.type];
-      state.crystals.push({ x: e.x, y: e.y, xp: E.xp, coin: E.coin, life: 30, spin: Math.random()*Math.PI*2 });
+      const coinBonus = Math.floor((p.harvest||0) / 5);
+      state.crystals.push({ x: e.x, y: e.y, xp: E.xp, coin: E.coin + coinBonus, life: 30, spin: Math.random()*Math.PI*2 });
       spawnParticles(e.x, e.y, E.color, 12, 4);
-      // Bio cloud on bursts?
+      // Bio-tag cloud
       if(state.tagMultipliers.bioCloud && e.poison > 0){
         for(let i=0;i<3;i++){
           state.clouds.push({ x: e.x+(Math.random()-0.5)*30, y: e.y+(Math.random()-0.5)*30, r: 36, life: 4 });
+        }
+      }
+      // Rusty Driver spread-on-death
+      if(hasDriverSpread && e.poison > 0){
+        for(const o of state.enemies){
+          if(o === e || o.hp <= 0) continue;
+          const d2 = (o.x-e.x)**2 + (o.y-e.y)**2;
+          if(d2 < 80*80){
+            o.poison = Math.max(o.poison, e.poison * 0.8);
+            o.poisonTimer = 3;
+          }
         }
       }
     } else alive.push(e);
@@ -756,12 +1113,13 @@ function stepBattle(dt){
   }
   state.crystals = state.crystals.filter(c=>c.life>0);
 
-  // Clouds
+  // Clouds — Bio tag's green clouds and Medi-Beam's healing fog
   for(const cl of state.clouds){
     cl.life -= dt;
-    if(state.tagMultipliers.healCloud){
-      const d = Math.hypot(p.x-cl.x, p.y-cl.y);
-      if(d < cl.r) p.hp = Math.min(p.maxHp, p.hp + state.tagMultipliers.healCloud * dt);
+    const d = Math.hypot(p.x-cl.x, p.y-cl.y);
+    if(d < cl.r){
+      if(cl.heal) p.hp = Math.min(p.maxHp, p.hp + cl.heal * dt);
+      else if(state.tagMultipliers.healCloud) p.hp = Math.min(p.maxHp, p.hp + state.tagMultipliers.healCloud * dt);
     }
   }
   state.clouds = state.clouds.filter(c=>c.life>0);
@@ -874,7 +1232,7 @@ function renderShop(){
         <div class="nm">${w.name}</div>
         <div class="dc" style="color:${['#94a3b8','#38bdf8','#a855f7','#f87171'][c.rarity]}">${RARITY_NAMES[c.rarity]}</div>
         <div class="dc">${w.tags.join(' · ')}</div>
-        <div class="dc">${t.dmg} dmg · ${(1/t.fire).toFixed(1)}/s${t.bullets>1?` · ×${t.bullets}`:''}${t.pierce?` · pierce ${t.pierce}`:''}</div>
+        <div class="dc">${t.dmg||t.turretDmg||0} dmg · ${(1/t.fire).toFixed(1)}/s${t.bullets>1?` · ×${t.bullets}`:''}${t.pierce?` · pierce ${t.pierce}`:''}${w.attack&&w.attack!=='bullet'?' · '+w.attack.toUpperCase():''}</div>
         <div class="cost">${c.cost}</div>`;
     } else {
       const it = ITEMS[c.id];
@@ -994,11 +1352,62 @@ function draw(){
   // Nothing to render on the hero-pick screen beyond the backdrop
   if(!state.player) return;
 
-  // Clouds
+  // Trails — burning ground stripes (flamethrower / flashlight red tier)
+  for(const tr of state.trails){
+    const a = Math.min(0.35, tr.life/2);
+    ctx.fillStyle = tr.color + Math.floor(a*255).toString(16).padStart(2,'0');
+    ctx.beginPath(); ctx.arc(tr.x, tr.y, tr.r, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Clouds — green (bio) and pink (medi fog)
   for(const cl of state.clouds){
     const a = Math.min(0.4, cl.life/4);
-    ctx.fillStyle = `rgba(132,204,22,${a})`;
+    ctx.fillStyle = cl.heal ? `rgba(244,114,182,${a})` : `rgba(132,204,22,${a})`;
     ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Turrets
+  for(const t of state.turrets){
+    ctx.save();
+    ctx.translate(t.x, t.y);
+    ctx.fillStyle = '#4c1d95';
+    ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#a855f7';
+    ctx.shadowBlur = 10; ctx.shadowColor = '#a855f7';
+    ctx.font = '16px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t.def.missile ? '🚀' : '🔧', 0, 1);
+    ctx.restore();
+    ctx.shadowBlur = 0;
+    // HP bar
+    if(t.hp < (t.def.turretHp||30)){
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(t.x-14, t.y-18, 28, 3);
+      ctx.fillStyle = '#a855f7'; ctx.fillRect(t.x-14, t.y-18, 28*t.hp/(t.def.turretHp||30), 3);
+    }
+  }
+
+  // Swings — melee arcs, cone bursts, laser beams
+  for(const s of state.swings){
+    const a = Math.max(0, s.life*4);
+    if(s.beam){
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = (s.width||4) + a*2;
+      ctx.shadowBlur = 14; ctx.shadowColor = s.color;
+      ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.ex, s.ey); ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if(s.cone){
+      ctx.fillStyle = s.color + Math.floor(Math.min(0.5, a*0.6)*255).toString(16).padStart(2,'0');
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.arc(s.x, s.y, s.r, s.cone.ang - s.cone.half, s.cone.ang + s.cone.half);
+      ctx.closePath(); ctx.fill();
+    } else {
+      // Radial swing
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = s.outline ? 2 : 3;
+      ctx.globalAlpha = Math.min(1, a);
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
   }
 
   // Crystals
