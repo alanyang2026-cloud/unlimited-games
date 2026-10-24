@@ -895,6 +895,109 @@ function applyHeal(amount){
   }
 }
 
+// ─── Stat caps & overflow conversions (design-doc rules) ────────
+// Centralised so every point-of-use calls the same helper and
+// treats "boosts past the cap" the same way: either discard, convert
+// to a different stat (crit → crit dmg, attack speed → damage), or
+// trigger a reactive penalty (armor overload → slower, hp bloat →
+// bigger hitbox, over-cap heal rate wasted, etc).
+const CAPS = {
+  armorMoveStart: 30,   // every armor over this → -1% move
+  armorMaxReduce: 0.75, // damage reduction hard cap
+  dodgeMax: 0.60,
+  regenMax: 10,
+  lifestealMax: 0.30,
+  lifestealIcd: 0.1,    // seconds between lifesteal procs
+  dmgMulOverload: 1.5,  // past this, reload gets 20% slower
+  fireMulMin: 0.4,      // -60% cooldown = +150% speed cap
+  critChanceMax: 1.0,
+  critMulMax: 2.5,
+  rangeMulMax: 2.0,
+  moveMulMax: 1.4,
+  luckMax: 1.0,
+  turretMax: 4,
+};
+
+// Rolling returns per attack kind (bullet/melee/cone/beam/bounce)
+function effectiveDmgMul(){
+  const p = state.player;
+  let dmul = p.dmgMul;
+  // Overload: >150% damage adds 20% reload time inside effectiveFireMul,
+  // but the damage itself keeps its full value.
+  return dmul;
+}
+function effectiveFireMul(){
+  const p = state.player;
+  let fm = p.fireMul;
+  // Damage overload reload penalty
+  if(p.dmgMul > CAPS.dmgMulOverload) fm *= 1.2;
+  // Attack-speed cap: fireMul can't go below 0.4; excess converts 2:1 → damage
+  if(fm < CAPS.fireMulMin){
+    const excess = CAPS.fireMulMin - fm; // positive = would be below cap
+    // Each 0.01 of excess "fire" ≈ 1% speed; convert 2:1 to damage.
+    // Record the extra for drawCombat via a short-lived field.
+    p._fireConvertedDmg = excess * 0.5;
+    fm = CAPS.fireMulMin;
+  } else {
+    p._fireConvertedDmg = 0;
+  }
+  return fm;
+}
+function effectiveCrit(){
+  const p = state.player;
+  const chance = Math.min(CAPS.critChanceMax, p.critChance + p.luck + heroCritBonus());
+  // Excess crit chance (counted vs the raw sum, pre-cap) → crit mul.
+  const rawExcess = Math.max(0, (p.critChance + p.luck + heroCritBonus()) - CAPS.critChanceMax);
+  const mul = Math.min(CAPS.critMulMax, p.critMul + rawExcess);
+  return { chance, mul };
+}
+function effectiveDodge(){
+  if(state.player.dodge === undefined) return 0;
+  // Negative dodge is a hero/exoskeleton penalty — pass through.
+  if(state.player.dodge <= 0) return state.player.dodge;
+  return Math.min(CAPS.dodgeMax, state.player.dodge);
+}
+function effectiveRegen(){
+  const p = state.player;
+  const raw = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
+  return Math.min(CAPS.regenMax, raw);
+}
+function effectiveRange(){
+  return Math.min(CAPS.rangeMulMax, state.player.rangeMul);
+}
+function effectiveMoveMul(baseMul){
+  // baseMul is everything from moveSpeedBase×moveMul×tag×stacks×hero×slow.
+  // Armor past 30 subtracts 1% per point.
+  const p = state.player;
+  const over = Math.max(0, p.armor - CAPS.armorMoveStart);
+  let m = baseMul * Math.max(0.1, 1 - over * 0.01);
+  // Hard cap at 140% (clamp — excess is discarded)
+  if(m > CAPS.moveMulMax) m = CAPS.moveMulMax;
+  return m;
+}
+// Armor diminishing returns: dr = armor / (armor + 20), capped at 75%
+function armorReduction(armor){
+  if(armor <= 0) return 0;
+  return Math.min(CAPS.armorMaxReduce, armor / (armor + 20));
+}
+// Max-HP bloat → bigger hitbox: 14 base, +5% radius per 10 HP over 100
+function playerHitbox(){
+  const p = state.player;
+  const over = Math.max(0, p.maxHp - 100);
+  return 14 * (1 + Math.floor(over / 10) * 0.05);
+}
+// Lifesteal: cap chance 30%, ICD 0.1s, +1 HP per proc
+function tryLifesteal(baseLifesteal){
+  if(baseLifesteal <= 0) return 0;
+  const p = state.player;
+  const now = state.waveTime;
+  if((p.lastLifesteal || 0) + CAPS.lifestealIcd > now) return 0;
+  const chance = Math.min(CAPS.lifestealMax, baseLifesteal);
+  if(Math.random() > chance) return 0;
+  p.lastLifesteal = now;
+  return 1;
+}
+
 // Colors per weapon id for projectile/beam/swing tints.
 const WPN_COLOR = {
   slingshot:'#fde047', medigun:'#f472b6', flamethrower:'#f97316',
@@ -939,10 +1042,9 @@ function damageEnemy(e, dmg, opts){
   const dealt = Math.max(0, was - e.hp);
   if(dealt > 0){
     const ls = (state.tagMultipliers.lifesteal||0) + (p.lifestealWeap||0) + heroLifestealBonus();
-    if(ls){
-      const healed = dealt * ls;
-      applyHeal(healed);
-    }
+    // Capped at 30% proc chance + 0.1s ICD + 1 HP per proc (anti blood-farm)
+    const healed = tryLifesteal(ls);
+    if(healed) applyHeal(healed);
   }
   return dealt;
 }
@@ -976,10 +1078,11 @@ function fireWeapon(w){
   const p = state.player;
   const kind = def.attack || 'bullet';
 
-  const rangeBase = (t.range || t.turretRange || 300) * (p.rangeMul||1) * (m.rangeMul||1);
-  // Base crit — some weapons carry their own crit chance (cleaver).
-  const localCritChance = (t.baseCritChance || 0) + p.critChance + p.luck + heroCritBonus();
-  const localCritMul = p.critMul + (t.critMulAdd || 0);
+  const rangeBase = (t.range || t.turretRange || 300) * effectiveRange() * (m.rangeMul||1);
+  // Crit via effective (handles cap + overflow→critMul conversion)
+  const eCrit = effectiveCrit();
+  const localCritChance = (t.baseCritChance || 0) + eCrit.chance;
+  const localCritMul = eCrit.mul + (t.critMulAdd || 0);
   const crit = Math.random() < localCritChance;
   const critMul = crit ? localCritMul : 1;
   // Hero global damage mult (One-Arm +250%, Mechanic 20% on own weapons, Miser scales w/ coins, Glutton heal-stack, Reckless broke penalty)
@@ -987,7 +1090,9 @@ function fireWeapon(w){
   // Range (bullet/beam/cone/bounce) vs melee split — items like
   // Heavy Barrel, High-Cap Mag add ranged bonus; Wire Grips add melee.
   const typeBonus = (kind === 'melee') ? (p.meleeBonus || 0) : (p.rangedBonus || 0);
-  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul * heroMul * (1 + typeBonus);
+  // Attack-speed excess (over -60% cooldown) converts 2:1 to damage.
+  const convertedDmg = (p._fireConvertedDmg || 0);
+  const dmgBase = t.dmg * effectiveDmgMul() * (m.dmgMul||1) * critMul * heroMul * (1 + typeBonus + convertedDmg);
 
   // ─── MELEE: swing in a radius around the player ──────────────
   if(kind === 'melee'){
@@ -1071,7 +1176,10 @@ function fireWeapon(w){
 
   // ─── TURRET: deploy a stationary auto-fire structure ────────
   if(kind === 'turret'){
-    // Place near player facing outward
+    // Hard cap of 4 turrets — drop oldest if at cap so new one spawns
+    if(state.turrets.length >= CAPS.turretMax){
+      state.turrets.shift();
+    }
     state.turrets.push({
       x: p.x + (Math.random()-0.5)*40, y: p.y + 20 + (Math.random()*20),
       cool: 0, def: t, color:'#a855f7', life: 25,
@@ -1129,12 +1237,15 @@ function stepBattle(dt){
   for(const wn of state.weapons){
     if(wn.id === 'cleaver' && wn.stacks > 0) stackBoost *= (1 + 0.1 * Math.min(5, wn.stacks));
   }
-  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost * heroMoveMul() * (state.playerSlow || 1);
+  // Raw mult from items/perks/tags/stacks/hero
+  const rawMul = p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost * heroMoveMul() * (state.playerSlow || 1);
+  // effectiveMoveMul applies the 140% cap + armor-over-30 penalty
+  const spd = p.moveSpeedBase * effectiveMoveMul(rawMul);
   const m = Math.hypot(ax, ay) || 1;
   p.x = Math.max(14, Math.min(W-14, p.x + ax/m*spd));
   p.y = Math.max(14, Math.min(H-14, p.y + ay/m*spd));
-  // Regen
-  const regen = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
+  // Regen — hard capped at 10 HP/s (excess discarded)
+  const regen = effectiveRegen();
   if(regen) applyHeal(regen * dt);
   if(p.invuln > 0) p.invuln -= dt;
 
@@ -1184,7 +1295,7 @@ function stepBattle(dt){
     w.cool -= dt;
     // One-Arm: +150% fire rate = cooldown × 0.4
     const monoFire = state.hero === 'oldman' ? 0.4 : 1;
-    const fireMult = p.fireMul * (state.tagMultipliers.fireMul||1) * monoFire;
+    const fireMult = effectiveFireMul() * (state.tagMultipliers.fireMul||1) * monoFire;
     if(w.cool <= 0){
       const res = fireWeapon(w);
       if(res === 'free'){ /* no cool refresh */ }
@@ -1327,7 +1438,9 @@ function stepBattle(dt){
     e.knock.x *= 0.85; e.knock.y *= 0.85;
     if(e.hitFlash > 0) e.hitFlash -= dt;
     if(e.poison > 0 && e.poisonTimer > 0){
-      e.hp -= e.poison * dt;
+      // Elemental damage boosts DOT: +10% per point of elemDmg
+      const elemBoost = 1 + ((p.elemDmg||0) * 0.1);
+      e.hp -= e.poison * elemBoost * dt;
       e.poisonTimer -= dt;
       if(e.poisonTimer <= 0){ e.poison = 0; }
     }
@@ -1463,10 +1576,13 @@ function stepBattle(dt){
       }
     }
 
-    // Damage player
-    if(d < E.rad + 14 && p.invuln <= 0 && E.dmg > 0){
-      if(p.dodge && Math.random() < p.dodge){ p.invuln = 0.25; continue; }
-      const incoming = Math.max(1, (e.dmg || E.dmg) - p.armor - (p.turretArmor||0));
+    // Damage player — effective dodge capped at 60%, armor DR capped at 75%, hitbox grows with max HP
+    const pHit = playerHitbox();
+    if(d < E.rad + pHit && p.invuln <= 0 && E.dmg > 0){
+      const dodgeChance = effectiveDodge();
+      if(dodgeChance > 0 && Math.random() < dodgeChance){ p.invuln = 0.25; continue; }
+      const effArmor = p.armor + (p.turretArmor||0);
+      const incoming = Math.max(1, (e.dmg || E.dmg) * (1 - armorReduction(effArmor)));
       p.hp -= incoming;
       p.invuln = 0.6;
       spawnParticles(p.x, p.y, '#f87171', 8, 3);
@@ -1475,14 +1591,17 @@ function stepBattle(dt){
   }
 
   // Enemy bullets
+  const pHitBullets = playerHitbox();
   for(const b of state.enemyBullets){
     b.x += b.vx; b.y += b.vy; b.life--;
     if(b.x < -20 || b.x > W+20 || b.y < -20 || b.y > H+20) b.life = 0;
     if(b.life <= 0) continue;
     const dx = p.x - b.x, dy = p.y - b.y;
-    if(dx*dx + dy*dy < (b.r + 14)*(b.r + 14)){
-      if(p.invuln <= 0 && !(p.dodge && Math.random() < p.dodge)){
-        const dmg = Math.max(1, b.dmg - p.armor - (p.turretArmor||0));
+    if(dx*dx + dy*dy < (b.r + pHitBullets)*(b.r + pHitBullets)){
+      const dodgeChance = effectiveDodge();
+      if(p.invuln <= 0 && !(dodgeChance > 0 && Math.random() < dodgeChance)){
+        const effArmor = p.armor + (p.turretArmor||0);
+        const dmg = Math.max(1, b.dmg * (1 - armorReduction(effArmor)));
         p.hp -= dmg;
         p.invuln = 0.3;
         spawnParticles(p.x, p.y, '#f87171', 6, 3);
@@ -1584,6 +1703,19 @@ function stepBattle(dt){
 function endWave(){
   // Final wave — jump straight to win screen (survive = victory).
   if(state.wave >= WAVES.length){ winRun(); return; }
+  // Harvest lump sum: at wave end, grant XP + coins equal to harvest stat
+  const h = Math.max(0, state.player.harvest || 0);
+  if(h > 0){
+    state.player.coins += h;
+    state.player.xp += h;
+    while(state.player.xp >= state.player.xpNext){
+      state.player.xp -= state.player.xpNext;
+      state.player.level++;
+      state.player.xpNext = Math.ceil(5 + state.player.level * 3);
+      state.levelsPending = (state.levelsPending||0) + 1;
+    }
+    toast(`Harvest: +${h}◆ / +${h} xp`);
+  }
   state.phase = 'shop';
   // Trigger level-ups first
   if(state.levelsPending > 0){
@@ -1633,7 +1765,11 @@ function openLevelUp(){
 
 // ─── Shop ────────────────────────────────────────────────
 function priceFor(base){
-  return state.hero === 'miser' ? Math.ceil(base * 1.4) : base;
+  const h = Math.max(0, state.player ? (state.player.harvest || 0) : 0);
+  // Harvest inflation: every 50 harvest → +10% permanent shop markup
+  const inflate = 1 + Math.floor(h / 50) * 0.1;
+  const miser = state.hero === 'miser' ? 1.4 : 1;
+  return Math.ceil(base * inflate * miser);
 }
 
 function rollShopCard(){
