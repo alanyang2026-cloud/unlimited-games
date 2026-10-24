@@ -73,9 +73,9 @@ canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px
 .tip{position:absolute;background:rgba(0,0,0,.95);border:1px solid #fde047;padding:6px 10px;border-radius:4px;font-size:11px;z-index:100;pointer-events:none;max-width:220px;line-height:1.4}
 
 /* Hero pick */
-.heroCard{min-height:180px;max-width:280px}
-.heroCard h3{font-size:14px;color:#fde047;letter-spacing:.15em}
-.heroCard .dc{font-size:11px}
+.heroCard{min-height:220px;max-width:280px;padding:14px 10px}
+.heroCard h3{font-size:14px;color:#fde047;letter-spacing:.12em;margin:4px 0}
+.heroCard .dc{font-size:10.5px;line-height:1.35}
 
 .hint{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);color:#64748b;font-size:11px;pointer-events:none;letter-spacing:.1em}
 .toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);background:#065f46;color:#d1fae5;padding:6px 14px;border-radius:6px;font-weight:800;font-size:12px;opacity:0;transition:.2s;z-index:150}
@@ -107,7 +107,7 @@ canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px
   <div class="ov show" id="heroOv">
     <h2>⚡ Overclock</h2>
     <p>Pick your rig. 10 waves, auto-fire, merge weapons for insane payoffs.</p>
-    <div class="cardRow" style="grid-template-columns:repeat(2,1fr);max-width:600px" id="heroPicks"></div>
+    <div class="cardRow" style="grid-template-columns:repeat(3,1fr);max-width:820px" id="heroPicks"></div>
   </div>
 
   <!-- Level up pick -->
@@ -304,8 +304,18 @@ const ITEMS = {
 const ITEM_IDS = Object.keys(ITEMS);
 
 const HEROES = {
-  rookie:    { name:'Rookie',    ico:'🤖', slots:6, maxHp:100, moveSpeed:2.6, desc:'Balanced build. 6 weapon slots.' },
-  monowield: { name:'Monowield', ico:'⚔',  slots:1, maxHp:90,  moveSpeed:2.8, desc:'Only 1 slot. +200% dmg, +100% fire; tag bonuses always count as 6-piece.' },
+  rookie:   { name:'Rookie',   ico:'🤖', slots:6, maxHp:100, moveSpeed:2.6,
+    desc:'Balanced build. 6 weapon slots.' },
+  oldman:   { name:'One-Arm',  ico:'🦾', slots:1, maxHp:95,  moveSpeed:2.5,
+    desc:'1 slot only (others locked). Weapon: +250% dmg, +150% fire. Passives apply 4× (both good and bad).' },
+  glutton:  { name:'Glutton',  ico:'🍖', slots:6, maxHp:130, moveSpeed:2.2,
+    desc:'+30 HP, +10 regen. Every 10 HP you heal → +1% permanent damage. Dodge locked at -50%.' },
+  mechanic: { name:'Mechanic', ico:'🔧', slots:6, maxHp:95,  moveSpeed:2.3,
+    desc:'+20 eng. Turrets: +50% dmg & fire. Your own melee/bullet attacks deal 20% damage.' },
+  reckless: { name:'Reckless', ico:'🩸', slots:6, maxHp:85,  moveSpeed:2.5,
+    desc:'Lower HP = more crit (15%/10% missing) & move (8%/10%). <20% HP: +50% lifesteal. Heal capped at 50% HP.' },
+  miser:    { name:'Miser',    ico:'💰', slots:6, maxHp:95,  moveSpeed:2.5,
+    desc:'+20 harvest. +12% interest on unspent coins. +3% dmg per 100 coins. Shop prices +40%.' },
 };
 
 const WAVES = [
@@ -420,6 +430,23 @@ function startRun(heroId){
   state.items = [];
   state.wave = 0;
   state.phase = 'battle';
+  // Hero-specific starting stats
+  const p = state.player;
+  if(heroId === 'glutton'){
+    p.maxHpBonus += 30; p.hp += 30;
+    p.regenBase += 10;
+    p.dodge = -0.5;        // locked, see applyPassive comment below
+    p.dodgeLocked = true;
+  }
+  if(heroId === 'mechanic'){
+    p.engineering = (p.engineering||0) + 20;
+  }
+  if(heroId === 'reckless'){
+    p.armor -= 10;
+  }
+  if(heroId === 'miser'){
+    p.harvest = (p.harvest||0) + 20;
+  }
   // Give starting weapon
   addWeapon('slingshot', 0);
   document.getElementById('heroOv').classList.remove('show');
@@ -428,29 +455,36 @@ function startRun(heroId){
 
 // ─── Weapon / rarity / merge ────────────────────────────────
 // Apply or remove a weapon's self-passive. sign = +1 to equip, -1 to unequip.
+// One-Arm scales every passive effect 4× — both the goods and the bads.
 function applyPassive(wid, sign){
   const pas = WEAPONS[wid].passive;
   if(!pas || !state.player) return;
   const p = state.player;
+  const scale = state.hero === 'oldman' ? 4 : 1;
   for(const [k, raw] of Object.entries(pas)){
     const v = raw;
+    const vScaled = v * scale;
+    // For multipliers, "4× scaling" means apply the ratio 4 times.
+    const multApply = (cur, base) => sign>0 ? cur * Math.pow(base, scale) : cur / Math.pow(base, scale);
     switch(k){
-      case 'critChance':  p.critChance += v * sign; break;
-      case 'rangeMul':    p.rangeMul = sign>0 ? p.rangeMul * v : p.rangeMul / v; break;
-      case 'rangeAdd':    p.rangeMul = Math.max(0.1, p.rangeMul + (v/200) * sign); break;
-      case 'dmgMul':      p.dmgMul = sign>0 ? p.dmgMul * v : p.dmgMul / v; break;
-      case 'moveMul':     p.moveMul = sign>0 ? p.moveMul * v : p.moveMul / v; break;
-      case 'reloadMul':   p.fireMul = sign>0 ? p.fireMul * v : p.fireMul / v; break;
-      case 'regen':       p.regenBase += v * sign; break;
-      case 'lifesteal':   p.lifestealWeap = (p.lifestealWeap||0) + v * sign; break;
-      case 'dodgeAdd':    p.dodge = (p.dodge||0) + v * sign; break;
-      case 'armorAdd':    p.armor += v * sign; break;
-      case 'engineering': p.engineering = (p.engineering||0) + v * sign; break;
-      case 'harvest':     p.harvest = (p.harvest||0) + v * sign; break;
-      case 'elemDmgAdd':  p.elemDmg = (p.elemDmg||0) + v * sign; break;
-      case 'luckAdd':     p.luck += v * sign; break;
-      case 'rangedDmg':   p.rangedDmg = (p.rangedDmg||0) + v * sign; break;
-      case 'maxHpBonus':  p.maxHpBonus += v * sign; break;
+      case 'critChance':  p.critChance += vScaled * sign; break;
+      case 'rangeMul':    p.rangeMul = multApply(p.rangeMul, v); break;
+      case 'rangeAdd':    p.rangeMul = Math.max(0.1, p.rangeMul + (vScaled/200) * sign); break;
+      case 'dmgMul':      p.dmgMul = multApply(p.dmgMul, v); break;
+      case 'moveMul':     p.moveMul = multApply(p.moveMul, v); break;
+      case 'reloadMul':   p.fireMul = multApply(p.fireMul, v); break;
+      case 'regen':       p.regenBase += vScaled * sign; break;
+      case 'lifesteal':   p.lifestealWeap = (p.lifestealWeap||0) + vScaled * sign; break;
+      case 'dodgeAdd':
+        if(!p.dodgeLocked) p.dodge = (p.dodge||0) + vScaled * sign;
+        break;
+      case 'armorAdd':    p.armor += vScaled * sign; break;
+      case 'engineering': p.engineering = (p.engineering||0) + vScaled * sign; break;
+      case 'harvest':     p.harvest = (p.harvest||0) + vScaled * sign; break;
+      case 'elemDmgAdd':  p.elemDmg = (p.elemDmg||0) + vScaled * sign; break;
+      case 'luckAdd':     p.luck += vScaled * sign; break;
+      case 'rangedDmg':   p.rangedDmg = (p.rangedDmg||0) + vScaled * sign; break;
+      case 'maxHpBonus':  p.maxHpBonus += vScaled * sign; break;
     }
   }
 }
@@ -497,10 +531,10 @@ function tryMergeAt(idx){
 function rebuildTagCounts(){
   const counts = {};
   for(const t of TAG_IDS) counts[t] = 0;
-  const monowield = state.hero === 'monowield';
+  // One-Arm doesn't force tag counts anymore — passives already scale 4×.
   for(const w of state.weapons){
     for(const tag of WEAPONS[w.id].tags){
-      counts[tag] = (counts[tag] || 0) + (monowield ? 6 : 1);
+      counts[tag] = (counts[tag] || 0) + 1;
     }
   }
   state.tagCounts = counts;
@@ -626,6 +660,78 @@ function spawnParticles(x,y,color,n,speed){
 }
 const particles = []; state.particles = particles;
 
+// ─── Hero-specific runtime multipliers ─────────────────────────
+// Combines passive effects that depend on moment-to-moment state
+// (coins, hp %, heal totals, etc). All attack-type dispatch funnels
+// through this via dmgBase so no single-attack-kind gets missed.
+function heroDmgMul(){
+  const p = state.player;
+  let mul = 1;
+  switch(state.hero){
+    case 'oldman':   mul *= 3.5; break;                       // +250%
+    case 'mechanic': mul *= 0.2; break;                       // self-fire feeble
+    case 'reckless': {
+      // Below-50%-HP bonuses already in crit/move via heroCombatTick;
+      // damage itself not boosted beyond crit chance ramp.
+      break;
+    }
+    case 'miser': {
+      // +3% per 100 coins
+      mul *= 1 + (p.coins / 100) * 0.03;
+      if(p.wasBroke) mul *= 0.5;
+      break;
+    }
+    case 'glutton': {
+      mul *= 1 + (p.gluttonDmgBonus || 0);
+      break;
+    }
+  }
+  return mul;
+}
+function heroMoveMul(){
+  const p = state.player;
+  switch(state.hero){
+    case 'reckless': {
+      const pctMissing = Math.max(0, 1 - (p.hp / p.maxHp));
+      // +8% per 10% of HP missing
+      return 1 + pctMissing * 0.8;
+    }
+    case 'miser': if(p.wasBroke) return 0.5; break;
+  }
+  return 1;
+}
+function heroCritBonus(){
+  if(state.hero === 'reckless'){
+    const p = state.player;
+    const pctMissing = Math.max(0, 1 - (p.hp / p.maxHp));
+    // +15% crit per 10% of HP missing
+    return pctMissing * 1.5;
+  }
+  return 0;
+}
+function heroLifestealBonus(){
+  if(state.hero === 'reckless' && state.player.hp < state.player.maxHp * 0.2) return 0.5;
+  return 0;
+}
+
+// Apply a heal — honors Reckless 50% cap and Glutton stack-on-heal.
+function applyHeal(amount){
+  const p = state.player;
+  if(amount <= 0) return;
+  const was = p.hp;
+  let cap = p.maxHp;
+  if(state.hero === 'reckless') cap = p.maxHp * 0.5;
+  p.hp = Math.min(cap, p.hp + amount);
+  const gained = p.hp - was;
+  if(state.hero === 'glutton' && gained > 0){
+    p.gluttonHealTotal = (p.gluttonHealTotal || 0) + gained;
+    while(p.gluttonHealTotal >= 10){
+      p.gluttonHealTotal -= 10;
+      p.gluttonDmgBonus = (p.gluttonDmgBonus || 0) + 0.01;
+    }
+  }
+}
+
 // Colors per weapon id for projectile/beam/swing tints.
 const WPN_COLOR = {
   slingshot:'#fde047', medigun:'#f472b6', flamethrower:'#f97316',
@@ -666,11 +772,14 @@ function damageEnemy(e, dmg, opts){
     e.poisonTimer = 3;
   }
   if(opts.stun){ e.stun = Math.max(e.stun||0, opts.stun); }
-  if(opts.heal){ p.hp = Math.min(p.maxHp, p.hp + opts.heal); }
+  if(opts.heal){ applyHeal(opts.heal); }
   const dealt = Math.max(0, was - e.hp);
   if(dealt > 0){
-    const ls = (state.tagMultipliers.lifesteal||0) + (p.lifestealWeap||0);
-    if(ls) p.hp = Math.min(p.maxHp, p.hp + dealt * ls);
+    const ls = (state.tagMultipliers.lifesteal||0) + (p.lifestealWeap||0) + heroLifestealBonus();
+    if(ls){
+      const healed = dealt * ls;
+      applyHeal(healed);
+    }
   }
   return dealt;
 }
@@ -706,11 +815,13 @@ function fireWeapon(w){
 
   const rangeBase = (t.range || t.turretRange || 300) * (p.rangeMul||1) * (m.rangeMul||1);
   // Base crit — some weapons carry their own crit chance (cleaver).
-  const localCritChance = (t.baseCritChance || 0) + p.critChance + p.luck;
+  const localCritChance = (t.baseCritChance || 0) + p.critChance + p.luck + heroCritBonus();
   const localCritMul = p.critMul + (t.critMulAdd || 0);
   const crit = Math.random() < localCritChance;
   const critMul = crit ? localCritMul : 1;
-  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul;
+  // Hero global damage mult (One-Arm +250%, Mechanic 20% on own weapons, Miser scales w/ coins, Glutton heal-stack, Reckless broke penalty)
+  const heroMul = heroDmgMul();
+  const dmgBase = t.dmg * p.dmgMul * (m.dmgMul||1) * critMul * heroMul;
 
   // ─── MELEE: swing in a radius around the player ──────────────
   if(kind === 'melee'){
@@ -852,13 +963,13 @@ function stepBattle(dt){
   for(const wn of state.weapons){
     if(wn.id === 'cleaver' && wn.stacks > 0) stackBoost *= (1 + 0.1 * Math.min(5, wn.stacks));
   }
-  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost;
+  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost * heroMoveMul();
   const m = Math.hypot(ax, ay) || 1;
   p.x = Math.max(14, Math.min(W-14, p.x + ax/m*spd));
   p.y = Math.max(14, Math.min(H-14, p.y + ay/m*spd));
   // Regen
   const regen = (p.regenBase || 0) + (state.tagMultipliers.regen || 0);
-  if(regen) p.hp = Math.min(p.maxHp, p.hp + regen*dt);
+  if(regen) applyHeal(regen * dt);
   if(p.invuln > 0) p.invuln -= dt;
 
   // Wave timing
@@ -893,7 +1004,8 @@ function stepBattle(dt){
   // Fire weapons
   for(const w of state.weapons){
     w.cool -= dt;
-    const monoFire = state.hero === 'monowield' ? 0.5 : 1; // -50% cooldown = 2x fire
+    // One-Arm: +150% fire rate = cooldown × 0.4
+    const monoFire = state.hero === 'oldman' ? 0.4 : 1;
     const fireMult = p.fireMul * (state.tagMultipliers.fireMul||1) * monoFire;
     if(w.cool <= 0){
       const res = fireWeapon(w);
@@ -920,8 +1032,8 @@ function stepBattle(dt){
       if(e.hp <= 0 || b.hit.has(e)) continue;
       const dx = e.x-b.x, dy = e.y-b.y, R = ENEMY[e.type].rad + 4;
       if(dx*dx+dy*dy < R*R){
-        const monoBuff = state.hero === 'monowield' ? 3 : 1;
-        const dmgAdj = b.dmg * monoBuff;
+        // Hero mult already baked into b.dmg via fireWeapon/heroDmgMul
+        const dmgAdj = b.dmg;
         const opts = { from:{x:b.x,y:b.y}, poison:b.poison, heal:b.heal, knockback:b.knockbackAll||state.tagMultipliers.knockback, stun:b.stun||0 };
         damageEnemy(e, dmgAdj, opts);
         b.hit.add(e);
@@ -980,11 +1092,12 @@ function stepBattle(dt){
       if(target){
         const a = Math.atan2(target.y-t.y, target.x-t.x);
         const sp = 10;
+        const mechBoost = state.hero === 'mechanic' ? 1.5 : 1;
         spawnBullet(t.x + Math.cos(a)*12, t.y + Math.sin(a)*12,
           Math.cos(a)*sp, Math.sin(a)*sp,
-          t.def.turretDmg * (1 + (p.engineering||0) * 0.05),
+          t.def.turretDmg * mechBoost * (1 + (p.engineering||0) * 0.05),
           { color:'#a855f7', pierce:t.def.turretPierce||0, missile:!!t.def.missile, target });
-        t.cool = t.def.turretFire || 1;
+        t.cool = (t.def.turretFire || 1) / mechBoost;
       } else t.cool = 0.3;
     }
     for(const e of state.enemies){
@@ -1118,8 +1231,8 @@ function stepBattle(dt){
     cl.life -= dt;
     const d = Math.hypot(p.x-cl.x, p.y-cl.y);
     if(d < cl.r){
-      if(cl.heal) p.hp = Math.min(p.maxHp, p.hp + cl.heal * dt);
-      else if(state.tagMultipliers.healCloud) p.hp = Math.min(p.maxHp, p.hp + state.tagMultipliers.healCloud * dt);
+      if(cl.heal) applyHeal(cl.heal * dt);
+      else if(state.tagMultipliers.healCloud) applyHeal(state.tagMultipliers.healCloud * dt);
     }
   }
   state.clouds = state.clouds.filter(c=>c.life>0);
@@ -1181,6 +1294,10 @@ function openLevelUp(){
 }
 
 // ─── Shop ────────────────────────────────────────────────
+function priceFor(base){
+  return state.hero === 'miser' ? Math.ceil(base * 1.4) : base;
+}
+
 function rollShopCard(){
   // 60% weapon, 40% item
   if(Math.random() < 0.6){
@@ -1191,10 +1308,10 @@ function rollShopCard(){
     if(roll > 2.3) rarity = 3;
     else if(roll > 1.5) rarity = 2;
     else if(roll > 0.75) rarity = 1;
-    return { kind:'weapon', id, rarity, cost: RARITY_PRICES[rarity] };
+    return { kind:'weapon', id, rarity, cost: priceFor(RARITY_PRICES[rarity]) };
   } else {
     const id = ITEM_IDS[Math.floor(Math.random()*ITEM_IDS.length)];
-    return { kind:'item', id, cost: ITEMS[id].cost };
+    return { kind:'item', id, cost: priceFor(ITEMS[id].cost) };
   }
 }
 
@@ -1331,6 +1448,17 @@ document.getElementById('sellBtn').onclick = () => {
   toast(`+${refund}◆`);
 };
 document.getElementById('nextWaveBtn').onclick = () => {
+  // Miser: 12% compound interest on unspent coins; broke → debuff next wave
+  if(state.hero === 'miser'){
+    if(state.player.coins === 0){
+      state.player.wasBroke = true;
+      toast('BROKE! −50% all stats this wave');
+    } else {
+      state.player.wasBroke = false;
+      const interest = Math.floor(state.player.coins * 0.12);
+      if(interest > 0){ state.player.coins += interest; toast(`+${interest}◆ interest`); }
+    }
+  }
   // Reset shop state (so next shop reroll replaces unlocked)
   for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = null;
   state.shop.cards = state.shop.cards.map(c => c || rollShopCard());
