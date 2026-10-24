@@ -93,7 +93,7 @@ canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px
       <div class="bar"><span id="hpBar" style="width:100%"></span></div>
       <div class="bar xp"><span id="xpBar" style="width:0%"></span></div>
       <div class="stat">LV <span id="lvTxt">1</span></div>
-      <div class="stat wave">WAVE <span id="wvTxt">1/10</span></div>
+      <div class="stat wave">WAVE <span id="wvTxt">1/20</span></div>
       <div class="stat">⏱ <span id="timerTxt">20</span></div>
       <div class="stat coins">◆ <span id="coinsTxt">0</span></div>
     </div>
@@ -106,7 +106,7 @@ canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px
   <!-- Hero pick (start of run) -->
   <div class="ov show" id="heroOv">
     <h2>⚡ Overclock</h2>
-    <p>Pick your rig. 10 waves, auto-fire, merge weapons for insane payoffs.</p>
+    <p>Pick your rig. 20 waves, auto-fire, merge weapons for insane payoffs.</p>
     <div class="cardRow" style="grid-template-columns:repeat(3,1fr);max-width:820px" id="heroPicks"></div>
   </div>
 
@@ -318,24 +318,135 @@ const HEROES = {
     desc:'+20 harvest. +12% interest on unspent coins. +3% dmg per 100 coins. Shop prices +40%.' },
 };
 
-const WAVES = [
-  { dur:25, enemies:[['rat',12]] },
-  { dur:28, enemies:[['rat',14],['bat',5]] },
-  { dur:30, enemies:[['rat',14],['bat',10]] },
-  { dur:32, enemies:[['rat',14],['bat',10],['brute',2]] },
-  { dur:35, enemies:[['rat',16],['bat',14],['brute',4]] },
-  { dur:38, enemies:[['bat',18],['brute',6]] },
-  { dur:40, enemies:[['rat',18],['bat',16],['brute',8]] },
-  { dur:42, enemies:[['rat',22],['bat',18],['brute',10]] },
-  { dur:45, enemies:[['rat',22],['bat',22],['brute',12]] },
-  { dur:60, enemies:[['rat',28],['bat',24],['brute',14],['boss',1]] },
-];
+// 9 enemies total: 5 basic + 2 elite half-bosses + 2 final bosses.
+// `ai` selects behavior in stepEnemyAI(e, p, dt).
 const ENEMY = {
-  rat:   { hp:12, dmg:4,  spd:1.7, rad:10, color:'#78350f', ico:'🐀', xp:1, coin:1 },
-  bat:   { hp:8,  dmg:3,  spd:2.7, rad:9,  color:'#581c87', ico:'🦇', xp:2, coin:1 },
-  brute: { hp:60, dmg:12, spd:1.2, rad:16, color:'#991b1b', ico:'🦍', xp:5, coin:3 },
-  boss:  { hp:800,dmg:20, spd:0.9, rad:34, color:'#450a0a', ico:'👹', xp:50, coin:40 },
+  crawler: { hp:12, dmg:4,  spd:1.0, rad:11, color:'#78350f', ico:'🐛', xp:1, coin:1, ai:'chase' },
+  flea:    { hp:5,  dmg:3,  spd:2.6, rad:7,  color:'#581c87', ico:'🦟', xp:1, coin:1, ai:'chase' },
+  fly:     { hp:15, dmg:4,  spd:0.7, rad:12, color:'#4b5563', ico:'🪰', xp:3, coin:2, ai:'ranged', keepDist:180, shootEvery:2.0, shotDmg:6, shotSpd:3.5 },
+  beetle:  { hp:35, dmg:10, spd:1.0, rad:14, color:'#991b1b', ico:'🪲', xp:3, coin:2, ai:'charger', chargeDist:150, windup:0.5, dashSpd:7, dashDur:0.6 },
+  toxinsac:{ hp:18, dmg:4,  spd:1.0, rad:13, color:'#15803d', ico:'🫛', xp:2, coin:1, ai:'chase', deathPuddle:true },
+  goldFlea:{ hp:1,  dmg:0,  spd:3.2, rad:7,  color:'#fbbf24', ico:'🪙', xp:1, coin:5, ai:'runner' },
+  coinEgg: { hp:1,  dmg:0,  spd:0,   rad:14, color:'#fbbf24', ico:'🥚', xp:2, coin:12, ai:'static' },
+  // Elites (wave 10 & 15)
+  ripper:  { hp:800,  dmg:15, spd:1.0, rad:30, color:'#450a0a', ico:'🪱', xp:40, coin:30, ai:'ripper',  elite:true },
+  hive:    { hp:600,  dmg:8,  spd:0.3, rad:26, color:'#4c1d95', ico:'🏺', xp:40, coin:30, ai:'hive',    elite:true },
+  // Final bosses (wave 20)
+  lightq:  { hp:1500, dmg:0,  spd:0,   rad:34, color:'#fbbf24', ico:'👑', xp:200, coin:120, ai:'bulletHell', elite:true },
+  spiderk: { hp:1200, dmg:25, spd:1.5, rad:32, color:'#1e1b4b', ico:'🕷', xp:200, coin:120, ai:'spider',   elite:true },
 };
+
+// Each wave is a script of spawn directives:
+//   { t:startSec, until:endSec, type, every:sec, count:perTick, ...opts }
+// Elite spawns use spawnOnce (fires once at t), place:'center'|'left'|'right'
+const WAVES = [
+  // 1 — Familiarize
+  { dur:20, script:[
+    { t:0,  until:10, type:'crawler', every:2.0, count:3 },
+    { t:10, until:20, type:'crawler', every:2.0, count:6 },
+  ]},
+  // 2 — Speed sampler
+  { dur:25, script:[
+    { t:0,  until:15, type:'crawler', every:3.0, count:4 },
+    { t:0,  until:15, type:'flea',    every:3.0, count:2 },
+    { t:16, until:25, type:'flea',    every:2.0, count:5 },
+  ]},
+  // 3 — Ranged threat
+  { dur:30, script:[
+    { t:0, until:1,  type:'fly',     every:1.0, count:4, place:'corners' },
+    { t:0, until:30, type:'crawler', every:3.0, count:2 },
+    { t:16,until:30, type:'fly',     every:5.0, count:2 },
+  ]},
+  // 4 — Mixed basics
+  { dur:35, script:[
+    { t:0, until:35, type:'crawler', every:3.0, count:4 },
+    { t:0, until:35, type:'flea',    every:3.0, count:2 },
+    { t:0, until:35, type:'fly',     every:3.0, count:1 },
+  ]},
+  // 5 — First number-pressure spike
+  { dur:40, script:[
+    { t:0,  until:20, type:'crawler', every:1.0, count:4 },
+    { t:21, until:40, type:'flea',    every:2.0, count:4 },
+  ]},
+  // 6 — Rhythm breakers
+  { dur:45, script:[
+    { t:0,  until:25, type:'beetle', every:4.0, count:2 },
+    { t:0,  until:25, type:'fly',    every:5.0, count:1 },
+    { t:26, until:45, type:'beetle', every:2.0, count:2 },
+    { t:26, until:45, type:'fly',    every:4.0, count:1 },
+  ]},
+  // 7 — Golden welfare wave
+  { dur:50, script:[
+    { t:0, until:50, type:'goldFlea', every:1.0, count:3 },
+  ]},
+  // 8 — Toxin lockdown
+  { dur:55, script:[
+    { t:0,  until:30, type:'toxinsac', every:3.0, count:2 },
+    { t:31, until:55, type:'toxinsac', every:2.5, count:2 },
+    { t:31, until:55, type:'flea',     every:2.5, count:3 },
+  ]},
+  // 9 — First-half crescendo
+  { dur:60, script:[
+    { t:0, until:60, type:'beetle',   every:2.0, count:3 },
+    { t:0, until:60, type:'fly',      every:2.0, count:2 },
+    { t:0, until:60, type:'toxinsac', every:2.0, count:2 },
+  ]},
+  // 10 — Elite: Ripper Worm
+  { dur:50, elite:'ripper', script:[
+    { t:5, spawnOnce:true, type:'ripper', place:'center' },
+  ]},
+  // 11 — Armor + damage spike
+  { dur:60, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:0, until:60, type:'beetle',  every:2.0, count:2 },
+    { t:0, until:60, type:'crawler', every:2.0, count:4 },
+  ]},
+  // 12 — Slow control
+  { dur:65, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:5, spawnOnce:true, type:'hive', place:'corner' },
+    { t:0, until:35, type:'flea',    every:2.5, count:2 },
+    { t:36,until:65, type:'flea',    every:1.5, count:3 },
+  ]},
+  // 13 — Flea gauntlet
+  { dur:60, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:0, until:60, type:'flea', every:1.0, count:4 },
+  ]},
+  // 14 — The calm (perfect 1:1:1 mix)
+  { dur:70, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:0, until:70, type:'crawler', every:3.0, count:2 },
+    { t:0, until:70, type:'flea',    every:3.0, count:2 },
+    { t:0, until:70, type:'fly',     every:3.0, count:1 },
+    { t:0, until:70, type:'beetle',  every:3.0, count:1 },
+    { t:0, until:70, type:'toxinsac',every:3.0, count:1 },
+  ]},
+  // 15 — Double elites
+  { dur:60, elite:'duet', scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:5, spawnOnce:true, type:'ripper', place:'left' },
+    { t:5, spawnOnce:true, type:'hive',   place:'right' },
+  ]},
+  // 16 — Toxin tsunami
+  { dur:75, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:0, until:75, type:'toxinsac', every:1.5, count:3 },
+    { t:0, until:75, type:'crawler',  every:1.5, count:3 },
+  ]},
+  // 17 — Bullet hell preview
+  { dur:60, scaleHp:1.4, scaleDmg:1.4, script:[
+    { t:0, until:60, type:'fly', every:2.0, count:4, place:'edges' },
+  ]},
+  // 18 — Despair
+  { dur:80, scaleHp:1.5, scaleDmg:1.5, respawn:true, script:[
+    { t:0, until:80, type:'beetle', every:2.0, count:3 },
+    { t:0, until:80, type:'flea',   every:2.0, count:5 },
+  ]},
+  // 19 — Shop-prep piñata wave
+  { dur:40, script:[
+    { t:0, until:40, type:'coinEgg', every:3.0, count:3 },
+  ]},
+  // 20 — Final dual boss
+  { dur:90, elite:'final', script:[
+    { t:1, spawnOnce:true, type:'lightq',  place:'center' },
+    { t:1, spawnOnce:true, type:'spiderk', place:'edge' },
+  ]},
+];
 
 // Permanent perks offered on level up
 const PERKS = [
@@ -366,12 +477,16 @@ let state = {
   items: [],       // item ids
   enemies: [],
   bullets: [],
+  enemyBullets: [], // projectiles fired by flies / bosses
   crystals: [],
   particles: [],
   clouds: [],
   turrets: [],    // deployed by Wrench
   swings: [],    // short-lived melee arc + beam visuals
   trails: [],    // persistent ground burn / fire trails
+  puddles: [],   // toxin / web / goo on floor
+  spawned: [],   // which script directives already ticked (keyed by index)
+  spawnTimers: [],
   shop: { cards:[], locked:[false,false,false,false], refreshed:0 },
   tagCounts: {},
   tagMultipliers: {},
@@ -606,7 +721,7 @@ function updateTopHUD(){
   document.getElementById('hpBar').style.width = Math.max(0, 100*p.hp/p.maxHp) + '%';
   document.getElementById('xpBar').style.width = Math.max(0, 100*p.xp/p.xpNext) + '%';
   document.getElementById('lvTxt').textContent = p.level;
-  document.getElementById('wvTxt').textContent = (state.wave) + '/10';
+  document.getElementById('wvTxt').textContent = (state.wave) + '/20';
   document.getElementById('timerTxt').textContent = Math.max(0, Math.ceil(state.waveCountdown));
   document.getElementById('coinsTxt').textContent = p.coins;
 }
@@ -618,16 +733,13 @@ function nextWave(){
   const w = WAVES[state.wave - 1];
   state.waveCountdown = w.dur;
   state.waveTime = 0;
-  state.pendingEnemies = [];
-  for(const [type, count] of w.enemies){
-    for(let i=0;i<count;i++) state.pendingEnemies.push(type);
-  }
-  // Shuffle
-  state.pendingEnemies.sort(()=>Math.random()-0.5);
-  state.spawnAccum = 0;
+  state.spawned = [];
+  state.spawnTimers = [];
   state.phase = 'battle';
   state.enemies = [];
   state.bullets = [];
+  state.enemyBullets = [];
+  state.puddles = [];
   state.crystals = [];
   state.clouds = [];
   state.turrets = [];
@@ -639,18 +751,48 @@ function nextWave(){
 
 function spawnEnemyAt(type, x, y){
   const e = ENEMY[type];
-  state.enemies.push({ type, x, y, hp: e.hp, maxHp: e.hp, poison: 0, poisonTimer: 0, knock:{x:0,y:0}, hitFlash:0 });
+  const w = WAVES[state.wave-1] || {};
+  const hpScale = w.scaleHp || 1;
+  const dmgScale = w.scaleDmg || 1;
+  const inst = {
+    type, x, y,
+    hp: e.hp * hpScale, maxHp: e.hp * hpScale,
+    dmg: e.dmg * dmgScale,
+    poison: 0, poisonTimer: 0, knock:{x:0,y:0}, hitFlash:0,
+  };
+  // AI-specific state
+  if(e.ai === 'ranged') inst.shootCool = e.shootEvery;
+  if(e.ai === 'charger') inst.chargeState = 'idle'; inst.chargeTimer = 0;
+  if(e.ai === 'ripper'){ inst.phase = 'chase'; inst.phaseTimer = 0; inst.chargeCount = 0; }
+  if(e.ai === 'hive'){ inst.spawnCool = 2; inst.gooCool = 5; }
+  if(e.ai === 'bulletHell'){ inst.spin = 0; inst.pattern = 0; inst.shootCool = 0; }
+  if(e.ai === 'spider'){ inst.webCool = 3; }
+  state.enemies.push(inst);
 }
 
-function spawnEdgeEnemy(type){
-  const side = Math.floor(Math.random()*4);
+function spawnAt(place, type){
   let x, y;
-  if(side===0){ x=-20; y=Math.random()*H; }
-  else if(side===1){ x=W+20; y=Math.random()*H; }
-  else if(side===2){ x=Math.random()*W; y=-20; }
-  else { x=Math.random()*W; y=H+20; }
+  switch(place){
+    case 'center':  x = W/2; y = H/2; break;
+    case 'left':    x = 100; y = H/2; break;
+    case 'right':   x = W-100; y = H/2; break;
+    case 'corner':  x = 80;  y = 80;  break;
+    case 'corners': { const i = Math.floor(Math.random()*4);
+      x = i%2 ? W-60 : 60; y = i<2 ? 60 : H-60; break; }
+    case 'edges':
+    case 'edge':
+    default: {
+      const side = Math.floor(Math.random()*4);
+      if(side===0){ x=-20; y=Math.random()*H; }
+      else if(side===1){ x=W+20; y=Math.random()*H; }
+      else if(side===2){ x=Math.random()*W; y=-20; }
+      else { x=Math.random()*W; y=H+20; }
+    }
+  }
   spawnEnemyAt(type, x, y);
 }
+// Back-compat (unused but keeps older callers safe)
+function spawnEdgeEnemy(type){ spawnAt('edge', type); }
 
 function spawnParticles(x,y,color,n,speed){
   speed = speed || 3;
@@ -963,7 +1105,7 @@ function stepBattle(dt){
   for(const wn of state.weapons){
     if(wn.id === 'cleaver' && wn.stacks > 0) stackBoost *= (1 + 0.1 * Math.min(5, wn.stacks));
   }
-  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost * heroMoveMul();
+  const spd = p.moveSpeedBase * p.moveMul * (state.tagMultipliers.moveMul||1) * stackBoost * heroMoveMul() * (state.playerSlow || 1);
   const m = Math.hypot(ax, ay) || 1;
   p.x = Math.max(14, Math.min(W-14, p.x + ax/m*spd));
   p.y = Math.max(14, Math.min(H-14, p.y + ay/m*spd));
@@ -983,22 +1125,34 @@ function stepBattle(dt){
     return;
   }
 
-  // Spawn enemies progressively — compress the spawn window to the
-  // first ~45% of the wave so the arena actually feels full instead
-  // of trickling one enemy at a time.
+  // Scripted spawning — walk the wave's directive list each tick.
   const w = WAVES[state.wave-1];
-  const total = w.enemies.reduce((s,[,c])=>s+c, 0);
-  const spawnPerSec = total / (w.dur * 0.45);
-  state.spawnAccum += spawnPerSec * dt;
-  // On the very first tick of a wave, dump an initial batch so the
-  // player sees enemies immediately rather than waiting a second.
-  if(state.waveTime - dt <= 0){
-    const burst = Math.min(5, state.pendingEnemies.length);
-    for(let i=0;i<burst;i++) spawnEdgeEnemy(state.pendingEnemies.shift());
+  const t = state.waveTime;
+  for(let i = 0; i < w.script.length; i++){
+    const d = w.script[i];
+    if(d.spawnOnce){
+      if(t >= d.t && !state.spawned[i]){
+        for(let k = 0; k < (d.count || 1); k++) spawnAt(d.place || 'edge', d.type);
+        state.spawned[i] = true;
+      }
+      continue;
+    }
+    if(t < d.t || t > d.until) continue;
+    state.spawnTimers[i] = (state.spawnTimers[i] || 0) + dt;
+    if(state.spawnTimers[i] >= d.every){
+      state.spawnTimers[i] -= d.every;
+      for(let k = 0; k < d.count; k++) spawnAt(d.place || 'edge', d.type);
+    }
   }
-  while(state.spawnAccum >= 1 && state.pendingEnemies.length){
-    state.spawnAccum--;
-    spawnEdgeEnemy(state.pendingEnemies.shift());
+  // Respawn-until-dead mode (wave 18): keep topping up to a target count
+  if(w.respawn && t > 0){
+    const target = 40;
+    while(state.enemies.filter(e=>!ENEMY[e.type].elite).length < target && Math.random() < 0.6){
+      const types = w.script.filter(d=>!d.spawnOnce).map(d=>d.type);
+      const type = types[Math.floor(Math.random()*types.length)];
+      if(type) spawnAt('edge', type);
+      else break;
+    }
   }
 
   // Fire weapons
@@ -1139,18 +1293,13 @@ function stepBattle(dt){
     }
   }
 
-  // Enemies — speed is px per 60fps frame (same convention as Potato
-  // Bros). Multiply by dt*60 so framerate drops don't slow combat.
+  // Enemies — dispatch by AI type. Speed is px per 60fps frame.
+  // Multiply by dt*60 so framerate drops don't slow combat.
+  const playerSlow = state.playerSlow || 1; // reset below based on puddles
   for(const e of state.enemies){
     if(e.hp <= 0) continue;
     const E = ENEMY[e.type];
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy) || 1;
-    if(e.stun && e.stun > 0){ e.stun -= dt; }
-    else {
-      const step = E.spd * dt * 60;
-      e.x += dx/d * step + e.knock.x;
-      e.y += dy/d * step + e.knock.y;
-    }
     e.knock.x *= 0.85; e.knock.y *= 0.85;
     if(e.hitFlash > 0) e.hitFlash -= dt;
     if(e.poison > 0 && e.poisonTimer > 0){
@@ -1158,21 +1307,180 @@ function stepBattle(dt){
       e.poisonTimer -= dt;
       if(e.poisonTimer <= 0){ e.poison = 0; }
     }
-    if(p.thorn > 0){
-      const td = Math.hypot(p.x-e.x, p.y-e.y);
-      if(td < E.rad + 14) e.hp -= p.thorn * dt;
+    if(p.thorn > 0 && d < E.rad + 14) e.hp -= p.thorn * dt;
+
+    // ─── AI dispatch ─────────────────────────────────────
+    if(e.stun && e.stun > 0){ e.stun -= dt; }
+    else {
+      const ai = E.ai || 'chase';
+      switch(ai){
+        case 'chase': case 'runner': {
+          const step = E.spd * dt * 60;
+          e.x += dx/d * step + e.knock.x;
+          e.y += dy/d * step + e.knock.y;
+          break;
+        }
+        case 'static': break;
+        case 'ranged': {
+          // Keep distance, shoot player.
+          const want = E.keepDist;
+          const diff = d - want;
+          const step = E.spd * dt * 60;
+          if(Math.abs(diff) > 20){
+            const sign = diff > 0 ? 1 : -1;
+            e.x += dx/d * step * sign + e.knock.x;
+            e.y += dy/d * step * sign + e.knock.y;
+          }
+          e.shootCool -= dt;
+          if(e.shootCool <= 0){
+            e.shootCool = E.shootEvery;
+            const a = Math.atan2(dy, dx);
+            state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*E.shotSpd, vy:Math.sin(a)*E.shotSpd, dmg:E.shotDmg, life:200, color:'#f43f5e', r:5 });
+          }
+          break;
+        }
+        case 'charger': {
+          const step = E.spd * dt * 60;
+          if(e.chargeState === 'idle'){
+            if(d < E.chargeDist){ e.chargeState = 'windup'; e.chargeTimer = E.windup; e.chargeDx = dx/d; e.chargeDy = dy/d; }
+            else { e.x += dx/d * step; e.y += dy/d * step; }
+          } else if(e.chargeState === 'windup'){
+            e.chargeTimer -= dt;
+            if(e.chargeTimer <= 0){ e.chargeState = 'dash'; e.chargeTimer = E.dashDur; }
+          } else if(e.chargeState === 'dash'){
+            e.chargeTimer -= dt;
+            e.x += e.chargeDx * E.dashSpd * dt * 60;
+            e.y += e.chargeDy * E.dashSpd * dt * 60;
+            if(e.chargeTimer <= 0){ e.chargeState = 'idle'; }
+          }
+          break;
+        }
+        case 'ripper': {
+          // Phase: chase → charge(x3) → ring → repeat
+          e.phaseTimer -= dt;
+          const step = E.spd * dt * 60;
+          if(e.phase === 'chase'){
+            e.x += dx/d * step; e.y += dy/d * step;
+            if(e.phaseTimer <= 0){ e.phase = 'charge'; e.phaseTimer = 0.3; e.chargeCount = 0; e.chargeDx = dx/d; e.chargeDy = dy/d; }
+          } else if(e.phase === 'charge'){
+            if(e.phaseTimer > 0){
+              // short winding
+            } else {
+              e.x += e.chargeDx * 7 * dt * 60;
+              e.y += e.chargeDy * 7 * dt * 60;
+              if(e.phaseTimer < -0.6){
+                e.chargeCount++;
+                if(e.chargeCount >= 3){ e.phase = 'ring'; e.phaseTimer = 0.1; }
+                else { e.phaseTimer = 0.3; e.chargeDx = dx/d; e.chargeDy = dy/d; }
+              }
+            }
+          } else if(e.phase === 'ring'){
+            if(e.phaseTimer <= 0){
+              for(let a=0; a<Math.PI*2; a+=Math.PI/8){
+                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*3, vy:Math.sin(a)*3, dmg:8, life:160, color:'#dc2626', r:5 });
+              }
+              e.phase = 'chase'; e.phaseTimer = 3;
+            }
+          }
+          break;
+        }
+        case 'hive': {
+          // Stay in corner, spawn fleas, shoot goo
+          e.spawnCool -= dt;
+          if(e.spawnCool <= 0){ e.spawnCool = 2.5; spawnEnemyAt('flea', e.x + (Math.random()-0.5)*40, e.y + (Math.random()-0.5)*40); }
+          e.gooCool -= dt;
+          if(e.gooCool <= 0){
+            e.gooCool = 5;
+            // Shoot goo at player — slows on hit
+            const a = Math.atan2(dy, dx);
+            state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a)*2.5, vy:Math.sin(a)*2.5, dmg:4, life:240, color:'#84cc16', r:9, goo:true });
+          }
+          break;
+        }
+        case 'bulletHell': {
+          // Light Queen: stays center, pours bullets in rotating patterns
+          e.spin += dt * 1.4;
+          e.shootCool -= dt;
+          if(e.shootCool <= 0){
+            e.shootCool = 0.5;
+            e.pattern = (e.pattern + 1) % 3;
+            if(e.pattern === 0){
+              // 12-way rotating
+              for(let a=0; a<Math.PI*2; a+=Math.PI/6){
+                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+e.spin)*2.6, vy:Math.sin(a+e.spin)*2.6, dmg:8, life:260, color:'#fbbf24', r:5 });
+              }
+            } else if(e.pattern === 1){
+              // Cross spiral
+              for(let a=0; a<Math.PI*2; a+=Math.PI/2){
+                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+e.spin*2)*3.2, vy:Math.sin(a+e.spin*2)*3.2, dmg:10, life:260, color:'#f59e0b', r:7 });
+              }
+            } else {
+              // Toward player burst
+              const a = Math.atan2(dy, dx);
+              for(let o=-0.3; o<=0.3; o+=0.15){
+                state.enemyBullets.push({ x:e.x, y:e.y, vx:Math.cos(a+o)*3.5, vy:Math.sin(a+o)*3.5, dmg:9, life:260, color:'#fde047', r:6 });
+              }
+            }
+          }
+          break;
+        }
+        case 'spider': {
+          const step = E.spd * dt * 60;
+          e.x += dx/d * step + e.knock.x;
+          e.y += dy/d * step + e.knock.y;
+          e.webCool -= dt;
+          if(e.webCool <= 0){
+            e.webCool = 2.5;
+            // Spawn a web puddle at player's current position
+            state.puddles.push({ x:p.x, y:p.y, r:50, life:5, slow:0.5, color:'#4b5563' });
+          }
+          break;
+        }
+      }
     }
+
     // Damage player
-    if(d < E.rad + 14 && p.invuln <= 0){
-      // Dodge chance from items; armor zeroing from Blood Furnace still works
+    if(d < E.rad + 14 && p.invuln <= 0 && E.dmg > 0){
       if(p.dodge && Math.random() < p.dodge){ p.invuln = 0.25; continue; }
-      const incoming = Math.max(1, E.dmg - p.armor - (p.turretArmor||0));
+      const incoming = Math.max(1, (e.dmg || E.dmg) - p.armor - (p.turretArmor||0));
       p.hp -= incoming;
       p.invuln = 0.6;
       spawnParticles(p.x, p.y, '#f87171', 8, 3);
       if(p.hp <= 0){ p.hp = 0; dieRun(); return; }
     }
   }
+
+  // Enemy bullets
+  for(const b of state.enemyBullets){
+    b.x += b.vx; b.y += b.vy; b.life--;
+    if(b.x < -20 || b.x > W+20 || b.y < -20 || b.y > H+20) b.life = 0;
+    if(b.life <= 0) continue;
+    const dx = p.x - b.x, dy = p.y - b.y;
+    if(dx*dx + dy*dy < (b.r + 14)*(b.r + 14)){
+      if(p.invuln <= 0 && !(p.dodge && Math.random() < p.dodge)){
+        const dmg = Math.max(1, b.dmg - p.armor - (p.turretArmor||0));
+        p.hp -= dmg;
+        p.invuln = 0.3;
+        spawnParticles(p.x, p.y, '#f87171', 6, 3);
+        if(b.goo){ state.puddles.push({ x:p.x, y:p.y, r:40, life:4, slow:0.5, color:'#84cc16' }); }
+        if(p.hp <= 0){ p.hp = 0; dieRun(); return; }
+      }
+      b.life = 0;
+    }
+  }
+  state.enemyBullets = state.enemyBullets.filter(b => b.life > 0);
+
+  // Puddles — slow player, poison puddles damage
+  state.playerSlow = 1;
+  for(const pd of state.puddles){
+    pd.life -= dt;
+    const d = Math.hypot(p.x - pd.x, p.y - pd.y);
+    if(d < pd.r){
+      if(pd.slow) state.playerSlow = Math.min(state.playerSlow, pd.slow);
+      if(pd.dmg) p.hp -= pd.dmg * dt;
+    }
+  }
+  state.puddles = state.puddles.filter(pd => pd.life > 0);
   // Kill enemies with hp<=0 → drop crystal
   const alive = [];
   const hasDriverSpread = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity >= 2);
@@ -1187,6 +1495,10 @@ function stepBattle(dt){
         for(let i=0;i<3;i++){
           state.clouds.push({ x: e.x+(Math.random()-0.5)*30, y: e.y+(Math.random()-0.5)*30, r: 36, life: 4 });
         }
+      }
+      // Toxin Sac leaves a poison puddle on death
+      if(E.deathPuddle){
+        state.puddles.push({ x:e.x, y:e.y, r:36, life:3, dmg:5, color:'#15803d' });
       }
       // Rusty Driver spread-on-death
       if(hasDriverSpread && e.poison > 0){
@@ -1246,6 +1558,8 @@ function stepBattle(dt){
 }
 
 function endWave(){
+  // Final wave — jump straight to win screen (survive = victory).
+  if(state.wave >= WAVES.length){ winRun(); return; }
   state.phase = 'shop';
   // Trigger level-ups first
   if(state.levelsPending > 0){
@@ -1317,7 +1631,7 @@ function rollShopCard(){
 
 function openShop(){
   state.phase = 'shop';
-  document.getElementById('shopSub').textContent = `Wave ${state.wave}/10 cleared · ${state.wave < WAVES.length ? 'spend ◆ to prep for the next' : 'final checkpoint before boss!'}`;
+  document.getElementById('shopSub').textContent = `Wave ${state.wave}/20 cleared · ${state.wave < WAVES.length ? 'spend ◆ to prep for the next' : 'final checkpoint before boss!'}`;
   // Roll fresh cards for unlocked slots
   if(state.shop.cards.length === 0){
     state.shop.cards = [rollShopCard(), rollShopCard(), rollShopCard(), rollShopCard()];
@@ -1494,6 +1808,16 @@ function draw(){
     ctx.beginPath(); ctx.arc(cl.x, cl.y, cl.r, 0, Math.PI*2); ctx.fill();
   }
 
+  // Puddles — toxin, web, goo
+  for(const pd of state.puddles){
+    const a = Math.min(0.55, pd.life / 2);
+    ctx.fillStyle = pd.color + Math.floor(a*255).toString(16).padStart(2,'0');
+    ctx.beginPath(); ctx.arc(pd.x, pd.y, pd.r, 0, Math.PI*2); ctx.fill();
+    // Outline
+    ctx.strokeStyle = pd.color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.5;
+    ctx.stroke(); ctx.globalAlpha = 1;
+  }
+
   // Turrets
   for(const t of state.turrets){
     ctx.save();
@@ -1553,13 +1877,23 @@ function draw(){
     ctx.shadowBlur = 0;
   }
 
-  // Bullets
+  // Player bullets
   for(const b of state.bullets){
     ctx.fillStyle = b.color;
     ctx.shadowBlur = 8; ctx.shadowColor = b.color;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.crit ? 5 : 3, 0, Math.PI*2);
     ctx.fill();
+  }
+  // Enemy bullets — hollow red/colored circles so they're distinct
+  for(const b of state.enemyBullets){
+    ctx.fillStyle = b.color;
+    ctx.shadowBlur = 10; ctx.shadowColor = b.color;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r || 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.stroke();
   }
   ctx.shadowBlur = 0;
 
@@ -1568,12 +1902,24 @@ function draw(){
     const E = ENEMY[e.type];
     ctx.save();
     ctx.translate(e.x, e.y);
+    // Beetle windup glow — fat red halo tells the player it's about to dash
+    if(e.chargeState === 'windup'){
+      ctx.fillStyle = 'rgba(239,68,68,.6)';
+      ctx.shadowBlur = 20; ctx.shadowColor = '#ef4444';
+      ctx.beginPath(); ctx.arc(0,0,E.rad+6,0,Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
     ctx.fillStyle = e.hitFlash > 0 ? '#fff' : E.color;
     ctx.beginPath(); ctx.arc(0,0,E.rad,0,Math.PI*2); ctx.fill();
     ctx.fillStyle = '#fff';
     ctx.font = (E.rad*1.2) + 'px serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(E.ico, 0, 1);
+    // Elite ring
+    if(E.elite){
+      ctx.strokeStyle = '#fde047'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(0,0,E.rad+5,0,Math.PI*2); ctx.stroke();
+    }
     ctx.restore();
     // HP bar
     if(e.hp < e.maxHp){
