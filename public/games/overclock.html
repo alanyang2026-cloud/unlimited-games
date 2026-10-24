@@ -149,8 +149,23 @@ canvas{display:block;width:100%;height:100%;background:#07040d;border-radius:8px
 
 // ─── Core data ──────────────────────────────────────────────
 const RARITY_NAMES = ['WHITE','BLUE','PURPLE','RED'];
-const RARITY_PRICES = [10, 25, 60, 150];
-const SELL_FRAC = 0.5;
+// Per-weapon base prices by tier (white / blue / purple / red).
+// Looked up by WEAPON_PRICES[weaponId][rarity]. The actual shop cost
+// multiplies by the wave factor, harvest inflation, and hero markup.
+const WEAPON_PRICES = {
+  slingshot:     [15, 30, 65, 140],
+  medigun:       [20, 42, 90, 200],
+  flamethrower:  [25, 55, 120, 260],
+  doubleBarrel:  [22, 48, 105, 225],
+  rustyDriver:   [12, 25, 55, 120],
+  skillet:       [14, 30, 65, 140],
+  wrench:        [18, 40, 85, 185],
+  flashlight:    [24, 52, 115, 250],
+  cleaver:       [16, 35, 75, 165],
+  piggyBank:     [10, 22, 48, 100],
+};
+// Tiered sell refund — reds depreciate hardest to lock in late builds.
+const SELL_FRACTIONS = [0.50, 0.40, 0.40, 0.30];
 
 // Each weapon: 4 tiers (white/blue/purple/red). Firing is auto, auto-aim.
 // Weapons also carry a passive{} that is additively applied for EVERY
@@ -2099,14 +2114,17 @@ function openLevelUp(){
 }
 
 // ─── Shop ────────────────────────────────────────────────
+// Wave factor: 1.0 at wave 1 → 3.5 at wave 19 (linear growth).
+function waveFactor(){
+  const w = Math.max(1, state.wave || 1);
+  return 1 + (Math.min(19, w) - 1) / 18 * 2.5;
+}
 function priceFor(base){
   const h = Math.max(0, state.player ? (state.player.harvest || 0) : 0);
-  // Baseline inflation: every 50 harvest → +10% permanent shop markup
   const inflateBase = 1 + Math.floor(h / 50) * 0.1;
-  // Miser pays 40% more baseline + an extra +15% per 50 harvest
   const miserBase = state.hero === 'miser' ? 1.4 : 1;
   const miserExtra = state.hero === 'miser' ? (1 + Math.floor(h / 50) * 0.15) : 1;
-  return Math.ceil(base * inflateBase * miserBase * miserExtra);
+  return Math.ceil(base * waveFactor() * inflateBase * miserBase * miserExtra);
 }
 
 function rollShopCard(){
@@ -2127,7 +2145,7 @@ function rollShopCard(){
     if(luck < -0.4) rarity = 0;
     else if(luck < -0.2) rarity = Math.min(rarity, 1);
     else if(luck < 0) rarity = Math.min(rarity, 2);
-    return { kind:'weapon', id, rarity, cost: priceFor(RARITY_PRICES[rarity]) };
+    return { kind:'weapon', id, rarity, cost: priceFor(WEAPON_PRICES[id][rarity]) };
   } else {
     const id = ITEM_IDS[Math.floor(Math.random()*ITEM_IDS.length)];
     return { kind:'item', id, cost: priceFor(ITEMS[id].cost) };
@@ -2147,6 +2165,7 @@ function openShop(){
   state.shop.refreshed = 0;
   state.rackSel = -1;
   renderShop();
+  document.getElementById('refreshBtn').textContent = `↻ Refresh (${rerollCost()}◆)`;
   document.getElementById('shopOv').classList.add('show');
 }
 
@@ -2226,13 +2245,27 @@ function buyCard(i){
   if(c.sold) return;
   if(c.cost > state.player.coins){ toast('Not enough coins'); return; }
   if(c.kind === 'weapon'){
-    if(state.weapons.length >= HEROES[state.hero].slots){
-      toast('Inventory full — sell or merge first');
-      return;
+    // "Shop direct upgrade": if we already own one at same id+rarity
+    // (not red), buy it and auto-merge into the owned copy — no slot
+    // consumed. Design-doc convenience hook.
+    const matchIdx = state.weapons.findIndex(sw => sw.id === c.id && sw.rarity === c.rarity && c.rarity < 3);
+    if(matchIdx >= 0){
+      state.player.coins -= c.cost;
+      state.weapons[matchIdx].rarity++;
+      state.weapons[matchIdx].cool = WEAPONS[c.id].tiers[state.weapons[matchIdx].rarity].fire;
+      rebuildTagCounts();
+      renderSlots();
+      c.sold = true;
+      toast(`${WEAPONS[c.id].name} auto-merged → ${RARITY_NAMES[c.rarity+1]}`);
+    } else {
+      if(state.weapons.length >= HEROES[state.hero].slots){
+        toast('Inventory full — sell or merge first');
+        return;
+      }
+      state.player.coins -= c.cost;
+      addWeapon(c.id, c.rarity);
+      c.sold = true;
     }
-    state.player.coins -= c.cost;
-    addWeapon(c.id, c.rarity);
-    c.sold = true;
   } else {
     state.player.coins -= c.cost;
     ITEMS[c.id].apply(state.player);
@@ -2244,13 +2277,17 @@ function buyCard(i){
   updateTopHUD();
 }
 
+// Reroll cost: wave × 1 × 1.5^(prior rerolls this wave) — compounding.
+function rerollCost(){
+  return Math.ceil((state.wave || 1) * Math.pow(1.5, state.shop.refreshed));
+}
 document.getElementById('refreshBtn').onclick = () => {
-  const cost = 10 + state.shop.refreshed * 5;
+  const cost = rerollCost();
   if(state.player.coins < cost){ toast('Not enough coins to refresh'); return; }
   state.player.coins -= cost;
   state.shop.refreshed++;
   for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = rollShopCard();
-  document.getElementById('refreshBtn').textContent = `↻ Refresh (${10 + state.shop.refreshed*5}◆)`;
+  document.getElementById('refreshBtn').textContent = `↻ Refresh (${rerollCost()}◆)`;
   renderShop();
   updateTopHUD();
 };
@@ -2258,13 +2295,15 @@ document.getElementById('sellBtn').onclick = () => {
   if(state.rackSel < 0) return;
   const w = state.weapons[state.rackSel];
   if(!w) return;
-  const refund = Math.ceil(RARITY_PRICES[w.rarity] * SELL_FRAC);
+  // Tier-based refund (W50% / B40% / P40% / R30%) off CURRENT market
+  const marketPrice = priceFor(WEAPON_PRICES[w.id][w.rarity]);
+  const refund = Math.ceil(marketPrice * SELL_FRACTIONS[w.rarity]);
   state.player.coins += refund;
   removeWeapon(state.rackSel);
   state.rackSel = -1;
   renderShop();
   updateTopHUD();
-  toast(`+${refund}◆`);
+  toast(`Sold +${refund}◆`);
 };
 document.getElementById('nextWaveBtn').onclick = () => {
   // Miser: 12% compound interest on unspent coins; broke → debuff next wave
@@ -2282,7 +2321,6 @@ document.getElementById('nextWaveBtn').onclick = () => {
   for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = null;
   state.shop.cards = state.shop.cards.map(c => c || rollShopCard());
   state.shop.refreshed = 0;
-  document.getElementById('refreshBtn').textContent = `↻ Refresh (10◆)`;
   nextWave();
 };
 
