@@ -951,8 +951,18 @@ function spawnAt(place, type){
 // Back-compat (unused but keeps older callers safe)
 function spawnEdgeEnemy(type){ spawnAt('edge', type); }
 
+// Entity hard caps — late-game AoE spam used to push these into the
+// thousands and tank the frame rate. When at cap, we drop the oldest
+// first so new effects still appear fresh.
+const CAP_PARTICLES = 180;
+const CAP_BULLETS = 150;
+const CAP_ENEMY_BULLETS = 120;
+
 function spawnParticles(x,y,color,n,speed){
   speed = speed || 3;
+  // Trim oldest if we'd overflow
+  const overflow = (particles.length + n) - CAP_PARTICLES;
+  if(overflow > 0) particles.splice(0, overflow);
   for(let i=0;i<n;i++){
     particles.push({ x, y, vx:(Math.random()-0.5)*speed*2, vy:(Math.random()-0.5)*speed*2, life:1, color, r:2+Math.random()*2 });
   }
@@ -1172,8 +1182,9 @@ function damageEnemy(e, dmg, opts){
   opts = opts || {};
   const p = state.player;
   const was = e.hp;
-  // Hardened skin — subtract flat armor unless caller said trueDmg.
-  const armor = opts.trueDmg ? 0 : (e.fixedArmor || 0);
+  // Hardened skin — subtract flat armor unless caller said trueDmg or
+  // the enemy is in a post-dash broken-shell stun window.
+  const armor = (opts.trueDmg || e.fixedArmorStunned) ? 0 : (e.fixedArmor || 0);
   let applied = Math.max(1, dmg - armor);
   // Ripper shield phase: 50% damage reduction (trueDmg still passes through)
   if(e.shieldMul && !opts.trueDmg) applied *= e.shieldMul;
@@ -1210,6 +1221,8 @@ function damageEnemy(e, dmg, opts){
 // Launch a single bullet with given velocity + traits.
 function spawnBullet(x, y, vx, vy, dmg, opts){
   opts = opts || {};
+  // Cap enforcement — drop oldest if over
+  if(state.bullets.length >= CAP_BULLETS) state.bullets.splice(0, 1);
   state.bullets.push({
     x, y, vx, vy, dmg,
     pierce: opts.pierce || 0,
@@ -1456,6 +1469,10 @@ function fireWeapon(w){
 
 function stepBattle(dt){
   const p = state.player;
+  // Enforce enemy-bullet cap — drop oldest when over
+  if(state.enemyBullets.length > CAP_ENEMY_BULLETS){
+    state.enemyBullets.splice(0, state.enemyBullets.length - CAP_ENEMY_BULLETS);
+  }
   // Movement
   const ax = (KEYS.ArrowLeft || KEYS.KeyA ? -1 : 0) + (KEYS.ArrowRight || KEYS.KeyD ? 1 : 0);
   const ay = (KEYS.ArrowUp || KEYS.KeyW ? -1 : 0) + (KEYS.ArrowDown || KEYS.KeyS ? 1 : 0);
@@ -1801,10 +1818,11 @@ function stepBattle(dt){
             e.x += e.chargeDx * E.dashSpd * dt * 60;
             e.y += e.chargeDy * E.dashSpd * dt * 60;
             if(e.chargeTimer <= 0){
-              // Post-dash: 1s stunned with armor = 0 (hard-skin bypass window)
+              // Post-dash: 1s stunned with armor temporarily zero (hard-skin bypass window)
               e.chargeState = 'idle';
               e.stun = Math.max(e.stun||0, 1);
-              e.fixedArmor = 0; // vulnerable until re-spawn conceptually; cleared on wave reset
+              e.fixedArmorStunned = true;
+              e.stunEndRestore = state.waveTime + 1;
             }
           }
           break;
@@ -1859,11 +1877,8 @@ function stepBattle(dt){
             const px = p.x + vx * 30, py = p.y + vy * 30;
             // Warning telegraph via a swing; 1s later convert to a goo puddle
             state.swings.push({ x:px, y:py, r:60, life:1, color:'#fde047', outline:true, telegraph:true });
-            setTimeout(()=>{
-              if(state.phase === 'battle'){
-                state.puddles.push({ x:px, y:py, r:60, life:4, slow:0.01, resetMove:true, dodgeDebuff:true, color:'#eab308' });
-              }
-            }, 1000);
+            if(!state.hiveTelegraphs) state.hiveTelegraphs = [];
+            state.hiveTelegraphs.push({ x:px, y:py, fireAt: state.waveTime + 1 });
           }
           break;
         }
@@ -1890,10 +1905,11 @@ function stepBattle(dt){
               for(let cy=0; cy<cellsY; cy++) picks.push([col, cy]);
             }
             if(phase >= 3){
-              // Extra random pepper
-              for(let i=0;i<4;i++) picks.push([Math.floor(Math.random()*cellsX), Math.floor(Math.random()*cellsY)]);
+              // Pepper reduced — too dense was leaving no safe tiles
+              for(let i=0;i<2;i++) picks.push([Math.floor(Math.random()*cellsX), Math.floor(Math.random()*cellsY)]);
             }
             for(const [cx, cy] of picks){
+              if(state.grids.length >= 12) break; // Hard cap — anti-overdraw
               state.grids.push({
                 x: cx*cw, y: cy*ch, w: cw, h: ch,
                 telegraphUntil: state.waveTime + 1.5,
@@ -1975,6 +1991,24 @@ function stepBattle(dt){
     }
   }
   state.enemyBullets = state.enemyBullets.filter(b => b.life > 0);
+
+  // Hive telegraphs — convert aged ones to goo puddles (no setTimeout)
+  if(state.hiveTelegraphs){
+    for(let i = state.hiveTelegraphs.length - 1; i >= 0; i--){
+      const tg = state.hiveTelegraphs[i];
+      if(state.waveTime >= tg.fireAt){
+        state.puddles.push({ x:tg.x, y:tg.y, r:60, life:4, slow:0.01, resetMove:true, color:'#eab308' });
+        state.hiveTelegraphs.splice(i, 1);
+      }
+    }
+  }
+
+  // Beetle armor restoration (post-dash stun ends → armor back)
+  for(const e of state.enemies){
+    if(e.fixedArmorStunned && state.waveTime > (e.stunEndRestore||0)){
+      e.fixedArmorStunned = false;
+    }
+  }
 
   // Puddles — slow player, poison puddles damage
   state.playerSlow = 1;
@@ -2088,8 +2122,10 @@ function stepBattle(dt){
     }
     if(d < 10){
       p.xp += c.xp;
-      // Per-wave coin cap for waves 1-4 (穷人经济学). Once hit, only XP is granted.
-      const CAP = {1:25, 2:35, 3:45, 4:55}[state.wave];
+      // Per-wave coin cap. Extended to all pre-boss waves so the player
+      // can't snowball into a 500+ wallet by wave 9.
+      const CAP = {1:25, 2:35, 3:45, 4:55, 5:70, 6:90, 7:110, 8:130, 9:150,
+                   11:180, 12:200, 13:220, 14:240, 16:280, 17:320, 18:360}[state.wave];
       if(CAP === undefined || state.waveCoinsEarned < CAP){
         const give = CAP === undefined ? c.coin : Math.min(c.coin, CAP - state.waveCoinsEarned);
         p.coins += give;
@@ -2567,18 +2603,24 @@ function draw(){
     ctx.shadowBlur = 0;
   }
 
+  // Shadow-blur is a huge GPU cost — skip it when there's a lot of
+  // stuff on screen (keeps late-game at a smooth frame rate).
+  const busy = state.bullets.length + state.enemyBullets.length + state.enemies.length > 60;
+
   // Player bullets
+  if(!busy){ ctx.shadowBlur = 8; }
   for(const b of state.bullets){
     ctx.fillStyle = b.color;
-    ctx.shadowBlur = 8; ctx.shadowColor = b.color;
+    if(!busy) ctx.shadowColor = b.color;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.crit ? 5 : 3, 0, Math.PI*2);
     ctx.fill();
   }
   // Enemy bullets — hollow red/colored circles so they're distinct
+  if(!busy){ ctx.shadowBlur = 10; }
   for(const b of state.enemyBullets){
     ctx.fillStyle = b.color;
-    ctx.shadowBlur = 10; ctx.shadowColor = b.color;
+    if(!busy) ctx.shadowColor = b.color;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.r || 5, 0, Math.PI*2);
     ctx.fill();
