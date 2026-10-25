@@ -314,40 +314,48 @@ const TAGS = {
 };
 const TAG_IDS = Object.keys(TAGS);
 
-// Items — the full 10-item tradeoff set from the design doc. Every
-// item splits a strong boost against a real cost so the choice is
-// always a stance, not a stat stack.
+// Items — "household life" themed, 10 single-tier tradeoffs. Many
+// now carry percent-of-current-stat deductions so stacking the same
+// stat hits a wall. Monopoly tax (duplicate-markup) is enforced at
+// shop-roll time, not inside apply().
 const ITEMS = {
-  scope: { name:'High-Mag Scope', ico:'🎯', cost:30,
-    desc:'+12% crit, +25 range · -3 armor',
-    apply:(p)=>{ p.critChance += 0.12; p.rangeMul += 0.125; p.armor -= 3; } },
-  piston: { name:'Light Piston', ico:'⚙', cost:30,
-    desc:'+20% fire rate · -4 ranged dmg, -4 melee dmg',
-    apply:(p)=>{ p.fireMul *= 0.8; p.rangedBonus = (p.rangedBonus||0) - 0.04; p.meleeBonus = (p.meleeBonus||0) - 0.04; } },
-  heavyBarrel: { name:'Heavy Barrel', ico:'🧱', cost:35,
-    desc:'+15% damage, +6 ranged · -15% reload',
-    apply:(p)=>{ p.dmgMul *= 1.15; p.rangedBonus = (p.rangedBonus||0) + 0.06; p.fireMul *= 1.15; } },
-  highCapMag: { name:'High-Cap Mag', ico:'📦', cost:30,
-    desc:'+10 ranged dmg · -10% fire rate, -5% move',
-    apply:(p)=>{ p.rangedBonus = (p.rangedBonus||0) + 0.10; p.fireMul *= 1.1; p.moveMul *= 0.95; } },
-  ledger: { name:'Pocket Ledger', ico:'📒', cost:25,
+  piggyJar:    { name:'Old Piggy Jar',    ico:'🐽', cost:25,
     desc:'+15 harvest, +8% luck · -8% damage',
     apply:(p)=>{ p.harvest = (p.harvest||0) + 15; p.luck += 0.08; p.dmgMul *= 0.92; } },
-  grips: { name:'Wire-Mesh Grips', ico:'🧤', cost:30,
-    desc:'+6 melee dmg, +4 armor · -6% move',
+  woolHat:     { name:'Warm Wool Hat',    ico:'🧢', cost:30,
+    desc:'+15 max HP · -2 regen/s',
+    apply:(p)=>{ p.maxHpBonus += 15; p.hp = Math.min(p.hp + 15, p.maxHp); p.regenBase -= 2; } },
+  readGlasses: { name:'Reading Glasses',  ico:'👓', cost:35,
+    desc:'+12% crit, +25 range · -15% current armor',
+    apply:(p)=>{ p.critChance += 0.12; p.rangeMul += 0.125; p.armor = Math.ceil(p.armor * 0.85); } },
+  windupToy:   { name:'Wind-up Toy',      ico:'🪆', cost:55,
+    desc:'+20% fire rate · -15% current ranged & melee bonuses',
+    apply:(p)=>{ p.fireMul *= 0.8;
+      p.rangedBonus = (p.rangedBonus||0) * 0.85;
+      p.meleeBonus = (p.meleeBonus||0) * 0.85; } },
+  gardenGloves:{ name:'Garden Gloves',    ico:'🧤', cost:60,
+    desc:'+6 melee, +4 armor · -6% move',
     apply:(p)=>{ p.meleeBonus = (p.meleeBonus||0) + 0.06; p.armor += 4; p.moveMul *= 0.94; } },
-  tourniquet: { name:'Combat Tourniquet', ico:'🩹', cost:35,
-    desc:'+8% lifesteal · -8% dodge',
-    apply:(p)=>{ p.lifestealWeap = (p.lifestealWeap||0) + 0.08; if(!p.dodgeLocked) p.dodge = (p.dodge||0) - 0.08; } },
-  canteen: { name:'Filter Canteen', ico:'💧', cost:25,
-    desc:'+6 regen/s · -4% lifesteal',
-    apply:(p)=>{ p.regenBase += 6; p.lifestealWeap = (p.lifestealWeap||0) - 0.04; } },
-  exoskeleton: { name:'Reinforced Exo', ico:'🤖', cost:50,
+  rainBoots:   { name:'Heavy Rain Boots', ico:'🥾', cost:65,
     desc:'+12 armor · dodge LOCKED at -20%',
     apply:(p)=>{ p.armor += 12; if(!p.dodgeLocked){ p.dodge = -0.2; p.dodgeLocked = true; } } },
-  adrenaline: { name:'Adrenaline Shot', ico:'💉', cost:35,
-    desc:'+15% move, +6% dodge · -10 max HP',
-    apply:(p)=>{ p.moveMul *= 1.15; if(!p.dodgeLocked) p.dodge = (p.dodge||0) + 0.06; p.maxHpBonus -= 10; if(p.hp > p.maxHp) p.hp = p.maxHp; } },
+  coffeeMug:   { name:'Big Coffee Mug',   ico:'☕', cost:70,
+    desc:'+10% move · -15% current dodge, -10% current regen',
+    apply:(p)=>{ p.moveMul *= 1.1;
+      if(!p.dodgeLocked) p.dodge = (p.dodge||0) * 0.85;
+      p.regenBase = p.regenBase * 0.9; } },
+  gunpowder:   { name:'Gunpowder Can',    ico:'🧨', cost:95,
+    desc:'+15% damage, +6 ranged · -20% max HP',
+    apply:(p)=>{ p.dmgMul *= 1.15; p.rangedBonus = (p.rangedBonus||0) + 0.06;
+      p.maxHpBonus -= Math.ceil(p.maxHp * 0.2);
+      if(p.hp > p.maxHp) p.hp = p.maxHp; } },
+  bigBackpack: { name:'Canvas Backpack',  ico:'🎒', cost:110,
+    desc:'+10 ranged · -10% fire rate, -5% move',
+    apply:(p)=>{ p.rangedBonus = (p.rangedBonus||0) + 0.10; p.fireMul *= 1.1; p.moveMul *= 0.95; } },
+  batSpecimen: { name:'Bat Specimen',     ico:'🦇', cost:120,
+    desc:'+8% lifesteal · -8% dodge',
+    apply:(p)=>{ p.lifestealWeap = (p.lifestealWeap||0) + 0.08;
+      if(!p.dodgeLocked) p.dodge = (p.dodge||0) - 0.08; } },
 };
 const ITEM_IDS = Object.keys(ITEMS);
 
@@ -519,17 +527,63 @@ const WAVES = [
   ]},
 ];
 
-// Permanent perks offered on level up
-const PERKS = [
-  { name:'Vitality',     ico:'❤', apply:(p)=>{p.maxHpBonus+=15;p.hp+=15;}, desc:'+15 Max HP' },
-  { name:'Swift',        ico:'🏃', apply:(p)=>{p.moveMul*=1.08;}, desc:'+8% move speed' },
-  { name:'Deadly',       ico:'🎯', apply:(p)=>{p.dmgMul*=1.1;}, desc:'+10% damage' },
-  { name:'Trigger',      ico:'🔥', apply:(p)=>{p.fireMul*=0.92;}, desc:'+8% fire rate' },
-  { name:'Scope',        ico:'🔭', apply:(p)=>{p.rangeMul*=1.1;}, desc:'+10% range' },
-  { name:'Crit Mastery', ico:'⚡', apply:(p)=>{p.critChance+=0.05;p.critMul+=0.3;}, desc:'+5% crit, +30% crit dmg' },
-  { name:'Regen',        ico:'🩹', apply:(p)=>{p.regenBase+=0.5;}, desc:'+0.5 HP/s regen' },
-  { name:'Luck',         ico:'🍀', apply:(p)=>{p.luck+=0.1;}, desc:'+10% drop & crit chance' },
-];
+// Level-up upgrade pool. Each stat offers 4 rarity tiers (W/B/P/R)
+// with design-doc values. offerLevelUpChoices() picks 4 random
+// (stat, rarity) pairs biased by current wave.
+const PERK_STATS = {
+  maxHp:    { name:'Max HP',       ico:'❤', vals:[3, 6, 9, 15],
+    apply:(p,v)=>{ p.maxHpBonus += v; p.hp = Math.min(p.hp + v, p.maxHp); } },
+  armor:    { name:'Armor',        ico:'🛡', vals:[1, 2, 3, 5],
+    apply:(p,v)=>{ p.armor += v; } },
+  dodge:    { name:'Dodge',        ico:'🪄', vals:[0.02, 0.04, 0.06, 0.10],
+    apply:(p,v)=>{ if(!p.dodgeLocked) p.dodge = (p.dodge||0) + v; } },
+  regen:    { name:'Regen',        ico:'🩹', vals:[0.5, 1.0, 2.0, 4.5],
+    apply:(p,v)=>{ p.regenBase += v; } },
+  lifesteal:{ name:'Lifesteal',    ico:'🩸', vals:[0.02, 0.04, 0.06, 0.10],
+    apply:(p,v)=>{ p.lifestealWeap = (p.lifestealWeap||0) + v; } },
+  dmg:      { name:'Damage %',     ico:'🎯', vals:[0.05, 0.08, 0.12, 0.20],
+    apply:(p,v)=>{ p.dmgMul *= (1 + v); } },
+  fire:     { name:'Fire Rate',    ico:'🔥', vals:[0.05, 0.08, 0.12, 0.25],
+    apply:(p,v)=>{ p.fireMul *= (1 - v); } },
+  crit:     { name:'Crit',         ico:'⚡', vals:[0.03, 0.06, 0.09, 0.15],
+    apply:(p,v)=>{ p.critChance += v; } },
+  ranged:   { name:'Ranged Dmg',   ico:'🔫', vals:[0.01, 0.02, 0.04, 0.07],
+    apply:(p,v)=>{ p.rangedBonus = (p.rangedBonus||0) + v; } },
+  melee:    { name:'Melee Dmg',    ico:'🔪', vals:[0.01, 0.02, 0.04, 0.07],
+    apply:(p,v)=>{ p.meleeBonus = (p.meleeBonus||0) + v; } },
+  elem:     { name:'Elemental',    ico:'☣', vals:[2, 4, 6, 10],
+    apply:(p,v)=>{ p.elemDmg = (p.elemDmg||0) + v; } },
+  eng:      { name:'Engineering',  ico:'🔧', vals:[2, 4, 6, 10],
+    apply:(p,v)=>{ p.engineering = (p.engineering||0) + v; } },
+  range:    { name:'Range',        ico:'🔭', vals:[15, 30, 50, 100],
+    apply:(p,v)=>{ p.rangeMul += v / 200; } },
+  move:     { name:'Move Speed',   ico:'🏃', vals:[0.03, 0.05, 0.08, 0.12],
+    apply:(p,v)=>{ p.moveMul *= (1 + v); } },
+  luck:     { name:'Luck',         ico:'🍀', vals:[0.05, 0.10, 0.18, 0.35],
+    apply:(p,v)=>{ p.luck += v; } },
+  harvest:  { name:'Harvest',      ico:'💰', vals:[5, 8, 12, 20],
+    apply:(p,v)=>{ p.harvest = (p.harvest||0) + v; } },
+};
+const PERK_IDS = Object.keys(PERK_STATS);
+function rollPerkRarity(){
+  const w = state.wave || 1;
+  const luck = state.player ? state.player.luck : 0;
+  const r = Math.random() + luck * 0.5;
+  // Early waves rarely roll purple/red; later waves bias higher
+  if(w <= 4) return r > 0.9 ? 1 : 0;
+  if(w <= 9) return r > 1.6 ? 2 : (r > 0.6 ? 1 : 0);
+  if(w <= 15){
+    if(r > 2.5) return 3;
+    if(r > 1.3) return 2;
+    if(r > 0.4) return 1;
+    return 0;
+  }
+  if(r > 2.1) return 3;
+  if(r > 1.1) return 2;
+  if(r > 0.3) return 1;
+  return 0;
+}
+const RARITY_HEX = ['#e2e8f0', '#38bdf8', '#a855f7', '#f87171'];
 
 // ─── Game state ──────────────────────────────────────────────
 const C = document.getElementById('c'), ctx = C.getContext('2d');
@@ -562,6 +616,8 @@ let state = {
   spawned: [],   // which script directives already ticked (keyed by index)
   spawnTimers: [],
   shop: { cards:[], locked:[false,false,false,false], refreshed:0 },
+  itemBoughtCount: {}, // per-id purchase tally for monopoly tax
+  waveCoinsEarned: 0,  // this-wave coin pickup running total
   tagCounts: {},
   tagMultipliers: {},
   rackSel: -1,
@@ -834,6 +890,7 @@ function nextWave(){
   state.waveTime = 0;
   state.spawned = [];
   state.spawnTimers = [];
+  state.waveCoinsEarned = 0;
   state.phase = 'battle';
   state.enemies = [];
   state.bullets = [];
@@ -1926,8 +1983,13 @@ function stepBattle(dt){
     const d = Math.hypot(p.x - pd.x, p.y - pd.y);
     if(d < pd.r){
       if(pd.slow) state.playerSlow = Math.min(state.playerSlow, pd.slow);
-      // Toxinsac death puddle: true damage, bypasses player armor
-      if(pd.dmg) p.hp -= pd.dmg * dt;
+      // Toxinsac death puddle: true damage, bypasses player armor.
+      // Design-doc: base dmg + 5% of player's MAX HP every tick — the
+      // "giant Glutton walks through poison" clamp.
+      if(pd.dmg){
+        const bonus = pd.maxHpPct ? (p.maxHp * pd.maxHpPct) : 0;
+        p.hp -= (pd.dmg + bonus) * dt;
+      }
       // Hive goo: reset movement to 1.0 and -30% dodge for 4s (one-shot)
       if(pd.resetMove && !pd.applied){
         pd.applied = true;
@@ -1965,9 +2027,11 @@ function stepBattle(dt){
   // Kill enemies with hp<=0 → drop crystal
   const alive = [];
   const hasDriverSpread = state.weapons.some(w => w.id === 'rustyDriver' && w.rarity >= 2);
+  let eliteDied = false;
   for(const e of state.enemies){
     if(e.hp <= 0){
       const E = ENEMY[e.type];
+      if(E.elite) eliteDied = true;
       const coinBonus = Math.floor((p.harvest||0) / 5);
       state.crystals.push({ x: e.x, y: e.y, xp: E.xp, coin: E.coin + coinBonus, life: 30, spin: Math.random()*Math.PI*2 });
       spawnParticles(e.x, e.y, E.color, 12, 4);
@@ -1977,9 +2041,9 @@ function stepBattle(dt){
           state.clouds.push({ x: e.x+(Math.random()-0.5)*30, y: e.y+(Math.random()-0.5)*30, r: 36, life: 4 });
         }
       }
-      // Toxin Sac leaves a poison puddle on death
+      // Toxin Sac leaves a poison puddle on death (true dmg + 5% max HP/sec)
       if(E.deathPuddle){
-        state.puddles.push({ x:e.x, y:e.y, r:36, life:3, dmg:5, color:'#15803d' });
+        state.puddles.push({ x:e.x, y:e.y, r:48, life:3, dmg:5, maxHpPct:0.05, color:'#15803d' });
       }
       // Rusty Driver spread-on-death — RED tier (chainPoison) picks the
       // nearest N within radius and 100% copies the poison stack.
@@ -2001,6 +2065,19 @@ function stepBattle(dt){
   }
   state.enemies = alive;
 
+  // Elite boss death on waves 10/15/20 instantly ends the wave — no
+  // sitting around waiting for the countdown with trash cleared.
+  if(eliteDied && (state.wave === 10 || state.wave === 15 || state.wave === 20)){
+    const anyEliteLeft = state.enemies.some(x => ENEMY[x.type].elite);
+    if(!anyEliteLeft){
+      state.enemies = [];
+      state.enemyBullets = [];
+      toast('ELITE DOWN — wave cleared!');
+      endWave();
+      return;
+    }
+  }
+
   // Crystals
   for(const c of state.crystals){
     c.life -= dt; c.spin += dt*2;
@@ -2011,7 +2088,13 @@ function stepBattle(dt){
     }
     if(d < 10){
       p.xp += c.xp;
-      p.coins += c.coin;
+      // Per-wave coin cap for waves 1-4 (穷人经济学). Once hit, only XP is granted.
+      const CAP = {1:25, 2:35, 3:45, 4:55}[state.wave];
+      if(CAP === undefined || state.waveCoinsEarned < CAP){
+        const give = CAP === undefined ? c.coin : Math.min(c.coin, CAP - state.waveCoinsEarned);
+        p.coins += give;
+        state.waveCoinsEarned += give;
+      }
       c.life = -1;
       while(p.xp >= p.xpNext){
         p.xp -= p.xpNext;
@@ -2093,13 +2176,21 @@ function openLevelUp(){
   state.phase = 'levelup';
   const el = document.getElementById('levelPicks');
   el.innerHTML = '';
-  const pool = PERKS.slice().sort(()=>Math.random()-0.5).slice(0,4);
-  for(const perk of pool){
+  // Pick 4 distinct stats, each at an independent rarity roll.
+  const picks = PERK_IDS.slice().sort(()=>Math.random()-0.5).slice(0,4)
+    .map(id => ({ id, rarity: rollPerkRarity() }));
+  for(const { id, rarity } of picks){
+    const stat = PERK_STATS[id];
+    const v = stat.vals[rarity];
     const c = document.createElement('button');
-    c.className = 'card';
-    c.innerHTML = `<div class="ico">${perk.ico}</div><div class="nm">${perk.name}</div><div class="dc">${perk.desc}</div>`;
+    c.className = 'card r' + rarity;
+    const vLabel = (v < 1 && v > 0) ? ('+' + Math.round(v * 100) + '%') : ('+' + v);
+    c.innerHTML = `<div class="ico" style="color:${RARITY_HEX[rarity]}">${stat.ico}</div>
+      <div class="nm">${stat.name}</div>
+      <div class="dc" style="color:${RARITY_HEX[rarity]}">${RARITY_NAMES[rarity]}</div>
+      <div class="dc" style="font-size:14px;color:#fde047">${vLabel}</div>`;
     c.onclick = () => {
-      perk.apply(state.player);
+      stat.apply(state.player, v);
       state.levelsPending--;
       updateTopHUD();
       renderSlots();
@@ -2127,28 +2218,49 @@ function priceFor(base){
   return Math.ceil(base * waveFactor() * inflateBase * miserBase * miserExtra);
 }
 
+// Wave-gated rarity cap:
+//   1-4   → white only
+//   5-9   → up to blue (60% blue bias)
+//   10-15 → up to purple, red at 1%
+//   16-20 → up to red at 8% (hard cap 15%)
+function rollWeaponRarity(wave, luck){
+  if(wave <= 4) return 0;
+  if(wave <= 9){
+    return Math.random() < 0.6 ? 1 : 0;
+  }
+  if(wave <= 15){
+    const redP = Math.min(0.015, 0.01 + luck * 0.01);
+    const r = Math.random();
+    if(r < redP) return 3;
+    if(r < redP + 0.25) return 2;
+    if(r < redP + 0.65) return 1;
+    return 0;
+  }
+  // Wave 16+
+  const redP = Math.max(0, Math.min(0.15, 0.08 + luck * 0.05));
+  const r = Math.random();
+  if(r < redP) return 3;
+  if(r < redP + 0.3) return 2;
+  if(r < redP + 0.7) return 1;
+  return 0;
+}
+
 function rollShopCard(){
-  const luck = state.player ? state.player.luck : 0;
-  // 60% weapon, 40% item
+  const p = state.player;
+  const luck = p ? p.luck : 0;
+  const wave = state.wave || 1;
+  // Luck penalty tiers (clamp down after rarity roll)
+  const luckRarityCap = (luck < -0.4) ? 0 : (luck < -0.2) ? 1 : (luck < 0) ? 2 : 3;
   if(Math.random() < 0.6){
     const id = WEAPON_IDS[Math.floor(Math.random()*WEAPON_IDS.length)];
-    // Rarity bias by wave
-    const roll = Math.random() + state.wave * 0.03 + luck;
-    let rarity = 0;
-    if(roll > 2.3) rarity = 3;
-    else if(roll > 1.5) rarity = 2;
-    else if(roll > 0.75) rarity = 1;
-    // Luck penalty tiers (气运剥夺三连灾难):
-    //   < 0   → no reds in shop
-    //   < -0.2 → no purples either
-    //   < -0.4 → only whites
-    if(luck < -0.4) rarity = 0;
-    else if(luck < -0.2) rarity = Math.min(rarity, 1);
-    else if(luck < 0) rarity = Math.min(rarity, 2);
-    return { kind:'weapon', id, rarity, cost: priceFor(WEAPON_PRICES[id][rarity]) };
+    let rarity = Math.min(luckRarityCap, rollWeaponRarity(wave, luck));
+    return { kind:'weapon', id, rarity, baseCost: WEAPON_PRICES[id][rarity], cost: priceFor(WEAPON_PRICES[id][rarity]) };
   } else {
     const id = ITEM_IDS[Math.floor(Math.random()*ITEM_IDS.length)];
-    return { kind:'item', id, cost: priceFor(ITEMS[id].cost) };
+    // Monopoly tax: each prior purchase of this item makes it 50% more expensive
+    const bought = (state.itemBoughtCount && state.itemBoughtCount[id]) || 0;
+    const base = ITEMS[id].cost * Math.pow(1.5, bought);
+    return { kind:'item', id, baseCost: base, cost: priceFor(base) };
   }
 }
 
@@ -2160,7 +2272,14 @@ function openShop(){
     state.shop.cards = [rollShopCard(), rollShopCard(), rollShopCard(), rollShopCard()];
     state.shop.locked = [false, false, false, false];
   } else {
-    for(let i=0;i<4;i++) if(!state.shop.locked[i]) state.shop.cards[i] = rollShopCard();
+    for(let i=0;i<4;i++){
+      if(!state.shop.locked[i]) state.shop.cards[i] = rollShopCard();
+      else {
+        // Locked card: re-apply current-wave markup to its stored baseCost
+        const lc = state.shop.cards[i];
+        if(lc && lc.baseCost !== undefined) lc.cost = priceFor(lc.baseCost);
+      }
+    }
   }
   state.shop.refreshed = 0;
   state.rackSel = -1;
@@ -2270,6 +2389,9 @@ function buyCard(i){
     state.player.coins -= c.cost;
     ITEMS[c.id].apply(state.player);
     state.items.push(c.id);
+    // Monopoly tax — next time this id (or anything priced via its id)
+    // rolls, cost scales up 50% per prior purchase.
+    state.itemBoughtCount[c.id] = (state.itemBoughtCount[c.id] || 0) + 1;
     c.sold = true;
     toast(`+ ${ITEMS[c.id].name}`);
   }
