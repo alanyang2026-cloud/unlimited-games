@@ -31,6 +31,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rend
   <div class="hud">
     <div class="stat">◆ <span id="coinTxt">00</span></div>
     <div class="stat">LIFE <span id="lifeTxt">♥♥♥</span></div>
+    <div class="stat" id="poundStat" style="display:none">📜 <span id="poundTxt">0</span>s</div>
     <div class="stat">TIME <span id="timeTxt">400</span></div>
   </div>
 
@@ -678,10 +679,12 @@ function resetState(){
       crouching: false,
       pounding: false,
       poundCool: 0,
+      poundTime: 0,  // seconds remaining of ground-pound ability (from scrolls)
     },
     enemies: [],
-    efire: [],   // enemy fireballs
-    pounds: [],  // ground-pound shockwaves
+    efire: [],    // enemy fireballs
+    pounds: [],   // ground-pound shockwaves
+    pickups: [],  // scroll pickups spawned from "?" blocks
     particles: [],
     coins: 0,
     lives: 3,
@@ -762,6 +765,7 @@ function isSolid(ch){
 // stomped). 60-frame cooldown prevents spam.
 function tryPound(){
   const p = state.player;
+  if(p.poundTime <= 0) return;         // Needs an active scroll
   if(p.onGround || p.pounding || p.poundCool > 0) return;
   p.pounding = true;
   p.vy = 9;
@@ -833,6 +837,26 @@ function step(){
   moveCollide(p, p.vx, 0);
   moveCollide(p, 0, p.vy);
 
+  // Scroll pickups — drift up, then fall. Collect on touch.
+  for(const pk of state.pickups){
+    pk.vy += GRAV * 0.4;
+    if(pk.vy > 3) pk.vy = 3;
+    pk.y += pk.vy;
+    // Rest on nearest ground tile
+    if(isSolid(tileAt(pk.x + 6, pk.y + 10))){ pk.y = Math.floor((pk.y+10)/TILE)*TILE - 10; pk.vy = 0; }
+    if(hitRect(pk.x, pk.y, 12, 10, p.x, p.y, p.w, p.h + (p.big?8:0))){
+      pk.gotten = true;
+      p.poundTime = 10;  // 10 seconds of ground-pound ability
+      spawnP(pk.x+4, pk.y, '#ec4899');
+    }
+  }
+  state.pickups = state.pickups.filter(pk => !pk.gotten);
+
+  // Pound-ability timer tick (seconds), based on 50-step loop
+  if(p.poundTime > 0){
+    p.poundTime -= 1/50;
+    if(p.poundTime < 0) p.poundTime = 0;
+  }
   // Pound cooldown + landing shockwave
   if(p.poundCool > 0) p.poundCool--;
   if(p.pounding && p.onGround){
@@ -1040,13 +1064,18 @@ function bumpBlock(col, row){
   const b = state.blocks[key];
   if(ch === 'Q' && b && !b.used){
     b.used = true; b.bump = 8;
-    state.coins++;
-    spawnP(col*TILE+8, row*TILE, '#fcd34d');
+    // Random 1-8 coins
+    const n = 1 + Math.floor(Math.random() * 8);
+    state.coins += n;
+    for(let i = 0; i < Math.min(n, 6); i++) spawnP(col*TILE+8, row*TILE, '#fcd34d');
   } else if(ch === '?' && b && !b.used){
     b.used = true; b.bump = 8;
-    // Was shuriken ammo — now just gives bonus coins
-    state.coins += 3;
-    spawnP(col*TILE+8, row*TILE, '#fde047');
+    // Spawn a scroll pickup that drifts up out of the block
+    state.pickups.push({
+      x: col*TILE + 4, y: row*TILE - 2,
+      vy: -1.5, kind: 'scroll',
+    });
+    spawnP(col*TILE+8, row*TILE, '#ec4899');
   } else if(ch === 'S' && b && !b.used){
     b.used = true; b.bump = 8;
     state.player.big = true;
@@ -1112,6 +1141,14 @@ function updateHUD(){
   document.getElementById('coinTxt').textContent = String(state.coins).padStart(2,'0');
   document.getElementById('lifeTxt').textContent = '♥'.repeat(Math.max(0, state.lives));
   document.getElementById('timeTxt').textContent = state.timeLeft;
+  const pt = state.player.poundTime;
+  const poundStat = document.getElementById('poundStat');
+  if(pt > 0){
+    poundStat.style.display = '';
+    document.getElementById('poundTxt').textContent = Math.ceil(pt);
+  } else {
+    poundStat.style.display = 'none';
+  }
 }
 
 // ─── Draw ────────────────────────────────────────────────────
@@ -1180,6 +1217,11 @@ function draw(){
     ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#f87171'; ctx.fillRect(f.x-1, f.y-1, 2, 2);
     ctx.fillStyle = '#fcd34d';
+  }
+
+  // Scroll pickups
+  for(const pk of state.pickups){
+    drawSpr(Math.floor(pk.x) - 2, Math.floor(pk.y) - 4, S_SCROLL);
   }
 
   // Ground-pound shockwaves — curved arcs rolling out along the floor
