@@ -1,0 +1,1243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Ninja Hop</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden;background:#000;font-family:'Press Start 2P','Courier New',monospace;color:#fff;user-select:none}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center}
+.hbtn{position:fixed;top:10px;left:10px;z-index:200;background:rgba(0,0,0,.75);color:#fde047;text-decoration:none;padding:6px 14px;border-radius:4px;font-size:12px;border:2px solid #fde047;letter-spacing:.1em;font-family:inherit}
+.hbtn:hover{background:#fde047;color:#000}
+#stage{position:relative;width:800px;height:600px;max-width:100vw;max-height:100vh;background:#000}
+canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rendering:crisp-edges}
+.hud{position:absolute;top:0;left:0;right:0;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#fff;letter-spacing:.1em;pointer-events:none;text-shadow:2px 2px 0 #000}
+.hud .stat{background:rgba(0,0,0,.4);padding:4px 10px;border:1px solid rgba(255,255,255,.2)}
+.ov{position:absolute;inset:0;background:rgba(0,0,0,.9);display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:50}
+.ov.show{display:flex}
+.ov h2{font-size:24px;color:#fde047;letter-spacing:.15em;text-shadow:3px 3px 0 #991b1b}
+.ov p{color:#fff;font-size:12px;text-align:center;line-height:1.8;letter-spacing:.1em;max-width:520px}
+.btn{background:#dc2626;color:#fff;border:3px solid #fde047;padding:12px 28px;font-weight:900;cursor:pointer;font-size:14px;font-family:inherit;letter-spacing:.15em;text-transform:uppercase;transition:.1s}
+.btn:hover{background:#ef4444;transform:translate(-1px,-1px);box-shadow:3px 3px 0 #991b1b}
+.btn:active{transform:translate(0,0)}
+.hint{font-size:10px;color:#94a3b8;letter-spacing:.1em;margin-top:8px}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← GAMES</a>
+<div id="stage">
+  <canvas id="c" width="400" height="300"></canvas>
+  <div class="hud">
+    <div class="stat">◆ <span id="coinTxt">00</span></div>
+    <div class="stat">LIFE <span id="lifeTxt">♥♥♥</span></div>
+    <div class="stat">★ <span id="shuriTxt">0</span></div>
+    <div class="stat">TIME <span id="timeTxt">400</span></div>
+  </div>
+
+  <div class="ov show" id="startOv">
+    <h2>🥷 NINJA HOP</h2>
+    <p>Classic 8-bit side-scroller.<br>Stomp foes, grab scrolls to throw shuriken,<br>reach the pagoda flag.</p>
+    <p class="hint">← → MOVE · Z/SPACE JUMP · X/CTRL SHURIKEN<br>HOLD JUMP = JUMP HIGHER · WALL-SLIDE JUMP</p>
+    <button class="btn" onclick="startGame()">PRESS START</button>
+  </div>
+
+  <div class="ov" id="dieOv">
+    <h2>💀 GAME OVER</h2>
+    <p id="dieMsg">The shadow swallowed you.</p>
+    <button class="btn" onclick="startGame()">RETRY</button>
+  </div>
+
+  <div class="ov" id="winOv">
+    <h2>🏯 PAGODA CLEARED</h2>
+    <p id="winMsg">You reached the top of the tower!</p>
+    <button class="btn" onclick="startGame()">PLAY AGAIN</button>
+  </div>
+</div>
+
+<script src="_esc-back.js"></script>
+<script>
+'use strict';
+
+// ─── Canvas / render ─────────────────────────────────────────
+const C = document.getElementById('c'), ctx = C.getContext('2d');
+ctx.imageSmoothingEnabled = false;
+const W = 400, H = 300;
+
+// ─── Palette & sprite system ─────────────────────────────────
+// Classic 8-bit limited palette inspired by the NES color set.
+// Each sprite uses up to 4 colors; '.' = transparent.
+const PAL = {
+  black: '#0a0a0a', white: '#f8f8f8', dkblue: '#1e3a8a',
+  skyBlue: '#5b94ff', grey: '#7a7a7a', dkgrey: '#404040',
+  skinPink: '#f8c99f', red: '#d82b00', dkRed: '#881400',
+  green: '#55a832', dkGreen: '#2d6616', brown: '#8b5a2b', dkBrown: '#5c3a1a',
+  yellow: '#fcd34d', gold: '#f59e0b', purple: '#8b5cf6',
+  gorilla: '#4b2e0f', beige: '#e5c89a',
+};
+
+// Sprite = { w, h, palette (array indexed from 1), rows (strings) }
+// Chars '0' = transparent (equivalent to '.'); '1'..'f' = palette index-1
+function spr(palette, rows){
+  return { w: rows[0].length, h: rows.length, palette, rows };
+}
+function drawSpr(x, y, s, flip){
+  const pal = s.palette;
+  for(let r = 0; r < s.h; r++){
+    const row = s.rows[r];
+    for(let c = 0; c < s.w; c++){
+      const ch = row[c];
+      if(ch === '.' || ch === '0') continue;
+      const idx = parseInt(ch, 16) - 1;
+      const col = pal[idx];
+      if(!col) continue;
+      const px = flip ? x + (s.w - 1 - c) : x + c;
+      ctx.fillStyle = col;
+      ctx.fillRect(px, y + r, 1, 1);
+    }
+  }
+}
+
+// ─── SPRITES (all original 16×16 pixel art) ──────────────────
+
+// Ninja - idle. Colors: 1 dark blue, 2 light skin, 3 black, 4 white
+const S_NINJA_IDLE = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.white],
+  [
+    '................',
+    '....33333.......',
+    '...3111113......',
+    '..311111113.....',
+    '..31144411 3....',
+    '..3144244413....',
+    '...31444413.....',
+    '..3133333333....',
+    '..1111111111....',
+    '..1111111111....',
+    '..3113113113....',
+    '..31131131130...',
+    '....11..11......',
+    '....11..11......',
+    '...311.1113.....',
+    '..3333.3333.....',
+  ]
+);
+// Ninja - run frame A
+const S_NINJA_RUN1 = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.white],
+  [
+    '................',
+    '....33333.......',
+    '...3111113......',
+    '..311111113.....',
+    '..31144411 3....',
+    '..3144244413....',
+    '...31444413.....',
+    '...33333333.....',
+    '..1113111113....',
+    '..111.11.111....',
+    '..11..31.11.....',
+    '..11..31.1......',
+    '...3..31.3......',
+    '...1..13.1......',
+    '..31..13..3.....',
+    '.3333.33.333....',
+  ]
+);
+// Ninja - run frame B
+const S_NINJA_RUN2 = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.white],
+  [
+    '................',
+    '....33333.......',
+    '...3111113......',
+    '..311111113.....',
+    '..31144411 3....',
+    '..3144244413....',
+    '...31444413.....',
+    '...33333333.....',
+    '..3111111113....',
+    '..1111111111....',
+    '...31131113.....',
+    '....111111......',
+    '....1.3.1.......',
+    '....1.3.1.......',
+    '....3.3.3.......',
+    '...333.333......',
+  ]
+);
+// Ninja - jump
+const S_NINJA_JUMP = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.white],
+  [
+    '................',
+    '....33333.......',
+    '...3111113......',
+    '..311111113.....',
+    '..31144411 3....',
+    '..3144244413....',
+    '...31444413.....',
+    '.3333333333.....',
+    '.1111111111.....',
+    '.111113111113...',
+    '..1113111111....',
+    '..3113..1113....',
+    '..1.1.....3.....',
+    '..3.1.....1.....',
+    '....3.....1.....',
+    '...33....33.....',
+  ]
+);
+// Ninja - crouch
+const S_NINJA_CROUCH = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.white],
+  [
+    '................',
+    '................',
+    '................',
+    '....33333.......',
+    '...3111113......',
+    '..311111113.....',
+    '..31144411 3....',
+    '..3144244413....',
+    '...3133333......',
+    '..1113111113....',
+    '..11131111111...',
+    '..3133113113....',
+    '..311..11.1.....',
+    '..13...13.3.....',
+    '.333....33......',
+    '.33.....33......',
+  ]
+);
+// Ninja - big (after dango power-up)
+const S_NINJA_BIG = spr(
+  [PAL.dkblue, PAL.skinPink, PAL.black, PAL.red],
+  [
+    '....4444........',
+    '...444444.......',
+    '...3333333......',
+    '..3111111113....',
+    '..31144411 13...',
+    '..31442442413...',
+    '..3114442411....',
+    '..3133333333....',
+    '..1111111111....',
+    '..1111111111....',
+    '..3113113113....',
+    '..31131131130...',
+    '....11..11......',
+    '....11..11......',
+    '...311.1113.....',
+    '..3333.3333.....',
+  ]
+);
+
+// Shuriken
+const S_SHURI = spr(
+  [PAL.dkgrey, PAL.grey, PAL.white],
+  [
+    '....3....',
+    '.3..3..3.',
+    '.33.3.33.',
+    '..331333.',
+    '3333131333',
+    '.3313133.',
+    '.33.3.33.',
+    '.3..3..3.',
+    '....3....',
+  ]
+);
+
+// Mushi Grub (replaces Goomba) — small larva creature
+const S_MUSHI1 = spr(
+  [PAL.dkBrown, PAL.brown, PAL.black, PAL.white, PAL.red],
+  [
+    '................',
+    '................',
+    '................',
+    '....333333......',
+    '...31111113.....',
+    '..3111111113....',
+    '..3141141113....',
+    '..3141141113....',
+    '..3131313113....',
+    '..3313331313....',
+    '..3331333313....',
+    '.33.3333333.33..',
+    '3...333333....3.',
+    '................',
+    '................',
+    '................',
+  ]
+);
+// Mushi flattened (stomped)
+const S_MUSHI_SQUASH = spr(
+  [PAL.dkBrown, PAL.brown, PAL.black, PAL.white],
+  [
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '................',
+    '....33333333....',
+    '..3311111111133.',
+    '.3331411141133..',
+    '.3331311131133..',
+    '.333333333333...',
+  ]
+);
+
+// Oni Mask — bouncing red demon face
+const S_ONI = spr(
+  [PAL.red, PAL.dkRed, PAL.black, PAL.white, PAL.yellow],
+  [
+    '................',
+    '..5...5....5...5',
+    '..5.333333.5....',
+    '.3321122113.....',
+    '.3211111112.....',
+    '.3211131112.....',
+    '.3211431123.....',
+    '.3211111113.....',
+    '.3133333133.....',
+    '.3131331133.....',
+    '..3113311.3.....',
+    '...333333.......',
+    '....3.3.3.......',
+    '................',
+    '................',
+    '................',
+  ]
+);
+
+// Spike Turtle — can't stomp, must shuriken
+const S_SPIKE = spr(
+  [PAL.dkGreen, PAL.green, PAL.black, PAL.yellow, PAL.white],
+  [
+    '................',
+    '....3..3..3.....',
+    '...33.33.33.....',
+    '..33132131133...',
+    '..3121112113....',
+    '..3111111113....',
+    '..3141441413....',
+    '..3141441413....',
+    '..3111111113....',
+    '..3331133313....',
+    '...3..33..3.....',
+    '....3.33.3......',
+    '....3.33.3......',
+    '...333.333......',
+    '................',
+    '................',
+  ]
+);
+
+// Fire Lantern — hangs from ceiling, drops fireballs
+const S_LANTERN = spr(
+  [PAL.dkRed, PAL.red, PAL.black, PAL.yellow, PAL.white],
+  [
+    '......333.......',
+    '......3.3.......',
+    '......3.3.......',
+    '.....33333......',
+    '....3222223.....',
+    '...322232232....',
+    '...321111123....',
+    '...321424123....',
+    '...321444123....',
+    '...321424123....',
+    '...321111123....',
+    '...322222223....',
+    '....3222223.....',
+    '.....33333......',
+    '......4.4.......',
+    '......545.......',
+  ]
+);
+
+// Shadow Ninja — enemy mini-ninja
+const S_SHADOW = spr(
+  [PAL.dkgrey, PAL.black, PAL.red, PAL.white],
+  [
+    '................',
+    '....22222.......',
+    '...2111112......',
+    '..211313112.....',
+    '..213444312.....',
+    '..211313112.....',
+    '...2111112......',
+    '...22222222.....',
+    '..1111111111....',
+    '..1111111111....',
+    '..2112112112....',
+    '..21121121120...',
+    '....11..11......',
+    '....11..11......',
+    '...211.1112.....',
+    '..2222.2222.....',
+  ]
+);
+
+// Scroll power-up — gives shuriken ammo
+const S_SCROLL = spr(
+  [PAL.brown, PAL.beige, PAL.red, PAL.black],
+  [
+    '................',
+    '....4444444.....',
+    '...422222224....',
+    '..42224222424...',
+    '..4232232234....',
+    '..4222322224....',
+    '..4233223334....',
+    '..4222322224....',
+    '..4223233224....',
+    '..4222222224....',
+    '...42222224.....',
+    '....4444444.....',
+    '................',
+    '................',
+    '................',
+    '................',
+  ]
+);
+
+// Dango power-up — makes you big
+const S_DANGO = spr(
+  [PAL.red, PAL.yellow, PAL.green, PAL.black, PAL.white],
+  [
+    '................',
+    '......11555.....',
+    '....4111115.....',
+    '....11151411....',
+    '....41111154...4',
+    '.....115141.4...',
+    '.......4..4.....',
+    '.....22522......',
+    '....4222225.....',
+    '....22251422....',
+    '....42222224...4',
+    '.....225222.4...',
+    '......4..4......',
+    '....33533.......',
+    '...3333335......',
+    '...43333344.....',
+  ]
+);
+
+// Coin — rotating gold piece
+const S_COIN1 = spr(
+  [PAL.gold, PAL.yellow, PAL.white, PAL.black],
+  [
+    '.....4444...',
+    '....413214..',
+    '...4131114..',
+    '...4131114..',
+    '...4131114..',
+    '...4131114..',
+    '....413214..',
+    '.....4444...',
+  ]
+);
+const S_COIN2 = spr(
+  [PAL.gold, PAL.yellow, PAL.white, PAL.black],
+  [
+    '.....44.....',
+    '....4234....',
+    '...41334....',
+    '...41334....',
+    '...41334....',
+    '...41334....',
+    '....4234....',
+    '.....44.....',
+  ]
+);
+
+// Bamboo stalk (looks like pipe, but it's bamboo — original)
+const S_BAMBOO_TOP = spr(
+  [PAL.dkGreen, PAL.green, PAL.yellow, PAL.black],
+  [
+    '4444444444444444',
+    '4222222222222224',
+    '4232222222222324',
+    '4232133333331324',
+    '4222333333332224',
+    '4222333333332224',
+    '4232133333331324',
+    '4232222222222324',
+    '4222222222222224',
+    '42132222222213234',
+    '4222222222222224',
+    '4222222222222224',
+    '4222222222222224',
+    '4222222222222224',
+    '4232222222222324',
+    '4444444444444444',
+  ]
+);
+const S_BAMBOO_BODY = spr(
+  [PAL.dkGreen, PAL.green, PAL.black, PAL.yellow],
+  [
+    '4111111111111114',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4211111111111124',
+    '4444444444444444',
+  ]
+);
+
+// Flag/pagoda goal
+const S_PAGODA = spr(
+  [PAL.red, PAL.dkRed, PAL.gold, PAL.black, PAL.white],
+  [
+    '....3....3.....',
+    '....3....3.....',
+    '....3....3.....',
+    '....3....3.....',
+    '....3333333....',
+    '...311111113...',
+    '..3133333331...',
+    '..3331113333...',
+    '...31111113....',
+    '....3333333....',
+    '....3222223....',
+    '....3111123....',
+    '....3222223....',
+    '....3333333....',
+    '....3444443....',
+    '....3555553....',
+  ]
+);
+
+// Brick block
+const S_BRICK = spr(
+  [PAL.dkRed, PAL.red, PAL.black],
+  [
+    '2222232222222232',
+    '2122212222222212',
+    '2111112222222112',
+    '2111113333333113',
+    '2222233222222232',
+    '2222232222222232',
+    '2222232122222212',
+    '2222231111111113',
+    '2222232222222232',
+    '2222232222222232',
+    '2122212222222222',
+    '2111112222222122',
+    '2111113333333113',
+    '2222232222222232',
+    '2222232222222232',
+    '3333333333333333',
+  ]
+);
+
+// Question block
+const S_QBLOCK = spr(
+  [PAL.yellow, PAL.gold, PAL.black, PAL.white],
+  [
+    '3333333333333333',
+    '3222222222222223',
+    '3214111111111123',
+    '3214111133331123',
+    '3214111322221123',
+    '3214122222311423',
+    '3214222311114423',
+    '3214222311114423',
+    '3214222311114423',
+    '3214411131114423',
+    '3214411131114423',
+    '3214444311114423',
+    '3214444311114423',
+    '3214411131114423',
+    '3222222222222223',
+    '3333333333333333',
+  ]
+);
+// Used question block
+const S_QBLOCK_USED = spr(
+  [PAL.dkBrown, PAL.brown, PAL.black],
+  [
+    '3333333333333333',
+    '3222222222222223',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3211111111111123',
+    '3222222222222223',
+    '3333333333333333',
+  ]
+);
+
+// Ground block (stone)
+const S_GROUND = spr(
+  [PAL.dkBrown, PAL.brown, PAL.black, PAL.yellow],
+  [
+    '2222222222222222',
+    '2111121111111112',
+    '2111121111111112',
+    '2111111111141112',
+    '2111112222111112',
+    '2112111121112232',
+    '2232222131111112',
+    '2111111113111112',
+    '2111111112111112',
+    '2111121122111112',
+    '2111121111121132',
+    '2111121113121112',
+    '2113221111121112',
+    '2111121111121112',
+    '2111121111121112',
+    '2222222222222222',
+  ]
+);
+
+// ─── Level data (hand-authored) ──────────────────────────────
+// Each tile is 16px. Level is a strip of blocks.
+const TILE = 16;
+const GRAV = 0.5, MAX_FALL = 7, RUN_SPEED = 2.0, RUN_ACCEL = 0.3, FRICTION = 0.2;
+const JUMP_V = -8.2, JUMP_HOLD = -0.35, JUMP_HOLD_FRAMES = 10;
+const WALL_SLIDE = 1.5, WALL_JUMP_V = -7, WALL_JUMP_H = 3.5;
+const COYOTE = 6, JUMP_BUF = 6, SHURI_SPEED = 4.5;
+
+// Legend:
+// G=ground, B=brick, Q=qblock(coin), ?=qblock(scroll), S=qblock(dango),
+// P=bamboo top, p=bamboo body, F=flag goal
+const LEVEL_MAP = [
+  // 15 rows tall. Length ~90 tiles wide.
+  '                                                                                              ',
+  '                                                                                              ',
+  '                                                                                              ',
+  '                                                                                              ',
+  '                      BBBB  ?B                              B    S    B                       ',
+  '                                                                                              ',
+  '                                                                                              ',
+  '                  BQB                   B?B                                                   ',
+  '                                                                                              ',
+  '                                 P                           BBBB                             ',
+  '                                 p                       P                                    ',
+  '                         G       p             P        pp                           P        ',
+  '                      P  G       p       GGG   p     G  pp         GGG     GGGGGGG   pp       ',
+  'GGGGGGGGGGG    GGGGGGpGGGG   GGGGpGGGG  GGGGGGGpGGGGGGGGppGGGG   GGGGGGGGGGGGGGGGGGGGppGGGGFGGG',
+  'GGGGGGGGGGG    GGGGGGpGGGGGGGGGGGpGGGGGGGGGGGGGpGGGGGGGGppGGGGGGGGGGGGGGGGGGGGGGGGGGGppGGGGGGGG',
+];
+const LVL_H = LEVEL_MAP.length;
+const LVL_W = Math.max(...LEVEL_MAP.map(r=>r.length));
+
+// Enemy placements — hand-tuned on the level
+const ENEMY_PLACE = [
+  { type:'mushi', col:18, row:12 },
+  { type:'mushi', col:28, row:12 },
+  { type:'oni',   col:36, row:11 },
+  { type:'mushi', col:42, row:10 },
+  { type:'mushi', col:50, row:12 },
+  { type:'spike', col:55, row:12 },
+  { type:'lantern', col:60, row:4 },
+  { type:'mushi', col:66, row:12 },
+  { type:'shadow',col:72, row:12 },
+  { type:'spike', col:80, row:12 },
+];
+
+// ─── Game state ──────────────────────────────────────────────
+let state;
+function resetState(){
+  state = {
+    phase: 'play',
+    cameraX: 0,
+    player: {
+      x: 32, y: 180,
+      vx: 0, vy: 0,
+      w: 10, h: 14,
+      facing: 1,
+      onGround: false,
+      coyote: 0, jumpBuf: 0, jumpHold: 0,
+      wallSide: 0,  // -1 left wall, 1 right wall, 0 none
+      state: 'idle', // idle/run/jump/crouch/hurt
+      big: false,
+      invuln: 0,
+      runFrame: 0,
+      crouching: false,
+      shuriAmmo: 0,
+      shuriCool: 0,
+    },
+    enemies: [],
+    shuri: [],   // player's projectiles
+    efire: [],   // enemy fireballs
+    particles: [],
+    coins: 0,
+    lives: 3,
+    timeLeft: 400,
+    timeTick: 0,
+    frame: 0,
+    // Mutable blocks: coin boxes & dango boxes marked by LEVEL_MAP
+    blocks: {},  // 'col,row' -> {type, used}
+  };
+  // Populate blocks and enemies
+  for(let r = 0; r < LVL_H; r++){
+    const row = LEVEL_MAP[r];
+    for(let c = 0; c < row.length; c++){
+      const ch = row[c];
+      if(ch === 'Q' || ch === '?' || ch === 'S'){
+        state.blocks[c+','+r] = { ch, used: false, bump:0 };
+      }
+    }
+  }
+  for(const e of ENEMY_PLACE){
+    const x = e.col * TILE + 4;
+    const y = e.row * TILE;
+    const base = { type: e.type, x, y, vx: -0.6, vy: 0, w: 14, h: 14, alive: true, hitFlash: 0 };
+    if(e.type === 'oni') { base.vy = -1.5; base.bounceT = 0; base.h = 14; base.w = 14; }
+    if(e.type === 'spike') { base.vx = -0.5; }
+    if(e.type === 'lantern') { base.vx = 0; base.cool = 2; base.h = 16; }
+    if(e.type === 'shadow') { base.vx = -1.0; base.jumpCool = 2; }
+    state.enemies.push(base);
+  }
+}
+resetState();
+
+// ─── Input ───────────────────────────────────────────────────
+const KEYS = {};
+addEventListener('keydown', e => {
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+  KEYS[e.code] = true;
+  if(state.phase === 'play'){
+    if(e.code === 'Space' || e.code === 'KeyZ') state.player.jumpBuf = JUMP_BUF;
+    if(e.code === 'KeyX' || e.code === 'ControlLeft') tryShuri();
+  }
+});
+addEventListener('keyup', e => { KEYS[e.code] = false; });
+
+// Touch
+let touchActive = false;
+C.addEventListener('touchstart', e => {
+  touchActive = true;
+  state.player.jumpBuf = JUMP_BUF;
+  e.preventDefault();
+});
+C.addEventListener('touchend', () => { touchActive = false; });
+
+function startGame(){
+  resetState();
+  document.getElementById('startOv').classList.remove('show');
+  document.getElementById('dieOv').classList.remove('show');
+  document.getElementById('winOv').classList.remove('show');
+}
+
+// ─── Tile helpers ────────────────────────────────────────────
+function tileAt(x, y){
+  const c = Math.floor(x / TILE), r = Math.floor(y / TILE);
+  if(r < 0 || r >= LVL_H || c < 0) return ' ';
+  const row = LEVEL_MAP[r];
+  if(c >= row.length) return ' ';
+  return row[c];
+}
+function isSolid(ch){
+  return ch === 'G' || ch === 'B' || ch === 'Q' || ch === '?' || ch === 'S' ||
+         ch === 'P' || ch === 'p';
+}
+
+// ─── Shuriken ────────────────────────────────────────────────
+function tryShuri(){
+  const p = state.player;
+  if(p.shuriAmmo <= 0 || p.shuriCool > 0) return;
+  state.shuri.push({ x: p.x + (p.facing>0?8:-2), y: p.y + 4, vx: p.facing * SHURI_SPEED, vy: -0.5, life: 60, spin: 0 });
+  p.shuriAmmo--;
+  p.shuriCool = 15;
+}
+
+// ─── Physics / step ──────────────────────────────────────────
+function step(){
+  state.frame++;
+  if(state.phase !== 'play') return;
+  state.timeTick++;
+  if(state.timeTick >= 50){ state.timeTick = 0; state.timeLeft--; if(state.timeLeft <= 0){ killPlayer('TIME UP!'); return; } }
+
+  const p = state.player;
+  const bigOffsetH = p.big ? 8 : 0;
+
+  // Input
+  let inL = KEYS.ArrowLeft || KEYS.KeyA;
+  let inR = KEYS.ArrowRight || KEYS.KeyD;
+  let inD = KEYS.ArrowDown || KEYS.KeyS;
+  let jumpBtn = KEYS.Space || KEYS.KeyZ || touchActive;
+
+  // Crouch (only on ground, only when big — but we allow always-crouch for small ninja too, no stand height change)
+  p.crouching = inD && p.onGround;
+
+  // Horizontal movement
+  const accel = p.onGround ? RUN_ACCEL : RUN_ACCEL * 0.7;
+  if(inL && !p.crouching){ p.vx -= accel; p.facing = -1; }
+  if(inR && !p.crouching){ p.vx += accel; p.facing = 1; }
+  if(!inL && !inR){
+    if(Math.abs(p.vx) < FRICTION) p.vx = 0;
+    else p.vx -= Math.sign(p.vx) * FRICTION;
+  }
+  const maxH = p.crouching ? 0 : RUN_SPEED;
+  if(p.vx > maxH) p.vx = maxH;
+  if(p.vx < -maxH) p.vx = -maxH;
+
+  // Gravity
+  p.vy += GRAV;
+  // Wall slide
+  if(p.wallSide !== 0 && !p.onGround && p.vy > 0 && (p.wallSide === -1 ? inL : inR)){
+    p.vy = Math.min(p.vy, WALL_SLIDE);
+  }
+  if(p.vy > MAX_FALL) p.vy = MAX_FALL;
+
+  // Jump logic
+  if(p.onGround) p.coyote = COYOTE;
+  else p.coyote = Math.max(0, p.coyote - 1);
+  if(p.jumpBuf > 0) p.jumpBuf--;
+  if(p.jumpBuf > 0 && (p.coyote > 0 || p.wallSide !== 0)){
+    if(p.coyote > 0){
+      p.vy = JUMP_V; p.jumpHold = JUMP_HOLD_FRAMES;
+      p.coyote = 0; p.jumpBuf = 0;
+    } else if(p.wallSide !== 0){
+      p.vy = WALL_JUMP_V;
+      p.vx = -p.wallSide * WALL_JUMP_H;
+      p.jumpHold = JUMP_HOLD_FRAMES;
+      p.jumpBuf = 0;
+    }
+  }
+  if(p.jumpHold > 0 && jumpBtn && p.vy < 0){
+    p.vy += JUMP_HOLD;
+    p.jumpHold--;
+  } else {
+    p.jumpHold = 0;
+  }
+
+  // Move + collision (axis separated)
+  moveCollide(p, p.vx, 0);
+  moveCollide(p, 0, p.vy);
+
+  // Shuri cooldown & move
+  if(p.shuriCool > 0) p.shuriCool--;
+  for(const s of state.shuri){
+    s.x += s.vx; s.y += s.vy; s.vy += GRAV * 0.35; s.spin += 0.5; s.life--;
+    if(isSolid(tileAt(s.x, s.y))) s.life = 0;
+    if(s.x < state.cameraX - 20 || s.x > state.cameraX + W + 20 || s.y > LVL_H*TILE) s.life = 0;
+  }
+  state.shuri = state.shuri.filter(s => s.life > 0);
+
+  // Enemy fireballs
+  for(const f of state.efire){
+    f.y += f.vy; f.x += f.vx; f.vy = Math.min(f.vy + GRAV*0.5, MAX_FALL);
+    f.life--;
+    if(f.y > LVL_H*TILE || isSolid(tileAt(f.x, f.y))) f.life = 0;
+    // Hit player
+    if(hitRect(f.x-2, f.y-2, 4, 4, p.x, p.y, p.w, p.h + bigOffsetH)){
+      hurtPlayer();
+      f.life = 0;
+    }
+  }
+  state.efire = state.efire.filter(f => f.life > 0);
+
+  // Enemies
+  for(const e of state.enemies){
+    if(!e.alive) continue;
+    // Only run AI if near camera (perf)
+    if(e.x < state.cameraX - 40 || e.x > state.cameraX + W + 40){
+      // Skip updates for far-off enemies
+      continue;
+    }
+    if(e.hitFlash > 0) e.hitFlash--;
+    const type = e.type;
+    if(type === 'mushi' || type === 'spike' || type === 'shadow'){
+      e.vy += GRAV;
+      if(e.vy > MAX_FALL) e.vy = MAX_FALL;
+      // Shadow jump
+      if(type === 'shadow'){
+        e.jumpCool -= 1/50;
+        const dxP = p.x - e.x;
+        if(e.vy === 0 && Math.abs(dxP) < 80 && e.jumpCool <= 0){
+          e.vy = -5; e.jumpCool = 1.5;
+        }
+        // Face player
+        if(Math.abs(dxP) < 100) e.vx = Math.sign(dxP) * 1.0;
+      }
+      moveCollide(e, e.vx, 0, true);
+      moveCollide(e, 0, e.vy);
+    } else if(type === 'oni'){
+      e.vy += GRAV * 0.5;
+      if(e.vy > 4) e.vy = -3;  // bouncy
+      moveCollide(e, e.vx, 0, true);
+      moveCollide(e, 0, e.vy);
+    } else if(type === 'lantern'){
+      // Hangs. Drop fire periodically.
+      e.cool -= 1/50;
+      if(e.cool <= 0){
+        e.cool = 2 + Math.random();
+        state.efire.push({ x:e.x+8, y:e.y+16, vx:0, vy:0.5, life:200 });
+      }
+    }
+    // Shuri collision
+    for(const s of state.shuri){
+      if(s.life <= 0) continue;
+      if(hitRect(s.x-3, s.y-3, 6, 6, e.x, e.y, e.w, e.h)){
+        e.hitFlash = 6;
+        s.life = 0;
+        killEnemy(e, false);
+      }
+    }
+    // Player collision
+    if(e.alive && hitRect(p.x, p.y, p.w, p.h + bigOffsetH, e.x, e.y, e.w, e.h)){
+      // Stomp? Only if falling AND enemy is stompable AND feet above enemy center.
+      const stompable = (type === 'mushi' || type === 'oni' || type === 'shadow');
+      if(p.vy > 0 && (p.y + p.h + bigOffsetH) <= e.y + 8 && stompable){
+        killEnemy(e, true);
+        p.vy = -5.5;
+        // small score particle
+        spawnP(e.x+4, e.y, '#fde047');
+      } else {
+        hurtPlayer();
+      }
+    }
+  }
+
+  // Coin / scroll / dango pickups from blocks
+  for(const key of Object.keys(state.blocks)){
+    const b = state.blocks[key];
+    if(b.bump > 0) b.bump--;
+  }
+
+  // Particles
+  for(const pa of state.particles){
+    pa.x += pa.vx; pa.y += pa.vy; pa.vy += 0.1; pa.life--;
+  }
+  state.particles = state.particles.filter(pa => pa.life > 0);
+
+  // Invuln
+  if(p.invuln > 0) p.invuln--;
+
+  // Camera (follows player, no backtrack beyond left edge)
+  const targetCam = Math.max(0, Math.min(LVL_W*TILE - W, p.x - W/2));
+  state.cameraX = targetCam;
+
+  // Fall-off-world
+  if(p.y > LVL_H * TILE + 20){ killPlayer('You fell into the abyss.'); return; }
+
+  // Reach pagoda
+  const pagodaX = (LVL_W - 5) * TILE;
+  if(p.x > pagodaX){ winGame(); return; }
+
+  // Animation state
+  if(!p.onGround) p.state = 'jump';
+  else if(p.crouching) p.state = 'crouch';
+  else if(Math.abs(p.vx) > 0.1) { p.state = 'run'; p.runFrame = (p.runFrame + 1) % 10; }
+  else p.state = 'idle';
+
+  updateHUD();
+}
+
+function hitRect(x1,y1,w1,h1,x2,y2,w2,h2){
+  return x1 < x2+w2 && x1+w1 > x2 && y1 < y2+h2 && y1+h1 > y2;
+}
+
+function moveCollide(ent, dx, dy, flipOnEdge){
+  if(dx !== 0){
+    ent.x += dx;
+    const bb = { x:ent.x, y:ent.y, w:ent.w, h:ent.h + (ent === state.player && state.player.big ? 8 : 0) };
+    // Resolve horizontal
+    const corners = [
+      [bb.x, bb.y], [bb.x+bb.w-1, bb.y],
+      [bb.x, bb.y+bb.h-1], [bb.x+bb.w-1, bb.y+bb.h-1],
+      [bb.x, bb.y+bb.h/2], [bb.x+bb.w-1, bb.y+bb.h/2],
+    ];
+    let hit = false;
+    for(const [cx,cy] of corners){
+      if(isSolid(tileAt(cx, cy))){ hit = true; break; }
+    }
+    if(hit){
+      if(dx > 0){
+        ent.x = Math.floor((ent.x + bb.w) / TILE) * TILE - bb.w - 0.01;
+        if(ent === state.player) state.player.wallSide = 1;
+      } else {
+        ent.x = Math.ceil(ent.x / TILE) * TILE + 0.01;
+        if(ent === state.player) state.player.wallSide = -1;
+      }
+      if(flipOnEdge){ ent.vx *= -1; }
+      else ent.vx = 0;
+    } else {
+      if(ent === state.player) state.player.wallSide = 0;
+    }
+  }
+  if(dy !== 0){
+    ent.y += dy;
+    const bb = { x:ent.x, y:ent.y, w:ent.w, h:ent.h + (ent === state.player && state.player.big ? 8 : 0) };
+    const corners = [
+      [bb.x+1, bb.y], [bb.x+bb.w-1, bb.y],
+      [bb.x+1, bb.y+bb.h-1], [bb.x+bb.w-1, bb.y+bb.h-1],
+    ];
+    let hitUp = false, hitDown = false;
+    if(dy < 0){
+      if(isSolid(tileAt(bb.x+1, bb.y)) || isSolid(tileAt(bb.x+bb.w-1, bb.y))){
+        hitUp = true;
+      }
+    } else {
+      if(isSolid(tileAt(bb.x+1, bb.y+bb.h-1)) || isSolid(tileAt(bb.x+bb.w-1, bb.y+bb.h-1))){
+        hitDown = true;
+      }
+    }
+    if(hitUp){
+      ent.y = Math.ceil(ent.y / TILE) * TILE + 0.01;
+      // Bump block above
+      if(ent === state.player){
+        const col = Math.floor((bb.x + bb.w/2) / TILE);
+        const row = Math.floor(ent.y / TILE) - 1;
+        bumpBlock(col, row);
+      }
+      ent.vy = 1;
+    } else if(hitDown){
+      ent.y = Math.floor((ent.y + bb.h) / TILE) * TILE - bb.h - 0.01;
+      ent.vy = 0;
+      if(ent === state.player){
+        state.player.onGround = true;
+      }
+    } else {
+      if(ent === state.player) state.player.onGround = false;
+    }
+  }
+}
+
+function bumpBlock(col, row){
+  const ch = tileAt(col*TILE, row*TILE);
+  const key = col+','+row;
+  const b = state.blocks[key];
+  if(ch === 'Q' && b && !b.used){
+    b.used = true; b.bump = 8;
+    state.coins++;
+    spawnP(col*TILE+8, row*TILE, '#fcd34d');
+  } else if(ch === '?' && b && !b.used){
+    b.used = true; b.bump = 8;
+    state.player.shuriAmmo += 5;
+    spawnP(col*TILE+8, row*TILE, '#ec4899');
+  } else if(ch === 'S' && b && !b.used){
+    b.used = true; b.bump = 8;
+    state.player.big = true;
+    spawnP(col*TILE+8, row*TILE, '#22c55e');
+    for(let i=0;i<10;i++) spawnP(col*TILE+8, row*TILE, '#ef4444');
+  } else if(ch === 'B'){
+    // Brick bump (destroys brick if big ninja, otherwise just bounce)
+    if(state.player.big){
+      // Clear the tile — mark in blocks as broken
+      state.blocks[key] = { ch:'broken', used:true, bump:0 };
+      // Mutate LEVEL_MAP (same reference)
+      const row2 = LEVEL_MAP[row].split('');
+      row2[col] = ' ';
+      LEVEL_MAP[row] = row2.join('');
+      state.coins++;
+    } else {
+      if(!b) state.blocks[key] = { ch:'B', used:false, bump:8 };
+      else b.bump = 8;
+    }
+  }
+}
+
+function killEnemy(e, stomped){
+  e.alive = false;
+  if(e.type === 'mushi') e.squash = 20;
+  state.coins++;
+  spawnP(e.x+8, e.y+4, '#f87171');
+  if(stomped) e.squashed = true;
+}
+
+function hurtPlayer(){
+  const p = state.player;
+  if(p.invuln > 0) return;
+  if(p.big){
+    p.big = false;
+    p.invuln = 60;
+  } else {
+    state.lives--;
+    if(state.lives <= 0){ killPlayer('Out of lives.'); return; }
+    p.x = 32; p.y = 180; p.vx = 0; p.vy = 0;
+    p.invuln = 90;
+  }
+}
+
+function killPlayer(msg){
+  state.phase = 'dead';
+  document.getElementById('dieMsg').textContent = msg;
+  document.getElementById('dieOv').classList.add('show');
+}
+function winGame(){
+  state.phase = 'win';
+  document.getElementById('winMsg').textContent = `Score ${state.coins} · Lives ${state.lives} · Time ${state.timeLeft}`;
+  document.getElementById('winOv').classList.add('show');
+}
+
+function spawnP(x, y, color){
+  for(let i=0;i<6;i++){
+    state.particles.push({ x, y, vx:(Math.random()-0.5)*3, vy:-Math.random()*3, life:20, color });
+  }
+}
+
+function updateHUD(){
+  document.getElementById('coinTxt').textContent = String(state.coins).padStart(2,'0');
+  document.getElementById('lifeTxt').textContent = '♥'.repeat(Math.max(0, state.lives));
+  document.getElementById('shuriTxt').textContent = state.player.shuriAmmo;
+  document.getElementById('timeTxt').textContent = state.timeLeft;
+}
+
+// ─── Draw ────────────────────────────────────────────────────
+function draw(){
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#5b94ff');
+  sky.addColorStop(1, '#a0bfff');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  // Parallax clouds
+  ctx.fillStyle = '#f8f8f8';
+  for(let i = 0; i < 8; i++){
+    const cx = (((i * 180) - state.cameraX * 0.3) % (LVL_W*TILE) + LVL_W*TILE) % (LVL_W*TILE);
+    const cy = 30 + (i%3)*15;
+    cloud(cx - state.cameraX*0.3 + i*20, cy);
+  }
+
+  // Distant hills parallax
+  ctx.fillStyle = '#2d6616';
+  for(let i = 0; i < 20; i++){
+    const hx = (i * 120 - state.cameraX * 0.5) % (W + 200);
+    ctx.beginPath();
+    ctx.arc(hx, H - 48, 50, Math.PI, 0);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.translate(-state.cameraX, 0);
+
+  // Tiles
+  const startC = Math.max(0, Math.floor(state.cameraX / TILE) - 1);
+  const endC = Math.min(LVL_W, Math.ceil((state.cameraX + W) / TILE) + 1);
+  for(let r = 0; r < LVL_H; r++){
+    const row = LEVEL_MAP[r];
+    for(let c = startC; c < endC; c++){
+      const ch = row[c];
+      if(ch === ' ' || !ch) continue;
+      const x = c*TILE, y = r*TILE;
+      const key = c+','+r;
+      const b = state.blocks[key];
+      const bumpY = b && b.bump > 0 ? -3 : 0;
+      if(ch === 'G') drawSpr(x, y, S_GROUND);
+      else if(ch === 'B') drawSpr(x, y + bumpY, S_BRICK);
+      else if(ch === 'Q') drawSpr(x, y + bumpY, b && b.used ? S_QBLOCK_USED : S_QBLOCK);
+      else if(ch === '?') drawSpr(x, y + bumpY, b && b.used ? S_QBLOCK_USED : S_QBLOCK);
+      else if(ch === 'S') drawSpr(x, y + bumpY, b && b.used ? S_QBLOCK_USED : S_QBLOCK);
+      else if(ch === 'P') drawSpr(x, y, S_BAMBOO_TOP);
+      else if(ch === 'p') drawSpr(x, y, S_BAMBOO_BODY);
+      else if(ch === 'F') drawSpr(x - 2, y, S_PAGODA);
+    }
+  }
+
+  // Enemies
+  for(const e of state.enemies){
+    if(!e.alive && !e.squashed) continue;
+    let sprite = null;
+    if(e.type === 'mushi') sprite = e.squashed ? S_MUSHI_SQUASH : S_MUSHI1;
+    else if(e.type === 'oni') sprite = S_ONI;
+    else if(e.type === 'spike') sprite = S_SPIKE;
+    else if(e.type === 'lantern') sprite = S_LANTERN;
+    else if(e.type === 'shadow') sprite = S_SHADOW;
+    if(sprite){
+      if(e.hitFlash > 0 && e.hitFlash % 2 === 0) ctx.filter = 'brightness(3)';
+      drawSpr(e.x, e.y, sprite, e.vx > 0);
+      ctx.filter = 'none';
+    }
+    if(e.squashed) e.squashTimer = (e.squashTimer||0) + 1;
+  }
+
+  // Fireballs
+  ctx.fillStyle = '#fcd34d';
+  for(const f of state.efire){
+    ctx.beginPath(); ctx.arc(f.x, f.y, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#f87171'; ctx.fillRect(f.x-1, f.y-1, 2, 2);
+    ctx.fillStyle = '#fcd34d';
+  }
+
+  // Shuriken
+  for(const s of state.shuri){
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.spin);
+    ctx.translate(-5, -5);
+    drawSpr(0, 0, S_SHURI);
+    ctx.restore();
+  }
+
+  // Player
+  const p = state.player;
+  if(!(p.invuln > 0 && Math.floor(p.invuln/4) % 2)){
+    let sprite = S_NINJA_IDLE;
+    if(p.big) sprite = S_NINJA_BIG;
+    else if(p.state === 'jump') sprite = S_NINJA_JUMP;
+    else if(p.state === 'crouch') sprite = S_NINJA_CROUCH;
+    else if(p.state === 'run') sprite = (p.runFrame < 5) ? S_NINJA_RUN1 : S_NINJA_RUN2;
+    drawSpr(Math.floor(p.x - 3), Math.floor(p.y - (p.big?8:0)), sprite, p.facing < 0);
+  }
+
+  // Particles
+  for(const pa of state.particles){
+    ctx.globalAlpha = Math.max(0, pa.life/20);
+    ctx.fillStyle = pa.color;
+    ctx.fillRect(Math.floor(pa.x), Math.floor(pa.y), 2, 2);
+  }
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
+}
+
+function cloud(x, y){
+  ctx.beginPath();
+  ctx.arc(x, y, 7, 0, Math.PI*2);
+  ctx.arc(x+8, y-2, 9, 0, Math.PI*2);
+  ctx.arc(x+16, y, 7, 0, Math.PI*2);
+  ctx.fill();
+}
+
+// ─── Loop ────────────────────────────────────────────────────
+let lastT = performance.now();
+let accT = 0;
+const DT = 1/50;
+function loop(now){
+  const dtReal = Math.min(0.1, (now - lastT) / 1000);
+  lastT = now;
+  accT += dtReal;
+  while(accT >= DT){
+    step();
+    accT -= DT;
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

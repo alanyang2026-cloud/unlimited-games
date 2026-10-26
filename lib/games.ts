@@ -144,6 +144,14 @@ export const GAMES: Game[] = [
     color: "from-pink-600 to-cyan-500",
     controls: "WASD / arrows · auto-fire · click shop · shift-click to lock",
   },
+  {
+    id: "ninja-hop",
+    title: "Ninja Hop",
+    emoji: "🥷",
+    description: "Retro 8-bit side-scroller. Stomp foes, grab scrolls to throw shuriken, reach the pagoda flag.",
+    color: "from-red-600 to-blue-900",
+    controls: "← → move · Z/Space jump · X/Ctrl shuriken · hold jump = higher",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -164,6 +172,7 @@ const URL_MAP: Record<string, string> = {
   "potato-bros": "/games/potato-bros.html",
   "rail-runner": "/games/rail-runner.html",
   "overclock": "/games/overclock.html",
+  "ninja-hop": "/games/ninja-hop.html",
 };
 
 export function getGameUrl(id: string): string {
