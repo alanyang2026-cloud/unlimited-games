@@ -31,14 +31,13 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rend
   <div class="hud">
     <div class="stat">◆ <span id="coinTxt">00</span></div>
     <div class="stat">LIFE <span id="lifeTxt">♥♥♥</span></div>
-    <div class="stat">★ <span id="shuriTxt">0</span></div>
     <div class="stat">TIME <span id="timeTxt">400</span></div>
   </div>
 
   <div class="ov show" id="startOv">
     <h2>🥷 NINJA HOP</h2>
-    <p>Classic 8-bit side-scroller.<br>Stomp foes, grab scrolls to throw shuriken,<br>reach the pagoda flag.</p>
-    <p class="hint">← → MOVE · Z/SPACE JUMP · X/CTRL SHURIKEN<br>HOLD JUMP = JUMP HIGHER · WALL-SLIDE JUMP</p>
+    <p>Classic 8-bit side-scroller.<br>Stomp grubs, ground-pound the spike-shells,<br>reach the pagoda flag.</p>
+    <p class="hint">← → MOVE · Z/SPACE JUMP · X/CTRL GROUND POUND<br>HOLD JUMP = JUMP HIGHER · WALL-SLIDE JUMP</p>
     <button class="btn" onclick="startGame()">PRESS START</button>
   </div>
 
@@ -672,17 +671,17 @@ function resetState(){
       onGround: false,
       coyote: 0, jumpBuf: 0, jumpHold: 0,
       wallSide: 0,  // -1 left wall, 1 right wall, 0 none
-      state: 'idle', // idle/run/jump/crouch/hurt
+      state: 'idle', // idle/run/jump/crouch/hurt/pound
       big: false,
       invuln: 0,
       runFrame: 0,
       crouching: false,
-      shuriAmmo: 0,
-      shuriCool: 0,
+      pounding: false,
+      poundCool: 0,
     },
     enemies: [],
-    shuri: [],   // player's projectiles
     efire: [],   // enemy fireballs
+    pounds: [],  // ground-pound shockwaves
     particles: [],
     coins: 0,
     lives: 3,
@@ -722,7 +721,7 @@ addEventListener('keydown', e => {
   KEYS[e.code] = true;
   if(state.phase === 'play'){
     if(e.code === 'Space' || e.code === 'KeyZ') state.player.jumpBuf = JUMP_BUF;
-    if(e.code === 'KeyX' || e.code === 'ControlLeft') tryShuri();
+    if(e.code === 'KeyX' || e.code === 'ControlLeft') tryPound();
   }
 });
 addEventListener('keyup', e => { KEYS[e.code] = false; });
@@ -756,13 +755,17 @@ function isSolid(ch){
          ch === 'P' || ch === 'p';
 }
 
-// ─── Shuriken ────────────────────────────────────────────────
-function tryShuri(){
+// ─── Ground pound (地震斩) ────────────────────────────────────
+// Press X while airborne → ninja crashes down fast. On landing,
+// a shockwave rolls out both sides along the ground, defeating
+// any enemy it touches (including spike turtles that can't be
+// stomped). 60-frame cooldown prevents spam.
+function tryPound(){
   const p = state.player;
-  if(p.shuriAmmo <= 0 || p.shuriCool > 0) return;
-  state.shuri.push({ x: p.x + (p.facing>0?8:-2), y: p.y + 4, vx: p.facing * SHURI_SPEED, vy: -0.5, life: 60, spin: 0 });
-  p.shuriAmmo--;
-  p.shuriCool = 15;
+  if(p.onGround || p.pounding || p.poundCool > 0) return;
+  p.pounding = true;
+  p.vy = 9;
+  p.vx = 0;
 }
 
 // ─── Physics / step ──────────────────────────────────────────
@@ -830,14 +833,32 @@ function step(){
   moveCollide(p, p.vx, 0);
   moveCollide(p, 0, p.vy);
 
-  // Shuri cooldown & move
-  if(p.shuriCool > 0) p.shuriCool--;
-  for(const s of state.shuri){
-    s.x += s.vx; s.y += s.vy; s.vy += GRAV * 0.35; s.spin += 0.5; s.life--;
-    if(isSolid(tileAt(s.x, s.y))) s.life = 0;
-    if(s.x < state.cameraX - 20 || s.x > state.cameraX + W + 20 || s.y > LVL_H*TILE) s.life = 0;
+  // Pound cooldown + landing shockwave
+  if(p.poundCool > 0) p.poundCool--;
+  if(p.pounding && p.onGround){
+    // Just landed from a pound — spawn a shockwave on each side
+    p.pounding = false;
+    p.poundCool = 50;
+    const groundY = p.y + p.h + (p.big ? 8 : 0);
+    state.pounds.push({ x: p.x, y: groundY, dir: -1, dist: 0, life: 25 });
+    state.pounds.push({ x: p.x + p.w, y: groundY, dir: 1, dist: 0, life: 25 });
+    for(let i = 0; i < 10; i++){
+      spawnP(p.x + p.w/2, groundY, '#fef3c7');
+    }
   }
-  state.shuri = state.shuri.filter(s => s.life > 0);
+  // Advance shockwaves and defeat enemies they roll over
+  for(const w of state.pounds){
+    w.dist += 3.5;
+    w.life--;
+    const wx = w.x + w.dir * w.dist;
+    for(const e of state.enemies){
+      if(!e.alive) continue;
+      if(Math.abs(wx - (e.x + e.w/2)) < 10 && Math.abs(w.y - (e.y + e.h/2)) < 24){
+        killEnemy(e, false);
+      }
+    }
+  }
+  state.pounds = state.pounds.filter(w => w.life > 0 && w.dist < 120);
 
   // Enemy fireballs
   for(const f of state.efire){
@@ -888,15 +909,6 @@ function step(){
       if(e.cool <= 0){
         e.cool = 2 + Math.random();
         state.efire.push({ x:e.x+8, y:e.y+16, vx:0, vy:0.5, life:200 });
-      }
-    }
-    // Shuri collision
-    for(const s of state.shuri){
-      if(s.life <= 0) continue;
-      if(hitRect(s.x-3, s.y-3, 6, 6, e.x, e.y, e.w, e.h)){
-        e.hitFlash = 6;
-        s.life = 0;
-        killEnemy(e, false);
       }
     }
     // Player collision
@@ -1032,8 +1044,9 @@ function bumpBlock(col, row){
     spawnP(col*TILE+8, row*TILE, '#fcd34d');
   } else if(ch === '?' && b && !b.used){
     b.used = true; b.bump = 8;
-    state.player.shuriAmmo += 5;
-    spawnP(col*TILE+8, row*TILE, '#ec4899');
+    // Was shuriken ammo — now just gives bonus coins
+    state.coins += 3;
+    spawnP(col*TILE+8, row*TILE, '#fde047');
   } else if(ch === 'S' && b && !b.used){
     b.used = true; b.bump = 8;
     state.player.big = true;
@@ -1098,7 +1111,6 @@ function spawnP(x, y, color){
 function updateHUD(){
   document.getElementById('coinTxt').textContent = String(state.coins).padStart(2,'0');
   document.getElementById('lifeTxt').textContent = '♥'.repeat(Math.max(0, state.lives));
-  document.getElementById('shuriTxt').textContent = state.player.shuriAmmo;
   document.getElementById('timeTxt').textContent = state.timeLeft;
 }
 
@@ -1170,14 +1182,15 @@ function draw(){
     ctx.fillStyle = '#fcd34d';
   }
 
-  // Shuriken
-  for(const s of state.shuri){
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(s.spin);
-    ctx.translate(-5, -5);
-    drawSpr(0, 0, S_SHURI);
-    ctx.restore();
+  // Ground-pound shockwaves — curved arcs rolling out along the floor
+  for(const w of state.pounds){
+    const alpha = Math.min(1, w.life / 25);
+    ctx.strokeStyle = 'rgba(255,243,199,' + alpha + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const wx = w.x + w.dir * w.dist;
+    ctx.arc(wx, w.y - 4, 6 + w.dist * 0.08, Math.PI, 0);
+    ctx.stroke();
   }
 
   // Player
