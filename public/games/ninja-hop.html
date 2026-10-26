@@ -645,12 +645,16 @@ const LVL_H = LEVEL_MAP.length;
 const LVL_W = Math.max(...LEVEL_MAP.map(r=>r.length));
 
 // Enemy placements — hand-tuned on the level
+// Only 3 enemy types: Mushi grub (brown larva, stomp to flatten),
+// Spike turtle (can't stomp — need shuriken), and Fire Lantern
+// (hangs from the sky and drops fireballs).
 const ENEMY_PLACE = [
-  { type:'mushi', col:22, row:12 },
-  { type:'mushi', col:40, row:12 },
-  { type:'spike', col:55, row:12 },
-  { type:'mushi', col:68, row:12 },
-  { type:'shadow',col:82, row:12 },
+  { type:'mushi',   col:22, row:12 },
+  { type:'mushi',   col:40, row:12 },
+  { type:'lantern', col:48, row:3  },
+  { type:'spike',   col:60, row:12 },
+  { type:'mushi',   col:74, row:12 },
+  { type:'lantern', col:80, row:3  },
 ];
 
 // ─── Game state ──────────────────────────────────────────────
