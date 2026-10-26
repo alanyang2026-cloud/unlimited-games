@@ -621,40 +621,52 @@ const WALL_SLIDE = 1.5, WALL_JUMP_V = -7, WALL_JUMP_H = 3.5;
 const COYOTE = 6, JUMP_BUF = 6, SHURI_SPEED = 4.5;
 
 // Legend:
-// G=ground, B=brick, Q=qblock(coin), ?=qblock(scroll), S=qblock(dango),
+// G=ground, B=brick, Q=qblock(coin 1-8), ?=qblock(scroll pickup),
 // P=bamboo top, p=bamboo body, F=flag goal
+// Pads every row with spaces to LEVEL_W so all tile lookups stay in-bounds.
+const LEVEL_W = 120;
+function LRW(s){ return (s + ' '.repeat(LEVEL_W)).slice(0, LEVEL_W); }
 const LEVEL_MAP = [
-  // 15 rows tall. Length ~90 tiles wide.
-  '                                                                                              ',
-  '                                                                                              ',
-  '                                                                                              ',
-  '                                                                                              ',
-  '                      BBBB  ?B                              B    S    B                       ',
-  '                                                                                              ',
-  '                                                                                              ',
-  '                  BQB                   B?B                                                   ',
-  '                                                                                              ',
-  '                                 P                           BBBB                             ',
-  '                                 p                       P                                    ',
-  '                         G       p             P        pp                           P        ',
-  '                      P  G       p       GGG   p     G  pp         GGG     GGGGGGG   pp       ',
-  'GGGGGGGGGGG    GGGGGGpGGGG   GGGGpGGGG  GGGGGGGpGGGGGGGGppGGGG   GGGGGGGGGGGGGGGGGGGGppGGGGFGGG',
-  'GGGGGGGGGGG    GGGGGGpGGGGGGGGGGGpGGGGGGGGGGGGGpGGGGGGGGppGGGGGGGGGGGGGGGGGGGGGGGGGGGppGGGGGGGG',
+  LRW(''),  // r0 sky
+  LRW(''),  // r1 sky
+  LRW(''),  // r2 sky
+  LRW(''),  // r3 sky — lanterns hang here
+  LRW(''),  // r4 sky
+  LRW(''),  // r5 sky
+  LRW(''),  // r6 sky
+  // r7 — scroll "?" blocks reachable with a running jump from ground.
+  //      Two spots give pound ability right before each hazard.
+  LRW('                             B?B                              B?B                                   '),
+  // r8 — mid-air coin groups (also reachable from ground)
+  LRW('               QQQ                                         QQQ                                      '),
+  // r9 — bamboo tops (visual landmarks + hiding spots)
+  LRW('                                        P                               P                           '),
+  // r10 — bamboo body
+  LRW('                                        p                               p                           '),
+  // r11 — stepping-stone platforms (climb to reach high "?" blocks)
+  LRW('            BBB                               p                              p              GGG     '),
+  // r12 — low floating platforms, more brick stairs
+  LRW('        GGG            GGG                    p           GGG                 p                     '),
+  // r13 — walking surface with pits (requires jumps)
+  LRW('GGGGGGG   GGGGGGGG   G    GGGGGGGGG     GGGGGGGpGGG             GGGGGGG      GGGpGGGGGG    GGGG      GGGGGGFGGGGGG'),
+  // r14 — bedrock, broken only by the two bamboo pipes
+  LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
 ];
 const LVL_H = LEVEL_MAP.length;
-const LVL_W = Math.max(...LEVEL_MAP.map(r=>r.length));
+const LVL_W = LEVEL_W;
 
 // Enemy placements — hand-tuned on the level
-// Only 3 enemy types: Mushi grub (brown larva, stomp to flatten),
-// Spike turtle (can't stomp — need shuriken), and Fire Lantern
-// (hangs from the sky and drops fireballs).
+// Enemies paced to match the new level flow:
+//  - two early mushi grubs so player learns to stomp
+//  - lantern over the first open gap (dodge fireballs mid-jump)
+//  - spike turtle right after the second scroll block (use pound!)
+//  - lantern over the final stretch
 const ENEMY_PLACE = [
-  { type:'mushi',   col:22, row:12 },
-  { type:'mushi',   col:40, row:12 },
-  { type:'lantern', col:48, row:3  },
-  { type:'spike',   col:60, row:12 },
-  { type:'mushi',   col:74, row:12 },
-  { type:'lantern', col:80, row:3  },
+  { type:'mushi',   col:13, row:12 },
+  { type:'mushi',   col:28, row:12 },
+  { type:'lantern', col:52, row:3  },
+  { type:'spike',   col:65, row:12 },
+  { type:'lantern', col:95, row:3  },
 ];
 
 // ─── Game state ──────────────────────────────────────────────
