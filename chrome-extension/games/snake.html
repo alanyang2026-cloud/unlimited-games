@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Snake</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+/* Vintage CRT terminal — green-on-black, everything glows softly */
+body{background:#020f04;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:'Courier New','Menlo',monospace;overflow:hidden;user-select:none;color:#4ade80}
+.ui{color:#86efac;margin-bottom:12px;display:flex;gap:24px;font-size:15px;font-weight:700;letter-spacing:.15em;text-transform:uppercase}
+.ui span{color:#4ade80;text-shadow:0 0 8px rgba(74,222,128,.7)}
+.wrap{position:relative}
+canvas{display:block;border-radius:12px;border:2px solid #14532d;box-shadow:0 0 30px rgba(34,197,94,.15) inset,0 0 20px rgba(34,197,94,.25)}
+.ov{position:absolute;inset:0;background:rgba(2,15,4,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:12px;gap:10px}
+.ov h2{font-size:2rem;color:#4ade80;text-shadow:0 0 20px rgba(74,222,128,.7);letter-spacing:.15em}
+.ov p{color:#86efac;font-size:14px;letter-spacing:.1em}
+.ov .big{font-size:18px;color:#bbf7d0}
+.ov .big b{color:#4ade80;text-shadow:0 0 10px rgba(74,222,128,.6)}
+.btn{background:#166534;color:#dcfce7;border:1px solid #22c55e;padding:10px 30px;border-radius:6px;font-size:14px;font-weight:700;font-family:inherit;letter-spacing:.15em;cursor:pointer;margin-top:6px;transition:.15s;text-transform:uppercase}
+.btn:hover{background:#15803d;box-shadow:0 0 16px rgba(34,197,94,.5);transform:translateY(-1px)}
+.hint{color:#4d7c0f;font-size:13px;margin-top:8px;letter-spacing:.15em;text-transform:uppercase;font-family:inherit}
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(2,15,4,.7);color:#86efac;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:inherit;backdrop-filter:blur(8px);border:1px solid rgba(74,222,128,.3);transition:.2s;letter-spacing:.1em}
+.hbtn:hover{background:rgba(21,128,61,.6);color:#dcfce7}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<div class="ui">Score: <span id="sc">0</span>&nbsp;&nbsp;Best: <span id="bst">0</span></div>
+<div class="wrap">
+  <canvas id="c"></canvas>
+  <div class="ov" id="ov">
+    <h2>🐍 Snake</h2>
+    <p>Arrow keys / WASD to move</p>
+    <button class="btn" onclick="start()">Play Now</button>
+  </div>
+</div>
+<p class="hint">Arrow keys · WASD · Swipe on mobile</p>
+<script>
+const C=document.getElementById('c'),ctx=C.getContext('2d');
+const SZ=20,W=20,H=20;
+C.width=W*SZ;C.height=H*SZ;
+let sn,dir,nd,food,sc,best=0,tid,alive=false;
+
+function start(){
+  document.getElementById('ov').style.display='none';
+  sn=[{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+  dir={x:1,y:0};nd={x:1,y:0};sc=0;upsc();placeFood();alive=true;
+  clearInterval(tid);tid=setInterval(tick,110);
+}
+
+function placeFood(){
+  do{food={x:~~(Math.random()*W),y:~~(Math.random()*H)}}
+  while(sn.some(s=>s.x===food.x&&s.y===food.y));
+}
+
+function tick(){
+  dir=nd;
+  const h={x:sn[0].x+dir.x,y:sn[0].y+dir.y};
+  if(h.x<0||h.x>=W||h.y<0||h.y>=H||sn.some(s=>s.x===h.x&&s.y===h.y)){over();return}
+  sn.unshift(h);
+  if(h.x===food.x&&h.y===food.y){sc+=10;upsc();placeFood();if(sc%100===0){clearInterval(tid);tid=setInterval(tick,Math.max(55,110-sc/2))}}
+  else sn.pop();
+  draw();
+}
+
+function draw(){
+  ctx.fillStyle='#020f04';ctx.fillRect(0,0,C.width,C.height);
+  // dots — subtle grid pattern
+  ctx.fillStyle='#052e0f';
+  for(let x=0;x<W;x++)for(let y=0;y<H;y++){ctx.fillRect(x*SZ+SZ/2-1,y*SZ+SZ/2-1,2,2)}
+  // food — glowing amber apple
+  ctx.shadowBlur=16;ctx.shadowColor='#fbbf24';ctx.fillStyle='#fbbf24';
+  ctx.beginPath();ctx.arc(food.x*SZ+SZ/2,food.y*SZ+SZ/2,SZ/2-2,0,Math.PI*2);ctx.fill();
+  ctx.shadowBlur=0;
+  // snake — bright green head, fading trail
+  sn.forEach((s,i)=>{
+    const t=i/sn.length;
+    ctx.fillStyle=i===0?'#4ade80':`hsl(${140-t*10},${75-t*20}%,${55-t*20}%)`;
+    ctx.shadowBlur=i===0?18:0;ctx.shadowColor='#22c55e';
+    rr(s.x*SZ+1,s.y*SZ+1,SZ-2,SZ-2,4);
+    ctx.shadowBlur=0;
+  });
+  // eyes
+  const h=sn[0];ctx.fillStyle='white';
+  const off=SZ/2;
+  const e=dir.x!==0?[[off,off-4],[off,off+4]]:[[off-4,off],[off+4,off]];
+  const ex=dir.x>0?4:dir.x<0?-4:0,ey=dir.y>0?4:dir.y<0?-4:0;
+  [[off+ex+(dir.y?-3:0),off+ey+(dir.x?-3:0)],[off+ex+(dir.y?3:0),off+ey+(dir.x?3:0)]].forEach(([ex2,ey2])=>{
+    ctx.beginPath();ctx.arc(h.x*SZ+ex2,h.y*SZ+ey2,2.5,0,Math.PI*2);ctx.fill();
+  });
+}
+
+function rr(x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();ctx.fill();
+}
+
+function over(){
+  clearInterval(tid);alive=false;
+  if(sc>best){best=sc;document.getElementById('bst').textContent=best}
+  const ov=document.getElementById('ov');
+  ov.innerHTML=`<h2>💀 Game Over</h2><p class="big">Score: <b>${sc}</b></p><p class="big">Best: <b style="color:#f59e0b">${best}</b></p><button class="btn" onclick="start()">Play Again</button>`;
+  ov.style.display='flex';
+}
+function upsc(){document.getElementById('sc').textContent=sc}
+
+document.addEventListener('keydown',e=>{
+  const m={ArrowUp:{x:0,y:-1},ArrowDown:{x:0,y:1},ArrowLeft:{x:-1,y:0},ArrowRight:{x:1,y:0},
+           w:{x:0,y:-1},s:{x:0,y:1},a:{x:-1,y:0},d:{x:1,y:0}};
+  const n=m[e.key];if(!n)return;
+  if(n.x!==-dir.x||n.y!==-dir.y)nd=n;
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key))e.preventDefault();
+});
+
+// touch
+let tx=0,ty=0;
+document.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)>Math.abs(dy)){nd=dx>0?{x:1,y:0}:{x:-1,y:0}}
+  else{nd=dy>0?{x:0,y:1}:{x:0,y:-1}}
+},{passive:true});
+</script>
+<script src="_esc-back.js"></script>
+</body>
+</html>
