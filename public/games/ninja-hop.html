@@ -38,7 +38,7 @@ canvas{display:block;width:100%;height:100%;image-rendering:pixelated;image-rend
   <div class="ov show" id="startOv">
     <h2>🥷 NINJA HOP</h2>
     <p>Classic 8-bit side-scroller.<br>Stomp grubs, ground-pound the spike-shells,<br>reach the pagoda flag.</p>
-    <p class="hint">← → MOVE · Z/SPACE JUMP · X/CTRL GROUND POUND<br>HOLD JUMP = JUMP HIGHER · WALL-SLIDE JUMP</p>
+    <p class="hint">← → MOVE · Z/SPACE JUMP · X/CTRL GROUND POUND<br>HOLD JUMP = JUMP HIGHER · WALL-SLIDE JUMP<br>PRESS E FOR MAP EDITOR</p>
     <button class="btn" onclick="startGame()">PRESS START</button>
   </div>
 
@@ -648,13 +648,33 @@ const LEVEL_MAP = [
   LRW('        GGG       GGG                 p                                                                     '),
   LRW('                                      p                                                                     '),
   LRW('                                      p                                                                     '),
-  // r13 — walking ground with pits; bamboo breaks ground at col 38
-  LRW('GGGGGGGGGGG   GGGGG   GGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGFGGG'),
+  // r13 — walking ground with pits; bamboo breaks ground at col 38.
+  // Flagpole is a separate rendered element (see FLAG below), so no F tile here.
+  LRW('GGGGGGGGGGG   GGGGG   GGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
   // r14 — bedrock, unbroken (bamboo stops above it)
   LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
 ];
+// Immutable snapshot of the shipped level — used by editor "Reset".
+const DEFAULT_LEVEL_MAP = LEVEL_MAP.slice();
 const LVL_H = LEVEL_MAP.length;
 const LVL_W = LEVEL_W;
+const EDIT_PALETTE = [' ', 'G', 'B', 'Q', '?', 'P', 'p'];
+const EDIT_LABELS  = ['Erase', 'Ground', 'Brick', 'Coin Block', 'Scroll Block', 'Bamboo Top', 'Bamboo Body'];
+let editor = { active:false, tool:1, cursorCol:0, cursorRow:0 };
+
+// Try to load any saved level from localStorage on boot
+try {
+  const saved = localStorage.getItem('ninja_hop_level');
+  if(saved){
+    const rows = saved.split('|');
+    if(rows.length === LVL_H){ for(let i=0;i<LVL_H;i++) LEVEL_MAP[i] = LRW(rows[i]); }
+  }
+} catch(_){}
+
+// Flagpole at the end — tall pole (rows topRow..bottomRow) at col with
+// a cloth banner near the top. Touch anywhere on the pole to trigger
+// the slide-down ending animation.
+const FLAG = { col: 115, topRow: 3, bottomRow: 12, bannerRow: 4 };
 
 // Enemy placements — hand-tuned on the level
 // S1 teaches stomp → S2 scroll pickup → S3 spike platforms (pound test)
@@ -710,6 +730,7 @@ function resetState(){
     pickups: [],  // scroll pickups spawned from "?" blocks
     coinsEnt: [], // floating gold coins
     particles: [],
+    ending: null, // { phase:'slide'|'walk', slideY, timer, flagDescent, celebrate }
     coins: 0,
     lives: 3,
     timeLeft: 400,
@@ -752,6 +773,22 @@ addEventListener('keydown', e => {
   if(state.phase === 'play'){
     if(e.code === 'Space' || e.code === 'KeyZ') state.player.jumpBuf = JUMP_BUF;
     if(e.code === 'KeyX' || e.code === 'ControlLeft') tryPound();
+  }
+  // Editor hotkeys (work in any phase)
+  if(e.code === 'KeyE'){ editor.active = !editor.active; toast(editor.active ? 'EDITOR ON (click to place, 1-7 picks tile)' : 'EDITOR OFF'); }
+  if(editor.active){
+    const n = { Digit1:0, Digit2:1, Digit3:2, Digit4:3, Digit5:4, Digit6:5, Digit7:6 }[e.code];
+    if(n !== undefined){ editor.tool = n; toast('Tool: ' + EDIT_LABELS[n]); }
+    if(e.code === 'KeyS'){
+      try { localStorage.setItem('ninja_hop_level', LEVEL_MAP.join('|')); toast('Saved to localStorage'); } catch(_){ toast('Save failed'); }
+    }
+    if(e.code === 'KeyL'){
+      try {
+        const saved = localStorage.getItem('ninja_hop_level');
+        if(saved){ const rows = saved.split('|'); for(let i=0;i<LVL_H;i++) LEVEL_MAP[i] = LRW(rows[i]||''); toast('Loaded'); }
+      } catch(_){ toast('Load failed'); }
+    }
+    if(e.code === 'KeyR'){ for(let i=0;i<LVL_H;i++) LEVEL_MAP[i] = DEFAULT_LEVEL_MAP[i]; toast('Reset to default'); }
   }
 });
 addEventListener('keyup', e => { KEYS[e.code] = false; });
@@ -803,6 +840,35 @@ function tryPound(){
 function step(){
   state.frame++;
   if(state.phase !== 'play') return;
+
+  // Flagpole ending sequence overrides normal play
+  if(state.ending){
+    const p = state.player;
+    const poleX = FLAG.col * TILE + 7;
+    const groundY = FLAG.bottomRow * TILE - p.h;
+    if(state.ending.phase === 'slide'){
+      p.y += 2.5;
+      p.facing = 1;
+      if(p.y >= groundY){
+        p.y = groundY;
+        state.ending.phase = 'walk';
+        state.ending.timer = 1.2;
+      }
+    } else if(state.ending.phase === 'walk'){
+      p.x += 1.6;
+      p.runFrame = (p.runFrame + 1) % 10;
+      state.ending.timer -= 1/50;
+      // Burst a few celebration coins/particles
+      if(Math.random() < 0.3) spawnP(p.x + 7, p.y, '#fde047');
+      if(state.ending.timer <= 0){ winGame(); return; }
+    }
+    // Camera still follows
+    state.cameraX = Math.max(0, Math.min(LVL_W*TILE - W, p.x - W/2));
+    state.cameraY = state.cameraY + (Math.max(0, Math.min(LVL_H*TILE - H, p.y - H*0.6)) - state.cameraY) * 0.1;
+    draw._skipRest = true;
+    return;
+  }
+
   state.timeTick++;
   if(state.timeTick >= 50){ state.timeTick = 0; state.timeLeft--; if(state.timeLeft <= 0){ killPlayer('TIME UP!'); return; } }
 
@@ -1013,9 +1079,19 @@ function step(){
   // Fall-off-world
   if(p.y > LVL_H * TILE + 20){ killPlayer('You fell into the abyss.'); return; }
 
-  // Reach pagoda
-  const pagodaX = (LVL_W - 5) * TILE;
-  if(p.x > pagodaX){ winGame(); return; }
+  // Flagpole collision — tall vertical pole at FLAG.col. On touch,
+  // kick off the slide-down ending sequence (locks input, animates
+  // ninja descending the pole, then walks right off-screen).
+  if(!state.ending){
+    const poleX = FLAG.col * TILE + 7;
+    const poleTop = FLAG.topRow * TILE;
+    const poleBot = FLAG.bottomRow * TILE;
+    if(p.x + p.w > poleX - 2 && p.x < poleX + 4 && p.y + p.h > poleTop && p.y < poleBot){
+      state.ending = { phase:'slide', slideY: p.y, timer: 0 };
+      p.vx = 0; p.vy = 0;
+      p.x = poleX - 10; // snap to left side of pole
+    }
+  }
 
   // Animation state
   if(!p.onGround) p.state = 'jump';
@@ -1163,6 +1239,35 @@ function killPlayer(msg){
   document.getElementById('dieMsg').textContent = msg;
   document.getElementById('dieOv').classList.add('show');
 }
+// Lightweight transient on-screen message (editor hotkey feedback)
+let _toastMsg = '', _toastT = 0;
+function toast(msg){ _toastMsg = msg; _toastT = 120; }
+
+// Mouse → tile placement when editor is active
+C.addEventListener('mousedown', (e) => {
+  if(!editor.active) return;
+  e.preventDefault();
+  const r = C.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (W / r.width);
+  const py = (e.clientY - r.top) * (H / r.height);
+  const wx = px + state.cameraX;
+  const wy = py + state.cameraY;
+  const col = Math.floor(wx / TILE);
+  const row = Math.floor(wy / TILE);
+  if(row < 0 || row >= LVL_H || col < 0 || col >= LVL_W) return;
+  const ch = e.button === 2 ? ' ' : EDIT_PALETTE[editor.tool];
+  LEVEL_MAP[row] = LEVEL_MAP[row].substring(0, col) + ch + LEVEL_MAP[row].substring(col + 1);
+});
+C.addEventListener('contextmenu', e => { if(editor.active) e.preventDefault(); });
+C.addEventListener('mousemove', (e) => {
+  if(!editor.active) return;
+  const r = C.getBoundingClientRect();
+  const px = (e.clientX - r.left) * (W / r.width);
+  const py = (e.clientY - r.top) * (H / r.height);
+  editor.cursorCol = Math.floor((px + state.cameraX) / TILE);
+  editor.cursorRow = Math.floor((py + state.cameraY) / TILE);
+});
+
 function winGame(){
   state.phase = 'win';
   document.getElementById('winMsg').textContent = `Score ${state.coins} · Lives ${state.lives} · Time ${state.timeLeft}`;
@@ -1303,6 +1408,47 @@ function draw(){
     ctx.fillStyle = '#fcd34d';
   }
 
+  // Flagpole — tall bamboo-style pole with a red clan banner at top.
+  // Banner descends toward the base as the slide animation progresses.
+  (function drawFlag(){
+    const px = FLAG.col * TILE + 7;
+    const yTop = FLAG.topRow * TILE;
+    const yBot = FLAG.bottomRow * TILE;
+    // Finial ball
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath(); ctx.arc(px + 1, yTop - 2, 3, 0, Math.PI*2); ctx.fill();
+    // Pole shaft (segmented bamboo look)
+    ctx.fillStyle = '#2d6616';
+    ctx.fillRect(px, yTop, 2, yBot - yTop);
+    ctx.fillStyle = '#1a3d0e';
+    for(let y = yTop; y < yBot; y += 10){
+      ctx.fillRect(px, y + 8, 2, 1);
+    }
+    // Banner — slides from top to bottom alongside player
+    let bannerY = FLAG.bannerRow * TILE;
+    if(state.ending){
+      // Banner follows ninja's slide progress
+      const t = (state.player.y - FLAG.topRow*TILE) / ((FLAG.bottomRow - FLAG.topRow)*TILE);
+      bannerY = FLAG.topRow*TILE + Math.max(0, Math.min(1, t)) * (yBot - FLAG.topRow*TILE - 10);
+    }
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.moveTo(px + 2, bannerY);
+    ctx.lineTo(px + 16, bannerY + 3);
+    ctx.lineTo(px + 16, bannerY + 9);
+    ctx.lineTo(px + 2, bannerY + 12);
+    ctx.closePath();
+    ctx.fill();
+    // Original clan symbol — a 4-point shuriken outline on the banner
+    ctx.fillStyle = '#fef3c7';
+    const cx = px + 9, cy = bannerY + 6;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 3); ctx.lineTo(cx + 2, cy); ctx.lineTo(cx + 3, cy);
+    ctx.lineTo(cx, cy + 3); ctx.lineTo(cx - 2, cy); ctx.lineTo(cx - 3, cy);
+    ctx.closePath();
+    ctx.fill();
+  })();
+
   // Floating coins — rotate frames by spin
   for(const c of state.coinsEnt){
     if(c.picked) continue;
@@ -1356,6 +1502,49 @@ function cloud(x, y){
   ctx.fill();
 }
 
+// ─── Editor overlay ──────────────────────────────────────────
+function drawEditor(){
+  // Grid overlay across visible viewport
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.lineWidth = 1;
+  const startC = Math.floor(state.cameraX / TILE);
+  const endC = Math.ceil((state.cameraX + W) / TILE);
+  for(let c = startC; c <= endC; c++){
+    const x = c * TILE - state.cameraX;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for(let r = 0; r <= LVL_H; r++){
+    const y = r * TILE - state.cameraY;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  // Cursor highlight
+  if(editor.cursorRow >= 0 && editor.cursorRow < LVL_H){
+    const cx = editor.cursorCol * TILE - state.cameraX;
+    const cy = editor.cursorRow * TILE - state.cameraY;
+    ctx.strokeStyle = '#fde047';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx, cy, TILE, TILE);
+  }
+  ctx.restore();
+
+  // Palette strip at top
+  ctx.fillStyle = 'rgba(0,0,0,.85)';
+  ctx.fillRect(0, 0, W, 18);
+  ctx.font = 'bold 7px monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for(let i = 0; i < EDIT_PALETTE.length; i++){
+    const x = 4 + i * 36;
+    ctx.fillStyle = i === editor.tool ? '#fde047' : '#64748b';
+    ctx.fillRect(x, 2, 32, 14);
+    ctx.fillStyle = i === editor.tool ? '#000' : '#fff';
+    ctx.fillText((i+1) + ' ' + EDIT_PALETTE[i].trim(), x + 3, 9);
+  }
+  ctx.fillStyle = '#94a3b8';
+  ctx.textAlign = 'right';
+  ctx.fillText('E:exit  S:save  L:load  R:reset', W - 4, 9);
+}
+
 // ─── Loop ────────────────────────────────────────────────────
 let lastT = performance.now();
 let accT = 0;
@@ -1365,10 +1554,20 @@ function loop(now){
   lastT = now;
   accT += dtReal;
   while(accT >= DT){
-    step();
+    if(!editor.active) step();
     accT -= DT;
   }
   draw();
+  if(editor.active) drawEditor();
+  if(_toastT > 0){
+    _toastT--;
+    ctx.fillStyle = 'rgba(0,0,0,.8)';
+    ctx.fillRect(10, H - 24, W - 20, 16);
+    ctx.fillStyle = '#fde047';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(_toastMsg, W/2, H - 16);
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
