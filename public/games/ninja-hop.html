@@ -658,18 +658,29 @@ const LEVEL_MAP = [
 const DEFAULT_LEVEL_MAP = LEVEL_MAP.slice();
 const LVL_H = LEVEL_MAP.length;
 const LVL_W = LEVEL_W;
-const EDIT_PALETTE = [' ', 'G', 'B', 'Q', '?', 'P', 'p'];
-const EDIT_LABELS  = ['Erase', 'Ground', 'Brick', 'Coin Block', 'Scroll Block', 'Bamboo Top', 'Bamboo Body'];
-let editor = { active:false, tool:1, cursorCol:0, cursorRow:0 };
+// Editor palette extended with enemy markers (m/s/l) — these behave as
+// air (walkable, non-solid) in game logic but spawn an enemy at reset.
+const EDIT_PALETTE = [' ', 'G', 'B', 'Q', '?', 'P', 'p', 'm', 's', 'l'];
+const EDIT_LABELS  = ['Erase','Ground','Brick','Coin','Scroll','BambooT','BambooB','Mushi','Spike','Lantern'];
+let editor = { active:false, tool:1, cursorCol:0, cursorRow:0, camX:0 };
 
+function placeMarker(col, row, ch){
+  LEVEL_MAP[row] = LEVEL_MAP[row].substring(0, col) + ch + LEVEL_MAP[row].substring(col + 1);
+}
 // Try to load any saved level from localStorage on boot
+let _loadedCustom = false;
 try {
   const saved = localStorage.getItem('ninja_hop_level');
   if(saved){
     const rows = saved.split('|');
-    if(rows.length === LVL_H){ for(let i=0;i<LVL_H;i++) LEVEL_MAP[i] = LRW(rows[i]); }
+    if(rows.length === LVL_H){ for(let i=0;i<LVL_H;i++) LEVEL_MAP[i] = LRW(rows[i]); _loadedCustom = true; }
   }
 } catch(_){}
+// If running the shipped default, bake ENEMY_PLACE positions in as
+// map markers so the editor can see / move them.
+if(!_loadedCustom){
+  // Will populate after ENEMY_PLACE is defined — see below.
+}
 
 // Flagpole at the end — tall pole (rows topRow..bottomRow) at col with
 // a cloth banner near the top. Touch anywhere on the pole to trigger
@@ -699,6 +710,16 @@ const COIN_PLACE = [
   // S4 big cluster shaped like a rising arc
   { col:92, row:10 }, { col:94, row:9  }, { col:96, row:8  }, { col:98, row:9  }, { col:100, row:10 },
 ];
+
+// Bake default enemy positions into LEVEL_MAP as 'm'/'s'/'l' markers,
+// but only if we haven't already loaded a user-edited save.
+if(!_loadedCustom){
+  const T = { mushi:'m', spike:'s', lantern:'l' };
+  for(const e of ENEMY_PLACE){
+    const ch = T[e.type];
+    if(ch) placeMarker(e.col, e.row, ch);
+  }
+}
 
 // ─── Game state ──────────────────────────────────────────────
 let state;
@@ -749,15 +770,20 @@ function resetState(){
       }
     }
   }
-  for(const e of ENEMY_PLACE){
-    const x = e.col * TILE + 4;
-    const y = e.row * TILE;
-    const base = { type: e.type, x, y, vx: -0.6, vy: 0, w: 14, h: 14, alive: true, hitFlash: 0 };
-    if(e.type === 'oni') { base.vy = -1.5; base.bounceT = 0; base.h = 14; base.w = 14; }
-    if(e.type === 'spike') { base.vx = -0.5; }
-    if(e.type === 'lantern') { base.vx = 0; base.cool = 2; base.h = 16; }
-    if(e.type === 'shadow') { base.vx = -1.0; base.jumpCool = 2; }
-    state.enemies.push(base);
+  // Scan LEVEL_MAP for enemy markers (so the editor is the source of truth)
+  const MARK = { 'm':'mushi', 's':'spike', 'l':'lantern' };
+  for(let r = 0; r < LVL_H; r++){
+    const row = LEVEL_MAP[r];
+    for(let c = 0; c < row.length; c++){
+      const type = MARK[row[c]];
+      if(!type) continue;
+      const x = c * TILE + 4;
+      const y = r * TILE;
+      const base = { type, x, y, vx: -0.6, vy: 0, w: 14, h: 14, alive: true, hitFlash: 0 };
+      if(type === 'spike') { base.vx = -0.5; }
+      if(type === 'lantern') { base.vx = 0; base.cool = 2; base.h = 16; }
+      state.enemies.push(base);
+    }
   }
   for(const c of COIN_PLACE){
     state.coinsEnt.push({ x: c.col * TILE + 2, y: c.row * TILE + 4, picked: false, spin: Math.random() * Math.PI * 2 });
@@ -775,9 +801,19 @@ addEventListener('keydown', e => {
     if(e.code === 'KeyX' || e.code === 'ControlLeft') tryPound();
   }
   // Editor hotkeys (work in any phase)
-  if(e.code === 'KeyE'){ editor.active = !editor.active; toast(editor.active ? 'EDITOR ON (click to place, 1-7 picks tile)' : 'EDITOR OFF'); }
+  if(e.code === 'KeyE'){
+    editor.active = !editor.active;
+    if(editor.active){
+      editor.camX = Math.max(0, state.cameraX);
+      toast('EDITOR — 1-0 pick tile · click to place · ← → scroll · S save · L load · R reset');
+    } else {
+      resetState();
+      toast('Testing your level!');
+    }
+  }
   if(editor.active){
-    const n = { Digit1:0, Digit2:1, Digit3:2, Digit4:3, Digit5:4, Digit6:5, Digit7:6 }[e.code];
+    const n = { Digit1:0, Digit2:1, Digit3:2, Digit4:3, Digit5:4,
+                Digit6:5, Digit7:6, Digit8:7, Digit9:8, Digit0:9 }[e.code];
     if(n !== undefined){ editor.tool = n; toast('Tool: ' + EDIT_LABELS[n]); }
     if(e.code === 'KeyS'){
       try { localStorage.setItem('ninja_hop_level', LEVEL_MAP.join('|')); toast('Saved to localStorage'); } catch(_){ toast('Save failed'); }
@@ -1244,28 +1280,31 @@ let _toastMsg = '', _toastT = 0;
 function toast(msg){ _toastMsg = msg; _toastT = 120; }
 
 // Mouse → tile placement when editor is active
-C.addEventListener('mousedown', (e) => {
-  if(!editor.active) return;
-  e.preventDefault();
+function _editMouse(e, place){
   const r = C.getBoundingClientRect();
   const px = (e.clientX - r.left) * (W / r.width);
   const py = (e.clientY - r.top) * (H / r.height);
-  const wx = px + state.cameraX;
-  const wy = py + state.cameraY;
-  const col = Math.floor(wx / TILE);
-  const row = Math.floor(wy / TILE);
-  if(row < 0 || row >= LVL_H || col < 0 || col >= LVL_W) return;
-  const ch = e.button === 2 ? ' ' : EDIT_PALETTE[editor.tool];
-  LEVEL_MAP[row] = LEVEL_MAP[row].substring(0, col) + ch + LEVEL_MAP[row].substring(col + 1);
+  // Palette strip at top (18px) is a dead zone for placing
+  if(py < 20) return null;
+  const col = Math.floor((px + editor.camX) / TILE);
+  const row = Math.floor(py / TILE);
+  if(row < 0 || row >= LVL_H || col < 0 || col >= LVL_W) return null;
+  if(place){
+    const ch = e.button === 2 ? ' ' : EDIT_PALETTE[editor.tool];
+    LEVEL_MAP[row] = LEVEL_MAP[row].substring(0, col) + ch + LEVEL_MAP[row].substring(col + 1);
+  }
+  return { col, row };
+}
+C.addEventListener('mousedown', (e) => {
+  if(!editor.active) return;
+  e.preventDefault();
+  _editMouse(e, true);
 });
 C.addEventListener('contextmenu', e => { if(editor.active) e.preventDefault(); });
 C.addEventListener('mousemove', (e) => {
   if(!editor.active) return;
-  const r = C.getBoundingClientRect();
-  const px = (e.clientX - r.left) * (W / r.width);
-  const py = (e.clientY - r.top) * (H / r.height);
-  editor.cursorCol = Math.floor((px + state.cameraX) / TILE);
-  editor.cursorRow = Math.floor((py + state.cameraY) / TILE);
+  const p = _editMouse(e, false);
+  if(p){ editor.cursorCol = p.col; editor.cursorRow = p.row; }
 });
 
 function winGame(){
@@ -1502,47 +1541,77 @@ function cloud(x, y){
   ctx.fill();
 }
 
-// ─── Editor overlay ──────────────────────────────────────────
-function drawEditor(){
-  // Grid overlay across visible viewport
+// ─── Editor view (replaces gameplay rendering while active) ─────
+function drawEditorScene(){
+  // Dark background — no sky / parallax / sprites
+  ctx.fillStyle = '#0b1220';
+  ctx.fillRect(0, 0, W, H);
+
+  // Draw tiles with editor camera
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.12)';
+  ctx.translate(-Math.floor(editor.camX), 0);
+  const startC = Math.max(0, Math.floor(editor.camX / TILE) - 1);
+  const endC = Math.min(LVL_W, Math.ceil((editor.camX + W) / TILE) + 1);
+  for(let r = 0; r < LVL_H; r++){
+    const row = LEVEL_MAP[r];
+    for(let c = startC; c < endC; c++){
+      const ch = row[c];
+      if(ch === ' ' || !ch) continue;
+      const x = c * TILE, y = r * TILE;
+      if(ch === 'G')      drawSpr(x, y, S_GROUND);
+      else if(ch === 'B') drawSpr(x, y, S_BRICK);
+      else if(ch === 'Q') drawSpr(x, y, S_QBLOCK);
+      else if(ch === '?') drawSpr(x, y, S_QBLOCK);
+      else if(ch === 'P') drawSpr(x, y, S_BAMBOO_TOP);
+      else if(ch === 'p') drawSpr(x, y, S_BAMBOO_BODY);
+      else if(ch === 'm') drawSpr(x, y, S_MUSHI1);
+      else if(ch === 's') drawSpr(x, y, S_SPIKE);
+      else if(ch === 'l') drawSpr(x, y, S_LANTERN);
+    }
+  }
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.1)';
   ctx.lineWidth = 1;
-  const startC = Math.floor(state.cameraX / TILE);
-  const endC = Math.ceil((state.cameraX + W) / TILE);
   for(let c = startC; c <= endC; c++){
-    const x = c * TILE - state.cameraX;
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(c*TILE, 0); ctx.lineTo(c*TILE, LVL_H*TILE); ctx.stroke();
   }
   for(let r = 0; r <= LVL_H; r++){
-    const y = r * TILE - state.cameraY;
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(startC*TILE, r*TILE); ctx.lineTo(endC*TILE, r*TILE); ctx.stroke();
   }
-  // Cursor highlight
+  // Flagpole marker (always visible as yellow line)
+  ctx.strokeStyle = '#fde047';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(FLAG.col*TILE + 8, FLAG.topRow*TILE);
+  ctx.lineTo(FLAG.col*TILE + 8, FLAG.bottomRow*TILE);
+  ctx.stroke();
+  // Cursor square
   if(editor.cursorRow >= 0 && editor.cursorRow < LVL_H){
-    const cx = editor.cursorCol * TILE - state.cameraX;
-    const cy = editor.cursorRow * TILE - state.cameraY;
     ctx.strokeStyle = '#fde047';
     ctx.lineWidth = 2;
-    ctx.strokeRect(cx, cy, TILE, TILE);
+    ctx.strokeRect(editor.cursorCol * TILE, editor.cursorRow * TILE, TILE, TILE);
   }
   ctx.restore();
 
   // Palette strip at top
-  ctx.fillStyle = 'rgba(0,0,0,.85)';
+  ctx.fillStyle = 'rgba(0,0,0,.9)';
   ctx.fillRect(0, 0, W, 18);
-  ctx.font = 'bold 7px monospace';
+  ctx.font = 'bold 6px monospace';
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
   for(let i = 0; i < EDIT_PALETTE.length; i++){
-    const x = 4 + i * 36;
-    ctx.fillStyle = i === editor.tool ? '#fde047' : '#64748b';
-    ctx.fillRect(x, 2, 32, 14);
+    const x = 2 + i * 25;
+    ctx.fillStyle = i === editor.tool ? '#fde047' : '#334155';
+    ctx.fillRect(x, 2, 23, 14);
     ctx.fillStyle = i === editor.tool ? '#000' : '#fff';
-    ctx.fillText((i+1) + ' ' + EDIT_PALETTE[i].trim(), x + 3, 9);
+    ctx.fillText(((i+1)%10) + ' ' + EDIT_LABELS[i].slice(0, 3), x + 2, 9);
   }
+  // Position indicator at bottom
+  ctx.fillStyle = 'rgba(0,0,0,.6)';
+  ctx.fillRect(0, H - 10, W, 10);
   ctx.fillStyle = '#94a3b8';
-  ctx.textAlign = 'right';
-  ctx.fillText('E:exit  S:save  L:load  R:reset', W - 4, 9);
+  ctx.font = 'bold 6px monospace';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(`col ${Math.floor(editor.camX/TILE)}/${LVL_W}   ← → scroll · E exit · S save · L load · R reset`, 4, H - 5);
 }
 
 // ─── Loop ────────────────────────────────────────────────────
@@ -1553,12 +1622,16 @@ function loop(now){
   const dtReal = Math.min(0.1, (now - lastT) / 1000);
   lastT = now;
   accT += dtReal;
-  while(accT >= DT){
-    if(!editor.active) step();
-    accT -= DT;
+  if(editor.active){
+    // Scroll editor camera with arrow keys (hold shift for faster)
+    const spd = (KEYS.ShiftLeft || KEYS.ShiftRight) ? 10 : 4;
+    if(KEYS.ArrowLeft)  editor.camX = Math.max(0, editor.camX - spd);
+    if(KEYS.ArrowRight) editor.camX = Math.min(LVL_W*TILE - W, editor.camX + spd);
+    drawEditorScene();
+  } else {
+    while(accT >= DT){ step(); accT -= DT; }
+    draw();
   }
-  draw();
-  if(editor.active) drawEditor();
   if(_toastT > 0){
     _toastT--;
     ctx.fillStyle = 'rgba(0,0,0,.8)';
