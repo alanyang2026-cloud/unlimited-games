@@ -633,12 +633,17 @@ function LRW(s){ return (s + ' '.repeat(LEVEL_W)).slice(0, LEVEL_W); }
 //  S3 (60-90)  Elevated spike platforms + ground-level lanterns
 //  S4 (90-120) Final gauntlet + giant pagoda background + flag
 // Player-authored level (replaces the original 4-act layout).
+// Content shifted down 3 rows so the walking ground sits at r14 (bedrock
+// line) — no duplicate ground layer beneath the player anymore.
 const LEVEL_MAP = [
   LRW(''),  // r0 sky
   LRW(''),  // r1 sky
   LRW(''),  // r2 sky
   LRW(''),  // r3 sky
-  LRW(''),
+  LRW(''),  // r4 sky
+  LRW(''),  // r5 sky
+  LRW(''),  // r6 sky
+  LRW(''),  // r7 sky (was the mm row, now empty)
   LRW('BBBBB                                 BBBBB   BBBBB?              ?        B??B                   B                     '),
   LRW('                                                                                                                BB      '),
   LRW('           BB?B                     P                                                                          BBB      '),
@@ -646,9 +651,6 @@ const LEVEL_MAP = [
   LRW('                               p    p                                                              BB BB     BBBBB      '),
   LRW('             m            P   mPm  mP                                             mm            mmBBB BBB   BBBBBB      '),
   LRW('GGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGG   GGGGGGGGG                                                               '),
-  LRW(''),
-  LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
-  LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
 ];
 // Immutable snapshot of the shipped level — used by editor "Reset".
 const DEFAULT_LEVEL_MAP = LEVEL_MAP.slice();
@@ -712,7 +714,7 @@ function resetState(){
     cameraX: 0,
     cameraY: 0,
     player: {
-      x: 32, y: 140,
+      x: 32, y: 192,
       vx: 0, vy: 0,
       w: 10, h: 14,
       facing: 1,
@@ -1254,7 +1256,7 @@ function hurtPlayer(){
   } else {
     state.lives--;
     if(state.lives <= 0){ killPlayer('Out of lives.'); return; }
-    p.x = 32; p.y = 140; p.vx = 0; p.vy = 0;
+    p.x = 32; p.y = 192; p.vx = 0; p.vy = 0;
     p.invuln = 90;
   }
 }
