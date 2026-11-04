@@ -632,28 +632,23 @@ function LRW(s){ return (s + ' '.repeat(LEVEL_W)).slice(0, LEVEL_W); }
 //  S2 (30-60)  Tall bamboo cover, hidden grub, scroll block
 //  S3 (60-90)  Elevated spike platforms + ground-level lanterns
 //  S4 (90-120) Final gauntlet + giant pagoda background + flag
+// Player-authored level (replaces the original 4-act layout).
 const LEVEL_MAP = [
   LRW(''),  // r0 sky
-  LRW(''),  // r1 sky — hidden-reward coins live here as entities
+  LRW(''),  // r1 sky
   LRW(''),  // r2 sky
-  LRW(''),  // r3 sky — lanterns hang here
-  LRW(''),  // r4 sky
-  LRW(''),  // r5 sky
-  LRW(''),  // r6 sky
-  // r7 — scroll "?" in S2 + two elevated BBBB platforms in S3 (spikes on top)
-  LRW('                                                ?                   BBBB          BBBB                      '),
-  // r8-12 — tall bamboo stalk at col 38 forms the S2 cover wall
-  LRW('                                      P                                                                     '),
-  LRW('                                      p                                                                     '),
-  // r10 — short stepping-stone platforms in S1
-  LRW('        GGG       GGG                 p                                                                     '),
-  LRW('                                      p                                                                     '),
-  LRW('                                      p                                                                     '),
-  // r13 — walking ground with pits; bamboo breaks ground at col 38.
-  // Flagpole is a separate rendered element (see FLAG below), so no F tile here.
-  LRW('GGGGGGGGGGG   GGGGG   GGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
-  // r14 — bedrock, unbroken (bamboo stops above it)
-  LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
+  LRW(''),  // r3 sky
+  LRW('mm                                                                                                                      '),
+  LRW('               BBBBB                                 BBBBB   BBBBB?              ?        B??B                   B      '),
+  LRW('                                                                                                                BB      '),
+  LRW('           BB?B                     P                                                                          BBB      '),
+  LRW('        ?                      P    p             B?B             B    BBB    ?  ?  ?      BB       B B       BBBB     '),
+  LRW('                               p    p                                                              BB BB     BBBBB      '),
+  LRW('             m            P   mPm  mP                                             mm            mmBBB BBB   BBBBBB      '),
+  LRW('GGGGGGGGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGG   GGGGGGGGGGG   GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG       '),
+  LRW('                                      p                                                                                 '),
+  LRW('GGGGGGGGGGG   GGGGG   GGGGGGGGGGGGGGGGpGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG       '),
+  LRW('GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG'),
 ];
 // Immutable snapshot of the shipped level — used by editor "Reset".
 const DEFAULT_LEVEL_MAP = LEVEL_MAP.slice();
@@ -688,29 +683,12 @@ if(!_loadedCustom){
 // the slide-down ending animation.
 const FLAG = { col: 115, topRow: 3, bottomRow: 12, bannerRow: 4 };
 
-// Enemy placements — hand-tuned on the level
-// S1 teaches stomp → S2 scroll pickup → S3 spike platforms (pound test)
-// → S4 lantern gauntlet to the pagoda. One lantern per hazard pinch.
-const ENEMY_PLACE = [
-  { type:'mushi',   col:16, row:12 },  // S1 — first stomp
-  { type:'mushi',   col:42, row:12 },  // S2 — HIDDEN behind the bamboo wall
-  { type:'spike',   col:70, row:6  },  // S3 — standing on first elevated platform
-  { type:'spike',   col:84, row:6  },  // S3 — second elevated platform
-  { type:'lantern', col:75, row:3  },  // S3 — raining fire between platforms
-  { type:'lantern', col:98, row:3  },  // S4 — final gauntlet
-  { type:'lantern', col:107, row:3 },  // S4 — last obstacle before the flag
-];
-
-// Floating coins — collected on touch (no bump required).
-// Three clusters: S1 jump-arc hint, S2 secret-high reward, S4 cluster.
-const COIN_PLACE = [
-  // S1 arc over the first pit
-  { col:11, row:10 }, { col:12, row:9 }, { col:13, row:9 }, { col:14, row:10 },
-  // S2 secret high reward above the bamboo wall
-  { col:43, row:1  }, { col:44, row:1  }, { col:45, row:1  }, { col:46, row:1  },
-  // S4 big cluster shaped like a rising arc
-  { col:92, row:10 }, { col:94, row:9  }, { col:96, row:8  }, { col:98, row:9  }, { col:100, row:10 },
-];
+// Enemies and coins are now baked directly into LEVEL_MAP above
+// (markers: m/s/l for enemies, c for coins). These extra-placement
+// arrays stay in the source as empty lists in case anyone wants to
+// seed additional entities on top of the map later.
+const ENEMY_PLACE = [];
+const COIN_PLACE = [];
 
 // Bake default enemy positions into LEVEL_MAP as 'm'/'s'/'l' markers,
 // and default floating coins as 'c' markers — but only if we haven't
