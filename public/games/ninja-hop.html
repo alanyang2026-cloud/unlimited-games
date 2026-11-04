@@ -712,7 +712,7 @@ function resetState(){
     cameraX: 0,
     cameraY: 0,
     player: {
-      x: 32, y: 180,
+      x: 32, y: 140,
       vx: 0, vy: 0,
       w: 10, h: 14,
       facing: 1,
@@ -1254,7 +1254,7 @@ function hurtPlayer(){
   } else {
     state.lives--;
     if(state.lives <= 0){ killPlayer('Out of lives.'); return; }
-    p.x = 32; p.y = 180; p.vx = 0; p.vy = 0;
+    p.x = 32; p.y = 140; p.vx = 0; p.vy = 0;
     p.invuln = 90;
   }
 }
