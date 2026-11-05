@@ -175,17 +175,18 @@ function spawnFish(initial){
   const bias = Math.random();
   let kindIndex;
   if(bias < 0.55){
-    // Smaller than player — tasty
-    kindIndex = FISH_KINDS.findIndex(k => k.s <= playerS - EAT_MARGIN);
+    // Smaller than player — easy prey to bite down
+    kindIndex = FISH_KINDS.findIndex(k => k.s <= playerS - 3);
     if(kindIndex < 0) kindIndex = 0;
-    kindIndex += Math.floor(Math.random() * Math.max(1, FISH_KINDS.findIndex(k => k.s > playerS - EAT_MARGIN)));
+    const cap = FISH_KINDS.findIndex(k => k.s > playerS - 3);
+    kindIndex += Math.floor(Math.random() * Math.max(1, cap < 0 ? FISH_KINDS.length : cap));
     kindIndex = Math.min(kindIndex, FISH_KINDS.length - 1);
   } else if(bias < 0.85){
-    // Near-size neutral/slightly over
+    // Near-size — fair bite fight
     kindIndex = Math.max(0, Math.min(FISH_KINDS.length - 1, FISH_KINDS.findIndex(k => k.s >= playerS - 4)));
   } else {
-    // Definitely bigger — predator threat
-    kindIndex = Math.min(FISH_KINDS.length - 1, FISH_KINDS.findIndex(k => k.s > playerS + DEATH_MARGIN));
+    // Definitely bigger — predator threat that'll bite us
+    kindIndex = Math.min(FISH_KINDS.length - 1, FISH_KINDS.findIndex(k => k.s > playerS + 6));
     if(kindIndex < 0) kindIndex = FISH_KINDS.length - 1;
   }
   const kind = FISH_KINDS[kindIndex];
