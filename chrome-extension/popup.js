@@ -32,14 +32,14 @@ const GAMES = [
   { id:'squish',          title:'Squishy',         emoji:'🫧', url:'/games/squish.html',           c1:'#f472b6', c2:'#a855f7', nw:480, nh:640, offline:true },
   { id:'liars-tavern',    title:"Liar's Tavern",   emoji:'🍻', url:'/games/liars-tavern.html',    c1:'#78350f', c2:'#0c0a09', live:true, nw:760, nh:520 },
   { id:'potato-bros',     title:'Potato Bros',     emoji:'🥔', url:'/games/potato-bros.html',     c1:'#b45309', c2:'#65a30d', nw:820, nh:640 },
-  { id:'overclock',       title:'Overclock',       emoji:'⚡', url:'/games/overclock.html',        c1:'#ec4899', c2:'#06b6d4', nw:900, nh:600 },
-  { id:'ninja-hop',       title:'Ninja Hop',       emoji:'🥷', url:'/games/ninja-hop.html',        c1:'#dc2626', c2:'#1e3a8a', nw:800, nh:600 },
   { id:'hangman',         title:'Hangman',         emoji:'⚰️', url:'/games/hangman.html',          c1:'#d97706', c2:'#292524', nw:400, nh:620, offline:true },
   { id:'minesweeper',     title:'Minesweeper',     emoji:'💣', url:'/games/minesweeper.html',      c1:'#2d5a2f', c2:'#1a3a1b', nw:420, nh:560, offline:true },
-  { id:'feeding-frenzy',  title:'Feeding Frenzy',  emoji:'🐠', url:'/games/feeding-frenzy.html',   c1:'#0891b2', c2:'#082f49', nw:800, nh:560, offline:true },
-  // Rail Runner intentionally excluded from the Chrome Web Store
-  // build — style overlap with Subway Surfers is high enough that a
-  // store reviewer could flag it. Still ships on unlimitedgames.vercel.app.
+  // Intentionally excluded from the Chrome Web Store build (still ship
+  // on unlimitedgames.vercel.app):
+  //   • Rail Runner — visual overlap with Subway Surfers
+  //   • Overclock — not store-ready yet
+  //   • Ninja Hop — not store-ready yet
+  //   • Feeding Frenzy — not store-ready yet
 ];
 
 // ─── Ordering ──────────────────────────────────────────────
