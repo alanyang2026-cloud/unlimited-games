@@ -3,7 +3,7 @@
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
   "version": "1.13.0",
-  "description": "A mini game center under your toolbar icon. 7 classics (Snake, 2048, Blocks, Memory, Squishy, Hangman, Minesweeper) play fully offline.",
+  "description": "17 free games in one click. Snake, 2048, Chess, Minesweeper, Hangman & more. 7 play offline. No downloads.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
     "16":  "icons/icon-16.png",
