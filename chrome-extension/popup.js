@@ -42,10 +42,30 @@ const GAMES = [
   // store reviewer could flag it. Still ships on unlimitedgames.vercel.app.
 ];
 
+// ─── Ordering ──────────────────────────────────────────────
+// Classics surface first (except for 🔥 hot games, which jump ahead
+// once markHotGames resolves). Keep the source-order within each
+// bucket so popup.js stays diff-friendly.
+const CLASSIC_IDS = new Set([
+  'snake', '2048', 'tetris', 'memory', 'hangman',
+  'minesweeper', 'breakout', 'chess', 'feeding-frenzy',
+]);
+function rank(id, hotSet){
+  if(hotSet && hotSet.has(id)) return 0;
+  if(CLASSIC_IDS.has(id)) return 1;
+  return 2;
+}
+function sortedGames(hotSet){
+  return [...GAMES]
+    .map((g, i) => ({ g, i, r: rank(g.id, hotSet) }))
+    .sort((a, b) => a.r - b.r || a.i - b.i)
+    .map(x => x.g);
+}
+
 // ─── Render the grid ───────────────────────────────────────
 const grid = document.getElementById('grid');
 const frag = document.createDocumentFragment();
-for(const g of GAMES){
+for(const g of sortedGames(null)){
   // Use a real <button> so Tab / Enter / Space "just work" for
   // keyboard users, no custom key handling needed.
   const card = document.createElement('button');
@@ -68,16 +88,25 @@ for(const g of GAMES){
 }
 grid.appendChild(frag);
 
-// Decorate the top-3 most-clicked games with the 🔥 badge. This runs
-// async after render so a slow / missing Firebase can never block the
-// menu from showing.
+// Decorate the top-3 most-clicked games with the 🔥 badge AND float
+// them to the front of the grid. Runs async after render so a slow /
+// missing Firebase can never block the menu from showing.
 (async function markHotGames(){
   try {
     if(!window.UGHot) return;
     const hot = await window.UGHot.getHotGames(3);
     const ids = new Set(hot.map(h => h.id));
-    for(const card of grid.querySelectorAll('.card')){
+    if(!ids.size) return;
+    // Re-rank cards by [hot, classic, other] and reinsert in new order
+    const cards = Array.from(grid.querySelectorAll('.card'));
+    cards.sort((a, b) => {
+      const ra = rank(a.dataset.id, ids), rb = rank(b.dataset.id, ids);
+      if(ra !== rb) return ra - rb;
+      return cards.indexOf(a) - cards.indexOf(b);  // stable
+    });
+    for(const card of cards){
       if(ids.has(card.dataset.id)) card.classList.add('hot');
+      grid.appendChild(card);  // moves to end in sorted order
     }
   } catch(_){ /* ignore — the UI stays functional without badges */ }
 })();

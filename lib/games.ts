@@ -5,7 +5,16 @@ export interface Game {
   description: string;
   color: string; // tailwind gradient classes
   controls: string;
+  /** Classic single-player games surfaced first on the grid, after 🔥 hot ones. */
+  classic?: boolean;
 }
+
+/** The nine canonical classics everybody recognizes — these outrank
+ *  everything except 🔥 hot games on the home grid. */
+export const CLASSIC_IDS = new Set<string>([
+  "snake", "2048", "tetris", "memory-match", "hangman",
+  "minesweeper", "breakout", "chess", "feeding-frenzy",
+]);
 
 export const GAMES: Game[] = [
   {

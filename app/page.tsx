@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Script from "next/script";
-import { GAMES } from "@/lib/games";
+import { GAMES, CLASSIC_IDS } from "@/lib/games";
 
 const GAME_PATHS: Record<string, string> = {
   "snake":         "/games/snake.html",
@@ -58,6 +58,21 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Render order: 🔥 hot games first, then classics, then everything
+  // else. Within each bucket, keep the original lib/games.ts order so
+  // adjacent edits in that file still control fine-grained placement.
+  const orderedGames = useMemo(() => {
+    const rank = (id: string) => {
+      if (hotIds.has(id)) return 0;
+      if (CLASSIC_IDS.has(id)) return 1;
+      return 2;
+    };
+    return [...GAMES]
+      .map((g, i) => ({ g, i, r: rank(g.id) }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map(x => x.g);
+  }, [hotIds]);
+
   const handleClick = (id: string) => {
     // Don't await — the browser will keep the request in flight even
     // after the navigation starts.
@@ -82,7 +97,7 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 w-full max-w-2xl">
-        {GAMES.map((game) => {
+        {orderedGames.map((game) => {
           const isHot = hotIds.has(game.id);
           return (
             <a
