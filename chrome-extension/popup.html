@@ -157,6 +157,25 @@
     padding:1.5px 4px;border-radius:3px;
     box-shadow:0 0 6px rgba(236,72,153,.6);
   }
+  /* 🔥 Hot badge — shown on the top-3 most-clicked games
+     (last-7-day rolling window). Overrides .live in the rare case the
+     same card has both tags; LIVE goes to the bottom-right instead. */
+  .card.hot .hotTag{
+    position:absolute;top:4px;right:4px;z-index:3;
+    display:inline-flex;align-items:center;gap:2px;
+    font-size:9px;font-weight:900;letter-spacing:.3px;
+    padding:2px 5px;border-radius:999px;
+    background:rgba(220,38,38,.92);color:#fff;
+    border:1px solid rgba(255,220,180,.6);
+    box-shadow:0 0 10px rgba(220,38,38,.75);
+    animation:hotPulse 1.3s ease-in-out infinite;
+    pointer-events:none;
+  }
+  .card.hot.live::after{top:auto;bottom:4px}
+  @keyframes hotPulse{
+    0%,100%{transform:scale(1);box-shadow:0 0 10px rgba(220,38,38,.6)}
+    50%{transform:scale(1.1);box-shadow:0 0 18px rgba(220,38,38,.95)}
+  }
 
   /* Soft prompt row — invite + rate. Sits above the plain footer so
      it's visible but not pushy (small, muted when idle, lights up on hover) */
@@ -271,6 +290,7 @@
     <iframe id="gameFrame" allow="autoplay; fullscreen; gamepad; clipboard-read; clipboard-write"></iframe>
   </div>
 
+  <script src="hot.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

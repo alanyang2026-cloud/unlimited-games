@@ -61,11 +61,26 @@ for(const g of GAMES){
     '<div class="inner">' +
       '<div class="emoji">' + g.emoji + '</div>' +
       '<div class="name">' + g.title + '</div>' +
-    '</div>';
+    '</div>' +
+    '<span class="hotTag">🔥 HOT</span>';
   card.addEventListener('click', () => launchGame(g));
   frag.appendChild(card);
 }
 grid.appendChild(frag);
+
+// Decorate the top-3 most-clicked games with the 🔥 badge. This runs
+// async after render so a slow / missing Firebase can never block the
+// menu from showing.
+(async function markHotGames(){
+  try {
+    if(!window.UGHot) return;
+    const hot = await window.UGHot.getHotGames(3);
+    const ids = new Set(hot.map(h => h.id));
+    for(const card of grid.querySelectorAll('.card')){
+      if(ids.has(card.dataset.id)) card.classList.add('hot');
+    }
+  } catch(_){ /* ignore — the UI stays functional without badges */ }
+})();
 
 // Give the first card focus on load so keyboard users can immediately
 // arrow / tab / Enter into a game without clicking first.
@@ -80,6 +95,10 @@ const gameTitle = document.getElementById('gameTitle');
 function launchGame(g){
   currentGame = g;
   gameTitle.textContent = '🎮 ' + g.title;
+
+  // Fire-and-forget click tracking for the 🔥 hot-games ranker. Never
+  // await — must not delay the actual launch even by a frame.
+  if(window.UGHot) window.UGHot.trackClick(g.id);
 
   // Render the iframe at the game's natural design size, then
   // CSS-scale it so the whole thing fits inside AVAIL_W × AVAIL_H

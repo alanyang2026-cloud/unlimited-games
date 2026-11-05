@@ -1,3 +1,7 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Script from "next/script";
 import { GAMES } from "@/lib/games";
 
 const GAME_PATHS: Record<string, string> = {
@@ -24,9 +28,49 @@ const GAME_PATHS: Record<string, string> = {
   "feeding-frenzy":"/games/feeding-frenzy.html",
 };
 
+// Window global exposed by /public/hot.js
+declare global {
+  interface Window {
+    UGHot?: {
+      trackClick: (id: string) => Promise<void>;
+      getHotGames: (limit?: number) => Promise<Array<{ id: string; count: number }>>;
+    };
+  }
+}
+
 export default function HomePage() {
+  const [hotIds, setHotIds] = useState<Set<string>>(new Set());
+
+  // Fetch the top-3 hot games once the browser loads /hot.js.
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      // Wait up to ~2s for UGHot to appear on the window
+      for (let i = 0; i < 20 && !window.UGHot; i++) {
+        await new Promise(r => setTimeout(r, 100));
+      }
+      if (cancelled || !window.UGHot) return;
+      const top = await window.UGHot.getHotGames(3);
+      if (cancelled) return;
+      setHotIds(new Set(top.map(g => g.id)));
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleClick = (id: string) => {
+    // Don't await — the browser will keep the request in flight even
+    // after the navigation starts.
+    if (typeof window !== "undefined" && window.UGHot) {
+      window.UGHot.trackClick(id);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center px-4 py-12">
+      {/* Loads /public/hot.js and exposes window.UGHot */}
+      <Script src="/hot.js" strategy="afterInteractive" />
+
       <div className="text-center mb-12">
         <h1 className="text-5xl font-black tracking-tight mb-3">
           <span className="text-white">Unlimited </span>
@@ -38,26 +82,46 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 w-full max-w-2xl">
-        {GAMES.map((game) => (
-          <a
-            key={game.id}
-            href={GAME_PATHS[game.id]}
-            className="group relative rounded-2xl overflow-hidden border border-white/5 hover:border-white/20 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40 aspect-square flex flex-col items-center justify-center"
-          >
-            <div className={`absolute inset-0 bg-gradient-to-br ${game.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
-            <div className="relative z-10 flex flex-col items-center gap-2 p-4 text-center">
-              <span className="text-5xl">{game.emoji}</span>
-              <span className="text-white font-bold text-base leading-tight">{game.title}</span>
-              <span className="text-white/70 text-xs leading-snug">{game.description}</span>
-            </div>
-          </a>
-        ))}
+        {GAMES.map((game) => {
+          const isHot = hotIds.has(game.id);
+          return (
+            <a
+              key={game.id}
+              href={GAME_PATHS[game.id]}
+              onClick={() => handleClick(game.id)}
+              className="group relative rounded-2xl overflow-hidden border border-white/5 hover:border-white/20 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/40 aspect-square flex flex-col items-center justify-center"
+            >
+              <div className={`absolute inset-0 bg-gradient-to-br ${game.color} opacity-80 group-hover:opacity-100 transition-opacity`} />
+              <div className="relative z-10 flex flex-col items-center gap-2 p-4 text-center">
+                <span className="text-5xl">{game.emoji}</span>
+                <span className="text-white font-bold text-base leading-tight">{game.title}</span>
+                <span className="text-white/70 text-xs leading-snug">{game.description}</span>
+              </div>
+              {isHot && (
+                <div className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2 py-1 rounded-full bg-red-600/90 backdrop-blur-sm border border-red-300/50 shadow-lg shadow-red-600/50 hot-badge">
+                  <span className="text-sm leading-none">🔥</span>
+                  <span className="text-[10px] font-black text-white tracking-wider uppercase">Hot</span>
+                </div>
+              )}
+            </a>
+          );
+        })}
       </div>
 
       <p className="text-slate-700 text-xs mt-12">
         🇳🇿 Built in New Zealand · {GAMES.length} games · {" "}
         <a href="/privacy" className="hover:text-slate-500 underline underline-offset-2">Privacy</a>
       </p>
+
+      <style jsx>{`
+        .hot-badge {
+          animation: hot-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes hot-pulse {
+          0%, 100% { transform: scale(1); box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
+          50% { transform: scale(1.08); box-shadow: 0 0 20px rgba(220, 38, 38, 0.9); }
+        }
+      `}</style>
 
       {/*
         When this homepage is loaded inside our Chrome-extension popup
