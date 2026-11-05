@@ -211,7 +211,6 @@ function spawnFish(initial){
     scheduleBossSpawn(kind);
     return;
   }
-  const kind = FISH_KINDS[kindIndex];
   // Initial fill uses the whole world; subsequent spawns come from either
   // horizontal world edge and drift across.
   const fromLeft = Math.random() < 0.5;
