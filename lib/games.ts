@@ -152,6 +152,14 @@ export const GAMES: Game[] = [
     color: "from-red-600 to-blue-900",
     controls: "← → move · Z/Space jump · X/Ctrl shuriken · hold jump = higher",
   },
+  {
+    id: "hangman",
+    title: "Hangman",
+    emoji: "⚰️",
+    description: "Guess the word letter by letter — six wrong tries and you hang. 60 words across easy, normal, hard.",
+    color: "from-amber-700 to-stone-900",
+    controls: "Click letters / type on keyboard · Enter for next word",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -173,6 +181,7 @@ const URL_MAP: Record<string, string> = {
   "rail-runner": "/games/rail-runner.html",
   "overclock": "/games/overclock.html",
   "ninja-hop": "/games/ninja-hop.html",
+  "hangman": "/games/hangman.html",
 };
 
 export function getGameUrl(id: string): string {
