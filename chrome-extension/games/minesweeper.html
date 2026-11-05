@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Minesweeper</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+/* Grassy minefield — green turf background, dusty beveled cells */
+body{background:
+  radial-gradient(ellipse at top,#2d5a2f 0%,#1a3a1b 60%,#0a1f0b 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;
+  font-family:'Verdana','Segoe UI',sans-serif;user-select:none;color:#f5f5dc;padding:16px 10px 40px;gap:10px;overflow-x:hidden}
+h1{color:#fde68a;font-size:1.7rem;font-weight:900;text-shadow:0 2px 0 #3a1810,0 0 20px rgba(251,191,36,.3);letter-spacing:.06em;margin-top:28px}
+
+.diff{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.diff button{background:rgba(0,0,0,.35);color:#fde68a;border:1px solid rgba(251,191,36,.3);padding:5px 12px;border-radius:6px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.06em;transition:.15s;text-transform:uppercase}
+.diff button.active{background:linear-gradient(180deg,#fbbf24,#d97706);color:#4a2510;border-color:#78350f}
+.diff button:hover:not(.active){background:rgba(120,53,15,.5)}
+
+/* HUD panel — classic 7-segment digits for mines + timer, face in middle */
+.panel{background:#4a5a3a;border:3px solid;border-color:#2a3a1a #6a7a5a #6a7a5a #2a3a1a;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:4px;min-width:240px}
+.seg{background:#1a1a1a;color:#ff3b30;font-family:'Courier New',monospace;font-size:24px;font-weight:900;padding:2px 10px;border:2px inset #333;letter-spacing:.08em;min-width:62px;text-align:center;text-shadow:0 0 6px rgba(255,59,48,.6)}
+.face{font-size:26px;width:40px;height:40px;background:linear-gradient(180deg,#fef9c3,#fbbf24);border:3px solid;border-color:#fff7a8 #78350f #78350f #fff7a8;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;padding:0;transition:.1s}
+.face:hover{transform:scale(1.05)}
+.face:active{border-color:#78350f #fff7a8 #fff7a8 #78350f}
+
+/* Game board — flexbox of rows of cells */
+.board{display:inline-grid;gap:1px;background:#2a3a1a;padding:6px;border:4px solid;border-color:#2a3a1a #6a7a5a #6a7a5a #2a3a1a;border-radius:4px;max-width:100vw;overflow:auto}
+.cell{width:28px;height:28px;background:linear-gradient(135deg,#a8b89a 0%,#7a8a6a 100%);border:2px solid;border-color:#d8e8ca #4a5a3a #4a5a3a #d8e8ca;font-weight:900;font-size:16px;font-family:'Courier New',monospace;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;line-height:1;transition:background .05s}
+.cell:hover:not(.rev):not(.flag){background:linear-gradient(135deg,#b8c8aa 0%,#8a9a7a 100%)}
+.cell.rev{background:#3a4a2a;border:1px solid #2a3a1a;cursor:default}
+.cell.rev.mine{background:#dc2626;color:#000;font-size:18px}
+.cell.rev.exploded{background:#fbbf24;color:#000;animation:boom .35s}
+.cell.flag{color:#dc2626;font-size:18px}
+.cell.wrong{background:#fecaca;color:#000}
+.cell.n1{color:#3b82f6}
+.cell.n2{color:#16a34a}
+.cell.n3{color:#dc2626}
+.cell.n4{color:#7c3aed}
+.cell.n5{color:#991b1b}
+.cell.n6{color:#06b6d4}
+.cell.n7{color:#1f2937}
+.cell.n8{color:#6b7280}
+
+@keyframes boom{0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)}}
+
+/* Flag-mode toggle (mobile-friendly alternative to right-click) */
+.tools{display:flex;gap:10px;align-items:center;margin-top:4px}
+.mode{background:rgba(0,0,0,.35);color:#fde68a;border:1px solid rgba(251,191,36,.3);padding:8px 16px;border-radius:8px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:.08em;transition:.15s}
+.mode.flag-mode{background:linear-gradient(180deg,#f87171,#dc2626);color:#fff;border-color:#7f1d1d;box-shadow:0 0 14px rgba(220,38,38,.4)}
+.hint{font-size:11px;color:#a3c293;font-style:italic;text-align:center;letter-spacing:.03em;max-width:340px}
+
+.ov{position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(45,90,47,.96),rgba(10,31,11,.99));display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:1000;padding:20px}
+.ov.show{display:flex}
+.ov h2{font-size:2.4rem;color:#fbbf24;text-shadow:0 2px 0 #78350f,0 0 22px rgba(251,191,36,.5);letter-spacing:.06em}
+.ov h2.lose{color:#f87171;text-shadow:0 2px 0 #7f1d1d,0 0 22px rgba(248,113,113,.4)}
+.ov p{color:#fde68a;font-size:15px;text-align:center}
+.ov .btn{background:linear-gradient(180deg,#fbbf24,#d97706);color:#4a2510;border:1px solid #78350f;padding:10px 24px;border-radius:8px;font-weight:900;cursor:pointer;font-size:13px;transition:.15s;letter-spacing:.12em;text-transform:uppercase;font-family:inherit;box-shadow:0 3px 0 #78350f}
+.ov .btn:hover{transform:translateY(-1px);box-shadow:0 4px 0 #78350f,0 0 14px rgba(251,191,36,.5)}
+
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.55);color:#fde68a;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:'Verdana',sans-serif;backdrop-filter:blur(8px);border:1px solid rgba(251,191,36,.35);transition:.2s}
+.hbtn:hover{background:rgba(74,37,16,.7);color:#fff8dc}
+
+@media (max-width:420px){
+  .cell{width:22px;height:22px;font-size:13px}
+  .cell.rev.mine,.cell.flag{font-size:14px}
+  h1{font-size:1.4rem}
+}
+</style>
+</head>
+<body>
+<a href="/" class="hbtn">← Games</a>
+<h1>💣 Minesweeper</h1>
+
+<div class="diff" id="diff">
+  <button data-d="easy" class="active">Easy · 9×9</button>
+  <button data-d="normal">Normal · 16×16</button>
+  <button data-d="hard">Hard · 16×30</button>
+</div>
+
+<div class="panel">
+  <div class="seg" id="mines">010</div>
+  <button class="face" id="face" onclick="newGame()">🙂</button>
+  <div class="seg" id="timer">000</div>
+</div>
+
+<div class="board" id="board"></div>
+
+<div class="tools">
+  <button class="mode" id="mode" onclick="toggleFlag()">🚩 Flag Mode: OFF</button>
+</div>
+<p class="hint">Click to reveal · right-click or Flag Mode to flag · tap face to restart</p>
+
+<div class="ov" id="ov">
+  <h2 id="ov-title">🎉 Swept!</h2>
+  <p id="ov-msg">Cleared in 42s</p>
+  <button class="btn" onclick="hideOv();newGame()">Play Again</button>
+</div>
+
+<script src="_esc-back.js"></script>
+<script>
+const DIFFS = {
+  easy:   { cols:9,  rows:9,  mines:10 },
+  normal: { cols:16, rows:16, mines:40 },
+  hard:   { cols:30, rows:16, mines:99 },
+};
+let difficulty = 'easy';
+let grid = [];        // 2D array of {mine, rev, flag, adj}
+let cols, rows, mines;
+let started = false, dead = false, won = false, flagMode = false;
+let revealed = 0;     // non-mine cells revealed
+let flags = 0;
+let timerId = null, timeVal = 0;
+
+const boardEl = document.getElementById('board');
+const faceEl = document.getElementById('face');
+const minesEl = document.getElementById('mines');
+const timerEl = document.getElementById('timer');
+
+function pad3(n){ return String(Math.max(0, Math.min(999, n))).padStart(3, '0'); }
+
+function newGame(){
+  const d = DIFFS[difficulty];
+  cols = d.cols; rows = d.rows; mines = d.mines;
+  grid = Array.from({length: rows}, () =>
+    Array.from({length: cols}, () => ({ mine:false, rev:false, flag:false, adj:0 }))
+  );
+  started = false; dead = false; won = false;
+  revealed = 0; flags = 0; timeVal = 0;
+  clearInterval(timerId); timerId = null;
+  faceEl.textContent = '🙂';
+  render();
+  updateHUD();
+}
+
+// Mines are placed AFTER the first click so the first click can't lose.
+function placeMines(safeC, safeR){
+  let placed = 0;
+  while(placed < mines){
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    if(grid[r][c].mine) continue;
+    // Keep the first-click cell and its 8 neighbors mine-free so the
+    // opening move always has room to flood-fill a chunk open.
+    if(Math.abs(r - safeR) <= 1 && Math.abs(c - safeC) <= 1) continue;
+    grid[r][c].mine = true;
+    placed++;
+  }
+  // Compute adjacency counts
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
+      if(grid[r][c].mine) continue;
+      let n = 0;
+      for(let dr = -1; dr <= 1; dr++){
+        for(let dc = -1; dc <= 1; dc++){
+          const nr = r+dr, nc = c+dc;
+          if(nr >= 0 && nr < rows && nc >= 0 && nc < cols && grid[nr][nc].mine) n++;
+        }
+      }
+      grid[r][c].adj = n;
+    }
+  }
+}
+
+function render(){
+  boardEl.innerHTML = '';
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, auto)`;
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
+      const cell = grid[r][c];
+      const b = document.createElement('button');
+      b.className = 'cell';
+      b.dataset.r = r; b.dataset.c = c;
+      if(cell.rev){
+        b.classList.add('rev');
+        if(cell.mine){
+          b.classList.add('mine');
+          if(cell.exploded) b.classList.add('exploded');
+          b.textContent = '💣';
+        } else if(cell.adj > 0){
+          b.classList.add('n' + cell.adj);
+          b.textContent = cell.adj;
+        }
+      } else if(cell.flag){
+        b.classList.add('flag');
+        b.textContent = '🚩';
+        if(dead && !cell.mine) b.classList.add('wrong');
+      }
+      b.addEventListener('click', onClick);
+      b.addEventListener('contextmenu', onRight);
+      boardEl.appendChild(b);
+    }
+  }
+}
+
+function updateHUD(){
+  minesEl.textContent = pad3(mines - flags);
+  timerEl.textContent = pad3(timeVal);
+}
+
+function onClick(e){
+  if(dead || won) return;
+  const r = +e.currentTarget.dataset.r, c = +e.currentTarget.dataset.c;
+  if(flagMode) return toggleFlagAt(r, c);
+  reveal(r, c);
+}
+function onRight(e){
+  e.preventDefault();
+  if(dead || won) return;
+  const r = +e.currentTarget.dataset.r, c = +e.currentTarget.dataset.c;
+  toggleFlagAt(r, c);
+}
+
+function toggleFlagAt(r, c){
+  const cell = grid[r][c];
+  if(cell.rev) return;
+  cell.flag = !cell.flag;
+  flags += cell.flag ? 1 : -1;
+  render();
+  updateHUD();
+}
+
+function reveal(r, c){
+  const cell = grid[r][c];
+  if(cell.rev || cell.flag) return;
+  if(!started){
+    started = true;
+    placeMines(c, r);
+    timerId = setInterval(() => { timeVal++; updateHUD(); }, 1000);
+  }
+  if(cell.mine){
+    cell.rev = true; cell.exploded = true;
+    return explode();
+  }
+  // Flood fill via BFS when adj === 0
+  const stack = [[r, c]];
+  while(stack.length){
+    const [cr, cc] = stack.pop();
+    const cur = grid[cr][cc];
+    if(cur.rev || cur.flag || cur.mine) continue;
+    cur.rev = true;
+    revealed++;
+    if(cur.adj === 0){
+      for(let dr = -1; dr <= 1; dr++){
+        for(let dc = -1; dc <= 1; dc++){
+          if(dr === 0 && dc === 0) continue;
+          const nr = cr+dr, nc = cc+dc;
+          if(nr >= 0 && nr < rows && nc >= 0 && nc < cols) stack.push([nr, nc]);
+        }
+      }
+    }
+  }
+  if(revealed === rows * cols - mines) return victory();
+  render();
+}
+
+function explode(){
+  dead = true;
+  clearInterval(timerId);
+  // Reveal every mine (so the player sees what blew up / what they missed)
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
+      if(grid[r][c].mine) grid[r][c].rev = true;
+    }
+  }
+  faceEl.textContent = '😵';
+  render();
+  setTimeout(() => showOv('💥 Boom!', 'You hit a mine.', true), 600);
+}
+
+function victory(){
+  won = true;
+  clearInterval(timerId);
+  // Auto-flag the remaining unflagged mines (standard victory courtesy)
+  for(let r = 0; r < rows; r++){
+    for(let c = 0; c < cols; c++){
+      if(grid[r][c].mine && !grid[r][c].flag){ grid[r][c].flag = true; flags++; }
+    }
+  }
+  faceEl.textContent = '😎';
+  render();
+  updateHUD();
+
+  const key = 'mines_best_' + difficulty;
+  const best = +(localStorage[key] || 0);
+  let msg = `Cleared in ${timeVal}s · ${mines} mines`;
+  if(!best || timeVal < best){
+    localStorage[key] = timeVal;
+    msg = `🏆 New best! Cleared in ${timeVal}s (was ${best || '—'}s)`;
+  } else {
+    msg += ` · Best: ${best}s`;
+  }
+  setTimeout(() => showOv('🎉 Swept!', msg, false), 400);
+}
+
+function showOv(title, msg, lose){
+  document.getElementById('ov-title').textContent = title;
+  document.getElementById('ov-title').className = lose ? 'lose' : '';
+  document.getElementById('ov-msg').textContent = msg;
+  document.getElementById('ov').classList.add('show');
+}
+function hideOv(){ document.getElementById('ov').classList.remove('show'); }
+
+function toggleFlag(){
+  flagMode = !flagMode;
+  const btn = document.getElementById('mode');
+  btn.textContent = '🚩 Flag Mode: ' + (flagMode ? 'ON' : 'OFF');
+  btn.classList.toggle('flag-mode', flagMode);
+}
+
+document.getElementById('diff').addEventListener('click', e => {
+  if(e.target.tagName !== 'BUTTON') return;
+  document.querySelectorAll('#diff button').forEach(b => b.classList.remove('active'));
+  e.target.classList.add('active');
+  difficulty = e.target.dataset.d;
+  newGame();
+});
+
+// Feedback: brief "😮" while clicking on the board
+boardEl.addEventListener('mousedown', e => {
+  if(!dead && !won && e.button === 0 && e.target.classList.contains('cell') && !e.target.classList.contains('rev') && !e.target.classList.contains('flag'))
+    faceEl.textContent = '😮';
+});
+boardEl.addEventListener('mouseup', () => {
+  if(!dead && !won) faceEl.textContent = '🙂';
+});
+boardEl.addEventListener('mouseleave', () => {
+  if(!dead && !won) faceEl.textContent = '🙂';
+});
+
+newGame();
+</script>
+</body>
+</html>

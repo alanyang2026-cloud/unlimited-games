@@ -160,6 +160,14 @@ export const GAMES: Game[] = [
     color: "from-amber-700 to-stone-900",
     controls: "Click letters / type on keyboard · Enter for next word",
   },
+  {
+    id: "minesweeper",
+    title: "Minesweeper",
+    emoji: "💣",
+    description: "The classic. Clear the field without hitting a mine. 3 difficulties, flag-mode for mobile, best times saved.",
+    color: "from-green-700 to-stone-900",
+    controls: "Click to reveal · right-click or Flag Mode to flag · tap face to restart",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -182,6 +190,7 @@ const URL_MAP: Record<string, string> = {
   "overclock": "/games/overclock.html",
   "ninja-hop": "/games/ninja-hop.html",
   "hangman": "/games/hangman.html",
+  "minesweeper": "/games/minesweeper.html",
 };
 
 export function getGameUrl(id: string): string {
