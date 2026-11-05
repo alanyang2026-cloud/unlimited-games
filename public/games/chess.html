@@ -21,9 +21,11 @@ body{background:#0a0a14;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
 .stat .val.opp{color:#f43f5e}
 .stat .val.diff{font-size:14px}
 
+:root{--cell:68px;--piece-size:56px}
+@media (max-width:560px){:root{--cell:40px;--piece-size:32px}}
 .board-wrap{position:relative;margin-bottom:14px}
-.board{display:grid;grid-template-columns:repeat(8,68px);grid-template-rows:repeat(8,68px);border-radius:4px;box-shadow:0 12px 50px rgba(0,0,0,.7),0 0 0 8px #5a3a20,0 0 0 9px #2a1a10}
-.square{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:56px;line-height:1;transition:background .12s;font-family:'Arial Unicode MS','Segoe UI Symbol','Apple Color Emoji',serif}
+.board{display:grid;grid-template-columns:repeat(8,var(--cell));grid-template-rows:repeat(8,var(--cell));border-radius:4px;box-shadow:0 12px 50px rgba(0,0,0,.7),0 0 0 8px #5a3a20,0 0 0 9px #2a1a10}
+.square{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:var(--piece-size);line-height:1;transition:background .12s;font-family:'Arial Unicode MS','Segoe UI Symbol','Apple Color Emoji',serif}
 /* Classic chess.com / lichess Staunton palette */
 .square.light{background:#f0d9b5}
 .square.dark{background:#b58863}
@@ -44,11 +46,12 @@ body{background:#0a0a14;color:#e2e8f0;font-family:system-ui,-apple-system,sans-s
    0 3px 4px rgba(0,0,0,.35)}
 .piece.b{color:#1a1a1a;text-shadow:0 3px 4px rgba(0,0,0,.4),-0.5px 0 0 #555,0.5px 0 0 #555}
 .file-labels,.rank-labels{position:absolute;display:flex;font-size:11px;color:#94865a;letter-spacing:.1em;pointer-events:none;font-weight:700}
-.file-labels{bottom:-22px;left:3px;width:calc(8 * 68px);justify-content:space-around}
-.rank-labels{left:-22px;top:3px;height:calc(8 * 68px);flex-direction:column-reverse;justify-content:space-around}
+.file-labels{bottom:-22px;left:3px;width:calc(8 * var(--cell));justify-content:space-around}
+.rank-labels{left:-22px;top:3px;height:calc(8 * var(--cell));flex-direction:column-reverse;justify-content:space-around}
 
 /* Chess clocks — one per side, stacked beside the board */
 .clocks{display:flex;flex-direction:column;gap:8px;position:absolute;left:calc(100% + 22px);top:8px;min-width:140px}
+@media (max-width:560px){.clocks{position:static;flex-direction:row;margin-top:14px;min-width:0;width:100%;justify-content:center}.clock{flex:1;padding:6px 10px}.clock .t{font-size:18px}}
 .clock{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:10px 14px;font-family:'JetBrains Mono',monospace}
 .clock .who{font-size:10px;letter-spacing:.18em;color:#94a3b8;margin-bottom:3px;font-family:system-ui}
 .clock .t{font-size:24px;font-weight:900;color:#cbd5e1;letter-spacing:.04em}
