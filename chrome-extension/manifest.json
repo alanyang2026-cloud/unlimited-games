@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Unlimited Games — Free Browser Games",
   "short_name": "Unlimited Games",
-  "version": "1.13.0",
-  "description": "17 free games in one click. Snake, 2048, Chess, Minesweeper, Hangman & more. 7 play offline. No downloads.",
+  "version": "1.13.1",
+  "description": "A tiny game center that lives under your toolbar icon. Open it whenever you have a spare minute, pick a game, and play.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
     "16":  "icons/icon-16.png",
