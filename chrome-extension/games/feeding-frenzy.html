@@ -63,7 +63,7 @@ canvas{display:block;border-radius:14px;border:3px solid #0891b2;
     </div>
   </div>
 
-  <div class="hint">Move: mouse / touch / arrows · Eat smaller · Dodge bigger & 💣 🦀</div>
+  <div class="hint">Mouse / touch / arrows · Camera follows you across a wide ocean · Eat smaller · Dodge bigger & 💣 🦀</div>
 
   <div class="ov" id="ov">
     <h2 id="ov-title">🐠 Feeding Frenzy</h2>
@@ -76,7 +76,12 @@ canvas{display:block;border-radius:14px;border:3px solid #0891b2;
 <script>
 const C = document.getElementById('c');
 const ctx = C.getContext('2d');
-const W = C.width, H = C.height;
+const W = C.width, H = C.height;              // on-screen viewport
+// World is MUCH bigger than viewport — camera follows the player
+// Mario-style so the ocean feels like a real place to explore.
+const WORLD_W = 2400, WORLD_H = 1200;
+const SURFACE_Y = 0;                          // water top edge
+const FLOOR_Y = WORLD_H - 40;                 // sand starts here
 
 // ─── Tier definitions ───────────────────────────────────────
 // Each tier = player's own body size. Player can EAT fish whose size
@@ -113,13 +118,14 @@ const keys = {};
 function start(){
   state = {
     player: {
-      x: W/2, y: H/2, vx: 0, vy: 0,
+      x: WORLD_W/2, y: WORLD_H/2, vx: 0, vy: 0,
       size: TIERS[0].size, tier: 0,
       xp: 0, score: 0, lives: 3,
       facing: 1,           // 1 right, -1 left
       alive: true, invuln: 0,
       wiggle: 0, eatBlink: 0,
     },
+    cam: { x: WORLD_W/2 - W/2, y: WORLD_H/2 - H/2 },  // top-left in world coords
     fish: [],
     clams: [],
     mines: [],
@@ -133,14 +139,21 @@ function start(){
     waveCool: 0,
     subCool: 240,
   };
-  // Seed a few clams on the "floor" and some mines in the mid-water
-  for(let i = 0; i < 3; i++){
-    state.clams.push({ x: 120 + i * 260, y: H - 36, state:'closed', t: Math.random() * 180 });
+  // Clams spread across the ENTIRE sea floor, not just the viewport
+  const clamCount = Math.floor(WORLD_W / 400);
+  for(let i = 0; i < clamCount; i++){
+    state.clams.push({
+      x: 200 + i * 400 + Math.random() * 120,
+      y: FLOOR_Y - 4,
+      state: 'closed',
+      t: Math.random() * 240,
+      pearl: true,
+    });
   }
-  // Initial fish cloud
-  for(let i = 0; i < 18; i++) spawnFish(true);
-  // Pre-fill bubbles
-  for(let i = 0; i < 14; i++) spawnBubble(true);
+  // Fill the world with fish
+  for(let i = 0; i < 40; i++) spawnFish(true);
+  // Pre-fill bubbles everywhere in the world
+  for(let i = 0; i < 40; i++) spawnBubble(true);
 }
 
 // ─── Spawning ───────────────────────────────────────────────
@@ -164,10 +177,15 @@ function spawnFish(initial){
     if(kindIndex < 0) kindIndex = FISH_KINDS.length - 1;
   }
   const kind = FISH_KINDS[kindIndex];
+  // Initial fill uses the whole world; subsequent spawns come from either
+  // horizontal world edge and drift across.
   const fromLeft = Math.random() < 0.5;
-  const x = initial ? Math.random() * W : (fromLeft ? -kind.s - 10 : W + kind.s + 10);
-  const y = 40 + Math.random() * (H - 80);
-  const sp = 0.4 + Math.random() * 1.3 + kind.s * 0.015;
+  const x = initial ? Math.random() * WORLD_W
+                    : (fromLeft ? -kind.s - 10 : WORLD_W + kind.s + 10);
+  // Keep fish out of the surface sliver and the sand floor
+  const y = 60 + Math.random() * (FLOOR_Y - 120);
+  // Slower baseline — the ocean should feel calm, not frantic
+  const sp = 0.15 + Math.random() * 0.45 + kind.s * 0.006;
   state.fish.push({
     x, y,
     vx: fromLeft ? sp : -sp,
@@ -175,36 +193,39 @@ function spawnFish(initial){
     size: kind.s,
     kind,
     wobble: Math.random() * Math.PI * 2,
-    wobSpeed: 0.08 + Math.random() * 0.06,
-    poisonous: kind.s === 28 && Math.random() < 0.15,  // small chance any purple is pufferfish
+    wobSpeed: 0.05 + Math.random() * 0.04,
+    poisonous: kind.s === 28 && Math.random() < 0.15,
     puff: 0,
   });
 }
 
 function spawnBubble(initial){
   state.bubbles.push({
-    x: Math.random() * W,
-    y: initial ? Math.random() * H : H + 10,
+    x: Math.random() * WORLD_W,
+    y: initial ? Math.random() * WORLD_H : WORLD_H + 10,
     r: 2 + Math.random() * 6,
-    vy: -0.3 - Math.random() * 0.7,
+    vy: -0.2 - Math.random() * 0.5,
   });
 }
 
 function spawnSubmarine(){
+  // Sub crosses the viewport near the player's y
   const fromLeft = Math.random() < 0.5;
+  const camCenterY = state.cam.y + H/2;
   state.subs.push({
-    x: fromLeft ? -120 : W + 120,
-    y: 120 + Math.random() * (H - 240),
-    vx: fromLeft ? 1.6 : -1.6,
+    x: fromLeft ? state.cam.x - 120 : state.cam.x + W + 120,
+    y: camCenterY + (Math.random() - 0.5) * (H - 240),
+    vx: fromLeft ? 1.4 : -1.4,
     w: 100, h: 44,
     bob: 0,
   });
 }
 
 function spawnMine(){
+  // Mines bob around the player's current area for pressure
   state.mines.push({
-    x: 60 + Math.random() * (W - 120),
-    y: 90 + Math.random() * (H - 180),
+    x: state.cam.x + 60 + Math.random() * (W - 120),
+    y: Math.max(80, state.cam.y + 90) + Math.random() * (H - 180),
     r: 14,
     flash: 0,
     life: 600 + Math.random() * 400,
@@ -212,30 +233,29 @@ function spawnMine(){
 }
 
 // ─── Input ──────────────────────────────────────────────────
-C.addEventListener('mousemove', e => {
+// Mouse tracked on the WHOLE window — leaving the canvas no longer
+// kills control; the fish just follows wherever the cursor is, clamped
+// by the viewport. Coords are stored in SCREEN space and translated to
+// world space when consumed (mouse.x + cam.x) so the camera doesn't
+// change the control feel.
+function screenFromEvent(clientX, clientY){
   const r = C.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * (W / r.width);
-  mouse.y = (e.clientY - r.top) * (H / r.height);
+  mouse.x = (clientX - r.left) * (W / r.width);
+  mouse.y = (clientY - r.top) * (H / r.height);
   mouse.active = true;
-});
-C.addEventListener('mouseleave', () => mouse.active = false);
+}
+window.addEventListener('mousemove', e => screenFromEvent(e.clientX, e.clientY));
 C.addEventListener('touchstart', e => {
   e.preventDefault();
-  if(e.touches.length){
-    const r = C.getBoundingClientRect();
-    mouse.x = (e.touches[0].clientX - r.left) * (W / r.width);
-    mouse.y = (e.touches[0].clientY - r.top) * (H / r.height);
-    mouse.active = true;
-  }
+  if(e.touches.length) screenFromEvent(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
 C.addEventListener('touchmove', e => {
   e.preventDefault();
-  if(e.touches.length){
-    const r = C.getBoundingClientRect();
-    mouse.x = (e.touches[0].clientX - r.left) * (W / r.width);
-    mouse.y = (e.touches[0].clientY - r.top) * (H / r.height);
-  }
+  if(e.touches.length) screenFromEvent(e.touches[0].clientX, e.touches[0].clientY);
 }, { passive: false });
+// If the user alt-tabs back, don't let the player suddenly rocket
+// toward a stale cursor position — clear control until next real move.
+window.addEventListener('blur', () => mouse.active = false);
 addEventListener('keydown', e => {
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
@@ -256,9 +276,12 @@ function update(){
     p.vx = (kx/ln) * 4.5;
     p.vy = (ky/ln) * 4.5;
   } else if(mouse.active){
-    const dx = mouse.x - p.x, dy = mouse.y - p.y;
+    // Mouse is in SCREEN space → convert to world by adding camera offset
+    const tx = mouse.x + state.cam.x;
+    const ty = mouse.y + state.cam.y;
+    const dx = tx - p.x, dy = ty - p.y;
     const d = Math.hypot(dx, dy);
-    if(d > 3){
+    if(d > 6){
       const speed = Math.min(5, d * 0.08);
       p.vx = (dx/d) * speed;
       p.vy = (dy/d) * speed;
@@ -269,12 +292,21 @@ function update(){
     p.vx *= 0.9; p.vy *= 0.9;
   }
   p.x += p.vx; p.y += p.vy;
-  p.x = Math.max(p.size, Math.min(W - p.size, p.x));
-  p.y = Math.max(p.size, Math.min(H - p.size, p.y));
+  // Clamp to WORLD bounds (not viewport). Also keep player under surface.
+  p.x = Math.max(p.size, Math.min(WORLD_W - p.size, p.x));
+  p.y = Math.max(SURFACE_Y + p.size, Math.min(FLOOR_Y - p.size, p.y));
   if(Math.abs(p.vx) > 0.3) p.facing = p.vx > 0 ? 1 : -1;
   p.wiggle += 0.3;
   if(p.invuln > 0) p.invuln--;
   if(p.eatBlink > 0) p.eatBlink--;
+
+  // Camera smoothly follows the player (Mario-style), clamped to world
+  const camTargetX = p.x - W/2;
+  const camTargetY = p.y - H/2;
+  state.cam.x += (camTargetX - state.cam.x) * 0.1;
+  state.cam.y += (camTargetY - state.cam.y) * 0.1;
+  state.cam.x = Math.max(0, Math.min(WORLD_W - W, state.cam.x));
+  state.cam.y = Math.max(0, Math.min(WORLD_H - H, state.cam.y));
 
   // Fish update
   for(const f of state.fish){
@@ -283,23 +315,23 @@ function update(){
     f.y += Math.sin(f.wobble) * 0.3;
     if(f.poisonous){ f.puff = (f.puff + 1) % 180; }
   }
-  // Prune fish that have swum off-screen
-  state.fish = state.fish.filter(f => f.x > -80 && f.x < W + 80);
+  // Prune fish that have swum off the WORLD edges
+  state.fish = state.fish.filter(f => f.x > -120 && f.x < WORLD_W + 120);
 
-  // Steady spawning
+  // Steady spawning — more fish because the world is bigger
   state.waveCool--;
-  if(state.waveCool <= 0 && state.fish.length < 28){
+  if(state.waveCool <= 0 && state.fish.length < 55){
     spawnFish();
-    state.waveCool = 25 + Math.floor(Math.random() * 20);
+    state.waveCool = 18 + Math.floor(Math.random() * 20);
   }
 
-  // Bubbles
+  // Bubbles (rise across whole world)
   for(const b of state.bubbles){
     b.y += b.vy;
     b.x += Math.sin(b.y * 0.02) * 0.2;
   }
   state.bubbles = state.bubbles.filter(b => b.y > -10);
-  if(Math.random() < 0.08) spawnBubble();
+  if(Math.random() < 0.15) spawnBubble();
 
   // Clams — slow open/close cycle. Closing while player is inside = death.
   for(const cl of state.clams){
@@ -322,7 +354,9 @@ function update(){
     state.subCool = 400 - p.tier * 60 + Math.random() * 180;
   }
   for(const s of state.subs){ s.x += s.vx; s.bob += 0.08; s.y += Math.sin(s.bob) * 0.2; }
-  state.subs = state.subs.filter(s => s.x > -200 && s.x < W + 200);
+  // Subs despawn once they leave the player's viewport by a good margin
+  state.subs = state.subs.filter(s =>
+    s.x > state.cam.x - 300 && s.x < state.cam.x + W + 300);
 
   // Particles
   for(const pa of state.particles){
@@ -442,10 +476,13 @@ function die(msg){
       document.getElementById('ov-msg').textContent += `\nBest: ${best}`;
     }
   } else {
-    // Respawn mid-arena with brief invulnerability
-    p.x = W/2; p.y = H/2; p.vx = 0; p.vy = 0;
+    // Respawn where the camera already is (center of viewport) so the
+    // player doesn't get teleported across the whole world on each death.
+    p.x = state.cam.x + W/2;
+    p.y = state.cam.y + H/2;
+    p.vx = 0; p.vy = 0;
     p.invuln = 90;
-    pushPopup(W/2, H/2 - 60, msg);
+    pushPopup(p.x, p.y - 60, msg);
   }
 }
 
@@ -694,70 +731,124 @@ function drawPufferSpikes(f){
 }
 
 function draw(){
-  // Water depth gradient (drawn each frame for safety)
+  // ── 1. Background (viewport-sized gradient, not world-translated so
+  //     the deep-ocean colors stay consistent as you swim down).
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#2dd4bf');
-  sky.addColorStop(0.3, '#0891b2');
-  sky.addColorStop(0.7, '#075985');
+  const depthT = state.cam.y / WORLD_H;  // 0 near top, ~1 near floor
+  sky.addColorStop(0, depthT < 0.1 ? '#67e8f9' : '#0891b2');
+  sky.addColorStop(0.5, '#075985');
   sky.addColorStop(1, '#082f49');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // Light rays
+  // Everything world-space from here is drawn translated by -cam
+  ctx.save();
+  ctx.translate(-Math.floor(state.cam.x), -Math.floor(state.cam.y));
+
+  // ── 2. Sky above surface (visible when camera near top)
+  if(state.cam.y < 80){
+    const skyGrad = ctx.createLinearGradient(0, SURFACE_Y - 80, 0, SURFACE_Y);
+    skyGrad.addColorStop(0, '#60a5fa');
+    skyGrad.addColorStop(1, '#67e8f9');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(state.cam.x, SURFACE_Y - 100, W, 100);
+    // Sun
+    ctx.fillStyle = 'rgba(253, 224, 71, .85)';
+    ctx.beginPath(); ctx.arc(state.cam.x + W * 0.78, SURFACE_Y - 60, 26, 0, Math.PI*2); ctx.fill();
+  }
+
+  // ── 3. Water surface — animated wavy line at world y=0
+  if(state.cam.y < 120){
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.7)';
+    ctx.beginPath();
+    ctx.moveTo(state.cam.x - 10, SURFACE_Y - 2);
+    for(let x = state.cam.x - 10; x <= state.cam.x + W + 10; x += 10){
+      const h = Math.sin(x * 0.018 + state.frame * 0.04) * 3;
+      ctx.lineTo(x, SURFACE_Y + h);
+    }
+    ctx.lineTo(state.cam.x + W + 10, SURFACE_Y + 14);
+    ctx.lineTo(state.cam.x - 10, SURFACE_Y + 14);
+    ctx.closePath();
+    ctx.fill();
+    // Foam/highlights on the ridges
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for(let x = state.cam.x - 10; x <= state.cam.x + W + 10; x += 10){
+      const h = Math.sin(x * 0.018 + state.frame * 0.04) * 3;
+      if(x === state.cam.x - 10) ctx.moveTo(x, SURFACE_Y + h);
+      else ctx.lineTo(x, SURFACE_Y + h);
+    }
+    ctx.stroke();
+  }
+
+  // ── 4. Light rays (viewport-locked for a steady god-ray feel, but
+  //     drawn in world space with cam offset applied).
   for(let i = 0; i < 3; i++){
-    const x = (i + 1) * W/4;
-    const gr = ctx.createLinearGradient(x, 0, x, H);
+    const x = state.cam.x + (i + 1) * W / 4;
+    const topY = Math.max(SURFACE_Y, state.cam.y);
+    const gr = ctx.createLinearGradient(x, topY, x, state.cam.y + H);
     gr.addColorStop(0, 'rgba(255,255,255,.14)');
     gr.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = gr;
     ctx.beginPath();
-    ctx.moveTo(x - 50, 0);
-    ctx.lineTo(x + 50, 0);
-    ctx.lineTo(x + 120, H);
-    ctx.lineTo(x - 120, H);
+    ctx.moveTo(x - 50, topY);
+    ctx.lineTo(x + 50, topY);
+    ctx.lineTo(x + 120, state.cam.y + H);
+    ctx.lineTo(x - 120, state.cam.y + H);
     ctx.closePath();
     ctx.fill();
   }
 
-  // Sand floor
-  ctx.fillStyle = '#d4a373';
-  ctx.beginPath();
-  ctx.moveTo(0, H);
-  for(let x = 0; x <= W; x += 20){
-    ctx.lineTo(x, H - 20 - Math.sin(x * 0.03 + state.frame * 0.01) * 4);
+  // ── 5. Sand floor — wavy band across the full world width
+  if(state.cam.y + H > FLOOR_Y - 60){
+    ctx.fillStyle = '#d4a373';
+    ctx.beginPath();
+    const startX = Math.max(0, state.cam.x - 20);
+    const endX = Math.min(WORLD_W, state.cam.x + W + 20);
+    ctx.moveTo(startX, WORLD_H);
+    for(let x = startX; x <= endX; x += 20){
+      ctx.lineTo(x, FLOOR_Y - Math.sin(x * 0.03 + state.frame * 0.01) * 4);
+    }
+    ctx.lineTo(endX, WORLD_H);
+    ctx.closePath();
+    ctx.fill();
   }
-  ctx.lineTo(W, H);
-  ctx.closePath();
-  ctx.fill();
 
-  // Bubbles (behind fish)
+  // ── 6. Bubbles (only those inside viewport are worth drawing)
   ctx.strokeStyle = 'rgba(255,255,255,.6)';
   ctx.fillStyle = 'rgba(255,255,255,.12)';
   for(const b of state.bubbles){
+    if(b.x < state.cam.x - 20 || b.x > state.cam.x + W + 20) continue;
+    if(b.y < state.cam.y - 20 || b.y > state.cam.y + H + 20) continue;
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
   }
 
-  // Clams on floor
-  for(const cl of state.clams) drawClam(cl);
+  // ── 7. Clams on floor
+  for(const cl of state.clams){
+    if(cl.x < state.cam.x - 60 || cl.x > state.cam.x + W + 60) continue;
+    drawClam(cl);
+  }
 
-  // Mines
+  // ── 8. Mines
   for(const m of state.mines) drawMine(m);
 
-  // Fish — sorted by size so bigger ones render on top
+  // ── 9. Fish — sorted by size so bigger render on top; skip off-screen
   state.fish.sort((a,b) => a.size - b.size);
   for(const f of state.fish){
+    if(f.x < state.cam.x - 80 || f.x > state.cam.x + W + 80) continue;
+    if(f.y < state.cam.y - 80 || f.y > state.cam.y + H + 80) continue;
     drawFish(f.x, f.y, f.size, f.kind.color, f.kind.fin, f.vx > 0 ? 1 : -1, f.wobble, false);
     if(f.poisonous) drawPufferSpikes(f);
   }
 
-  // Submarines
+  // ── 10. Submarines
   for(const s of state.subs) drawSub(s);
 
-  // Player — blink while invulnerable, white halo makes it unmistakable
+  // ── 11. Player — blink while invulnerable, white halo so always visible
   const p = state.player;
   if(!(p.invuln > 0 && Math.floor(p.invuln / 5) % 2 === 0)){
     const tier = TIERS[p.tier];
-    // Soft white halo so the player is always distinguishable from prey
     ctx.save();
     const halo = ctx.createRadialGradient(p.x, p.y, p.size * 0.6, p.x, p.y, p.size * 1.6);
     halo.addColorStop(0, 'rgba(255,255,255,0.4)');
@@ -768,7 +859,7 @@ function draw(){
     drawFish(p.x, p.y, p.size, tier.color, tier.fin, p.facing, p.wiggle, true);
   }
 
-  // Particles
+  // ── 12. Particles
   for(const pa of state.particles){
     ctx.fillStyle = pa.color;
     ctx.globalAlpha = Math.min(1, pa.life / 24);
@@ -776,7 +867,7 @@ function draw(){
   }
   ctx.globalAlpha = 1;
 
-  // Score popups
+  // ── 13. Score popups
   ctx.font = 'bold 15px Verdana';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -788,6 +879,34 @@ function draw(){
     ctx.strokeText(pp.text, pp.x, pp.y);
     ctx.fillText(pp.text, pp.x, pp.y);
   }
+
+  ctx.restore();
+
+  // ── 14. Minimap (viewport-space, not world-translated)
+  drawMinimap();
+}
+
+function drawMinimap(){
+  const mw = 110, mh = 55;
+  const mx = W - mw - 12, my = H - mh - 12;
+  ctx.fillStyle = 'rgba(2, 16, 31, 0.6)';
+  ctx.strokeStyle = 'rgba(94, 234, 212, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.fillRect(mx, my, mw, mh);
+  ctx.strokeRect(mx, my, mw, mh);
+  // Player dot
+  const px = mx + (state.player.x / WORLD_W) * mw;
+  const py = my + (state.player.y / WORLD_H) * mh;
+  ctx.fillStyle = TIERS[state.player.tier].color;
+  ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI*2); ctx.fill();
+  // Viewport rectangle
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  ctx.strokeRect(
+    mx + (state.cam.x / WORLD_W) * mw,
+    my + (state.cam.y / WORLD_H) * mh,
+    (W / WORLD_W) * mw,
+    (H / WORLD_H) * mh
+  );
 }
 
 // ─── UI overlays ────────────────────────────────────────────
