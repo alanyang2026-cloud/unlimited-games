@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#3a2615"/>
+      <stop offset="1" stop-color="#0a0603"/>
+    </radialGradient>
+    <linearGradient id="parchment" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fefce8"/>
+      <stop offset="1" stop-color="#f5e6c8"/>
+    </linearGradient>
+    <linearGradient id="btn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#d97706"/>
+    </linearGradient>
+    <linearGradient id="key" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fef9c3"/>
+      <stop offset="1" stop-color="#fde68a"/>
+    </linearGradient>
+    <linearGradient id="good" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#86efac"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="bad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fca5a5"/>
+      <stop offset="1" stop-color="#ef4444"/>
+    </linearGradient>
+    <filter id="drop"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="8"/><feComponentTransfer><feFuncA type="linear" slope=".5"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1280" height="800" fill="url(#bg)"/>
+
+  <text x="640" y="80" text-anchor="middle" font-family="Georgia,serif" font-size="42" font-weight="900" fill="#fde68a">⚰️ Hangman — 60 words with hints</text>
+  <text x="640" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#fde68a" opacity=".75" letter-spacing="2">Easy · Normal · Hard · Click letters or type them</text>
+
+  <!-- Parchment -->
+  <g transform="translate(360 165)" filter="url(#drop)">
+    <rect width="560" height="420" rx="8" fill="url(#parchment)" stroke="#78350f" stroke-width="3"/>
+    <rect x="4" y="4" width="552" height="412" rx="6" fill="none" stroke="#e5d3ac" stroke-width="4"/>
+    <!-- Wax seals -->
+    <circle cx="20" cy="20" r="10" fill="#78350f" opacity=".55"/>
+    <circle cx="540" cy="400" r="10" fill="#78350f" opacity=".55"/>
+
+    <!-- Gallows with half-drawn figure -->
+    <g transform="translate(280 60)" stroke="#4a2510" fill="none" stroke-linecap="round">
+      <line x1="-120" y1="240" x2="80" y2="240" stroke-width="8"/>
+      <line x1="-90" y1="240" x2="-90" y2="20" stroke-width="8"/>
+      <line x1="-96" y1="24" x2="60" y2="24" stroke-width="8"/>
+      <line x1="50" y1="26" x2="50" y2="70" stroke-width="3" stroke="#78350f"/>
+      <!-- Head -->
+      <circle cx="50" cy="90" r="18" stroke="#1a1a1a" stroke-width="4"/>
+      <!-- Body -->
+      <line x1="50" y1="108" x2="50" y2="170" stroke="#1a1a1a" stroke-width="4"/>
+      <!-- Left arm -->
+      <line x1="50" y1="128" x2="26" y2="155" stroke="#1a1a1a" stroke-width="4"/>
+    </g>
+
+    <text x="280" y="340" text-anchor="middle" font-family="Georgia,serif" font-size="14" fill="#78350f" font-style="italic">Clue: Sky, white</text>
+    <text x="280" y="378" text-anchor="middle" font-family="'Courier New'" font-size="30" font-weight="900" fill="#4a3618" letter-spacing="8">C _ O _ D</text>
+  </g>
+
+  <!-- Keyboard with color-coded keys -->
+  <g transform="translate(395 610)" font-family="'Courier New'" font-weight="900" font-size="16" text-anchor="middle">
+    <!-- Row 1 -->
+    <g>
+      <rect x="0"   y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f" opacity=".3"/><text x="24"  y="24" fill="#4a2510" opacity=".4">Q</text>
+      <rect x="54"  y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="78"  y="24" fill="#4a2510">W</text>
+      <rect x="108" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="132" y="24" fill="#4a2510">E</text>
+      <rect x="162" y="0" width="48" height="36" rx="5" fill="url(#bad)" stroke="#7f1d1d"/><text x="186" y="24" fill="#450a0a">R</text>
+      <rect x="216" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="240" y="24" fill="#4a2510">T</text>
+      <rect x="270" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="294" y="24" fill="#4a2510">Y</text>
+      <rect x="324" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="348" y="24" fill="#4a2510">U</text>
+      <rect x="378" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="402" y="24" fill="#4a2510">I</text>
+      <rect x="432" y="0" width="48" height="36" rx="5" fill="url(#good)" stroke="#15803d"/><text x="456" y="24" fill="#052e16">O</text>
+    </g>
+    <!-- Row 2 -->
+    <g transform="translate(16 42)">
+      <rect x="0"   y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="24"  y="24" fill="#4a2510">A</text>
+      <rect x="54"  y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="78"  y="24" fill="#4a2510">S</text>
+      <rect x="108" y="0" width="48" height="36" rx="5" fill="url(#good)" stroke="#15803d"/><text x="132" y="24" fill="#052e16">D</text>
+      <rect x="162" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="186" y="24" fill="#4a2510">F</text>
+      <rect x="216" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="240" y="24" fill="#4a2510">G</text>
+      <rect x="270" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="294" y="24" fill="#4a2510">H</text>
+      <rect x="324" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="348" y="24" fill="#4a2510">J</text>
+      <rect x="378" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="402" y="24" fill="#4a2510">K</text>
+      <rect x="432" y="0" width="48" height="36" rx="5" fill="url(#good)" stroke="#15803d"/><text x="456" y="24" fill="#052e16">L</text>
+    </g>
+    <!-- Row 3 -->
+    <g transform="translate(32 84)">
+      <rect x="0"   y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="24"  y="24" fill="#4a2510">Z</text>
+      <rect x="54"  y="0" width="48" height="36" rx="5" fill="url(#bad)" stroke="#7f1d1d"/><text x="78"  y="24" fill="#450a0a">X</text>
+      <rect x="108" y="0" width="48" height="36" rx="5" fill="url(#good)" stroke="#15803d"/><text x="132" y="24" fill="#052e16">C</text>
+      <rect x="162" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="186" y="24" fill="#4a2510">V</text>
+      <rect x="216" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="240" y="24" fill="#4a2510">B</text>
+      <rect x="270" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="294" y="24" fill="#4a2510">N</text>
+      <rect x="324" y="0" width="48" height="36" rx="5" fill="url(#key)" stroke="#78350f"/><text x="348" y="24" fill="#4a2510">M</text>
+    </g>
+  </g>
+
+  <!-- Score/streak boxes top-left corner of parchment area -->
+  <g font-family="Verdana">
+    <g transform="translate(380 155)">
+      <rect width="80" height="32" rx="6" fill="rgba(0,0,0,.35)" stroke="rgba(251,191,36,.35)"/>
+      <text x="40" y="12" text-anchor="middle" font-size="9" fill="#fde68a" letter-spacing="1.5">SCORE</text>
+      <text x="40" y="26" text-anchor="middle" font-size="14" font-weight="900" fill="#fbbf24">42</text>
+    </g>
+    <g transform="translate(464 155)">
+      <rect width="80" height="32" rx="6" fill="rgba(0,0,0,.35)" stroke="rgba(251,191,36,.35)"/>
+      <text x="40" y="12" text-anchor="middle" font-size="9" fill="#fde68a" letter-spacing="1.5">STREAK</text>
+      <text x="40" y="26" text-anchor="middle" font-size="14" font-weight="900" fill="#fbbf24">3</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,122 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="20%" r="80%">
+      <stop offset="0" stop-color="#2d5a2f"/>
+      <stop offset="1" stop-color="#0a1f0b"/>
+    </radialGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a6a4a"/>
+      <stop offset="1" stop-color="#4a5a3a"/>
+    </linearGradient>
+    <linearGradient id="cellUp" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b8c8aa"/>
+      <stop offset="1" stop-color="#7a8a6a"/>
+    </linearGradient>
+    <filter id="drop"><feGaussianBlur in="SourceAlpha" stdDeviation="6"/><feOffset dy="8"/><feComponentTransfer><feFuncA type="linear" slope=".5"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <rect width="1280" height="800" fill="url(#bg)"/>
+
+  <text x="640" y="80" text-anchor="middle" font-family="Georgia,serif" font-size="42" font-weight="900" fill="#fde68a">💣 Minesweeper — the classic is back</text>
+  <text x="640" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#a3c293" letter-spacing="2">Three difficulties · Flag mode for mobile · Best times saved</text>
+
+  <g transform="translate(340 170)" filter="url(#drop)">
+    <!-- Panel (counter + face + timer) -->
+    <g transform="translate(130 0)">
+      <rect width="340" height="56" rx="6" fill="url(#panel)" stroke="#2a3a1a" stroke-width="3"/>
+      <rect x="12" y="10" width="86" height="36" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+      <text x="55" y="38" text-anchor="middle" font-family="'Courier New'" font-size="28" font-weight="900" fill="#ff3b30">010</text>
+      <circle cx="170" cy="28" r="20" fill="#fbbf24" stroke="#78350f" stroke-width="3"/>
+      <text x="170" y="36" text-anchor="middle" font-size="22">🙂</text>
+      <rect x="242" y="10" width="86" height="36" fill="#1a1a1a" stroke="#333" stroke-width="2"/>
+      <text x="285" y="38" text-anchor="middle" font-family="'Courier New'" font-size="28" font-weight="900" fill="#ff3b30">037</text>
+    </g>
+
+    <!-- 9x9 board, mid-game state -->
+    <g transform="translate(50 76)">
+      <rect width="500" height="500" fill="#2a3a1a" stroke="#4a5a3a" stroke-width="6" rx="4"/>
+      <!-- Draw 9x9 cells -->
+      <g font-family="'Courier New'" font-size="30" font-weight="900" text-anchor="middle">
+        <!-- Row 0 -->
+        <rect x="10"  y="10" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="36"  y="48" fill="#3b82f6">1</text>
+        <rect x="64"  y="10" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/>
+        <rect x="118" y="10" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/>
+        <rect x="172" y="10" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="198" y="48" fill="#3b82f6">1</text>
+        <rect x="226" y="10" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="280" y="10" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/><text x="306" y="48" fill="#dc2626">🚩</text>
+        <rect x="334" y="10" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="388" y="10" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="442" y="10" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <!-- Row 1 -->
+        <rect x="10"  y="64" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="36"  y="102" fill="#3b82f6">1</text>
+        <rect x="64"  y="64" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="90"  y="102" fill="#16a34a">2</text>
+        <rect x="118" y="64" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="144" y="102" fill="#16a34a">2</text>
+        <rect x="172" y="64" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="198" y="102" fill="#dc2626">3</text>
+        <rect x="226" y="64" width="52" height="52" fill="#3a4a2a" stroke="#2a3a1a"/><text x="252" y="102" fill="#dc2626">3</text>
+        <rect x="280" y="64" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="334" y="64" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="388" y="64" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        <rect x="442" y="64" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/><text x="468" y="102" fill="#dc2626">🚩</text>
+        <!-- Rows 2-3 (mostly revealed empties) -->
+        <g>
+          <rect x="10"  y="118" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="64"  y="118" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="118" y="118" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="172" y="118" width="52" height="52" fill="#3a4a2a"/><text x="198" y="156" fill="#3b82f6">1</text>
+          <rect x="226" y="118" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="280" y="118" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="334" y="118" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="388" y="118" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="442" y="118" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        </g>
+        <g>
+          <rect x="10"  y="172" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="64"  y="172" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="118" y="172" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="172" y="172" width="52" height="52" fill="#3a4a2a"/>
+          <rect x="226" y="172" width="52" height="52" fill="#3a4a2a"/><text x="252" y="210" fill="#3b82f6">1</text>
+          <rect x="280" y="172" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="334" y="172" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="388" y="172" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="442" y="172" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        </g>
+        <!-- Rest unrevealed -->
+        <g>
+          <rect x="10"  y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="64"  y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="118" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="172" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="226" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="280" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="334" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="388" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+          <rect x="442" y="226" width="52" height="52" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        </g>
+        <!-- Fill remaining rows with unrevealed grid for completeness -->
+        <g>
+          <rect x="10"  y="280" width="430" height="212" fill="url(#cellUp)" stroke="#4a5a3a" stroke-width="2"/>
+          <!-- Light grid lines on the cover area -->
+          <g stroke="#4a5a3a" stroke-width="1" fill="none">
+            <line x1="64"  y1="280" x2="64"  y2="492"/>
+            <line x1="118" y1="280" x2="118" y2="492"/>
+            <line x1="172" y1="280" x2="172" y2="492"/>
+            <line x1="226" y1="280" x2="226" y2="492"/>
+            <line x1="280" y1="280" x2="280" y2="492"/>
+            <line x1="334" y1="280" x2="334" y2="492"/>
+            <line x1="388" y1="280" x2="388" y2="492"/>
+            <line x1="10"  y1="334" x2="440" y2="334"/>
+            <line x1="10"  y1="388" x2="440" y2="388"/>
+            <line x1="10"  y1="442" x2="440" y2="442"/>
+          </g>
+          <rect x="442" y="280" width="52" height="212" fill="url(#cellUp)" stroke="#4a5a3a"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- Flag mode button under board -->
+    <g transform="translate(220 600)">
+      <rect width="180" height="36" rx="10" fill="rgba(0,0,0,.35)" stroke="rgba(251,191,36,.3)"/>
+      <text x="90" y="24" text-anchor="middle" font-family="Verdana" font-size="14" font-weight="700" fill="#fde68a">🚩 Flag Mode: OFF</text>
+    </g>
+  </g>
+</svg>

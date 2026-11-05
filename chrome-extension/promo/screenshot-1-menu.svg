@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 800">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0a0712"/>
+      <stop offset="1" stop-color="#1e0b3a"/>
+    </linearGradient>
+    <radialGradient id="purpleGlow" cx="25%" cy="20%" r="50%">
+      <stop offset="0" stop-color="#a855f7" stop-opacity=".35"/>
+      <stop offset="1" stop-color="#a855f7" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pinkGlow" cx="85%" cy="90%" r="35%">
+      <stop offset="0" stop-color="#ec4899" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#ec4899" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="popup" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="1" stop-color="#0a0612"/>
+    </linearGradient>
+    <linearGradient id="bar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="1" stop-color="#0a0612"/>
+    </linearGradient>
+    <linearGradient id="hot" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+    <filter id="dropShadow">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/><feOffset dy="10"/>
+      <feComponentTransfer><feFuncA type="linear" slope=".5"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <rect width="1280" height="800" fill="url(#bg)"/>
+  <rect width="1280" height="800" fill="url(#purpleGlow)"/>
+  <rect width="1280" height="800" fill="url(#pinkGlow)"/>
+
+  <!-- Caption at top -->
+  <text x="640" y="80" text-anchor="middle" font-family="Georgia,serif" font-size="42" font-weight="900" fill="#fff">17 games, one click away</text>
+  <text x="640" y="118" text-anchor="middle" font-family="Georgia,serif" font-size="18" fill="#c4b5fd" letter-spacing="2">No downloads. No sign-up. Pick and play.</text>
+
+  <!-- Faux popup window centered -->
+  <g transform="translate(258 160)" filter="url(#dropShadow)">
+    <rect width="764" height="528" rx="14" fill="url(#popup)" stroke="rgba(168,85,247,.3)"/>
+
+    <!-- Title bar -->
+    <rect width="764" height="36" rx="14" fill="url(#bar)"/>
+    <rect y="22" width="764" height="14" fill="url(#bar)"/>
+    <text x="22" y="24" font-family="Verdana,sans-serif" font-size="13" font-weight="900" fill="#fef3c7" letter-spacing="1">🎮 Unlimited <tspan fill="#c4b5fd">Games</tspan></text>
+    <rect x="704" y="7" width="24" height="22" rx="5" fill="rgba(255,255,255,.1)"/><text x="716" y="22" font-family="Verdana" font-size="14" fill="#fef3c7" text-anchor="middle">⤢</text>
+    <rect x="732" y="7" width="24" height="22" rx="5" fill="#dc2626"/><text x="744" y="22" font-family="Verdana" font-size="14" fill="#fff" text-anchor="middle">×</text>
+
+    <!-- 6-col grid: 3 rows -->
+    <g transform="translate(14 54)" font-family="Verdana,sans-serif">
+      <!-- Row 1 - classics with Snake HOT -->
+      <!-- Snake (HOT) -->
+      <g transform="translate(0 0)">
+        <rect width="118" height="118" rx="12" fill="#16a34a"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">🐍</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Snake</text>
+        <g transform="translate(96 16)">
+          <rect x="-24" y="-9" width="48" height="18" rx="9" fill="url(#hot)" stroke="rgba(255,220,180,.6)"/>
+          <text y="4" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" letter-spacing=".5">🔥 HOT</text>
+        </g>
+      </g>
+      <!-- 2048 -->
+      <g transform="translate(125 0)"><rect width="118" height="118" rx="12" fill="#a855f7"/><text x="59" y="60" text-anchor="middle" font-size="36">🔢</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">2048</text></g>
+      <!-- Blocks -->
+      <g transform="translate(250 0)"><rect width="118" height="118" rx="12" fill="#06b6d4"/><text x="59" y="60" text-anchor="middle" font-size="36">🧱</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Blocks</text></g>
+      <!-- Brick Buster (HOT) -->
+      <g transform="translate(375 0)">
+        <rect width="118" height="118" rx="12" fill="#f43f5e"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">💥</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Brick Buster</text>
+        <g transform="translate(96 16)">
+          <rect x="-24" y="-9" width="48" height="18" rx="9" fill="url(#hot)" stroke="rgba(255,220,180,.6)"/>
+          <text y="4" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" letter-spacing=".5">🔥 HOT</text>
+        </g>
+      </g>
+      <!-- Memory -->
+      <g transform="translate(500 0)"><rect width="118" height="118" rx="12" fill="#ec4899"/><text x="59" y="60" text-anchor="middle" font-size="36">🃏</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Memory</text></g>
+      <!-- Chess -->
+      <g transform="translate(625 0)"><rect width="118" height="118" rx="12" fill="#d97706"/><text x="59" y="60" text-anchor="middle" font-size="36">♔</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Chess</text></g>
+
+      <!-- Row 2 -->
+      <g transform="translate(0 134)"><rect width="118" height="118" rx="12" fill="#d97706"/><text x="59" y="60" text-anchor="middle" font-size="36">⚰️</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Hangman</text></g>
+      <g transform="translate(125 134)">
+        <rect width="118" height="118" rx="12" fill="#2d5a2f"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">💣</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Minesweeper</text>
+        <g transform="translate(96 16)">
+          <rect x="-24" y="-9" width="48" height="18" rx="9" fill="url(#hot)" stroke="rgba(255,220,180,.6)"/>
+          <text y="4" text-anchor="middle" font-size="9" font-weight="900" fill="#fff" letter-spacing=".5">🔥 HOT</text>
+        </g>
+      </g>
+      <g transform="translate(250 134)"><rect width="118" height="118" rx="12" fill="#6366f1"/><text x="59" y="60" text-anchor="middle" font-size="36">🚀</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Sky Dodge</text></g>
+      <g transform="translate(375 134)">
+        <rect width="118" height="118" rx="12" fill="#7c3aed"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">⚔️</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Snake Battle</text>
+        <rect x="90" y="6" width="22" height="10" rx="3" fill="#ec4899"/><text x="101" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#fff">LIVE</text>
+      </g>
+      <g transform="translate(500 134)">
+        <rect width="118" height="118" rx="12" fill="#e11d48"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">🥊</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Arcade Brawl</text>
+        <rect x="90" y="6" width="22" height="10" rx="3" fill="#ec4899"/><text x="101" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#fff">LIVE</text>
+      </g>
+      <g transform="translate(625 134)"><rect width="118" height="118" rx="12" fill="#7f1d1d"/><text x="59" y="60" text-anchor="middle" font-size="36">🚪</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Night Watch</text></g>
+
+      <!-- Row 3 -->
+      <g transform="translate(0 268)"><rect width="118" height="118" rx="12" fill="#b45309"/><text x="59" y="60" text-anchor="middle" font-size="36">🏃</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Find Door</text></g>
+      <g transform="translate(125 268)"><rect width="118" height="118" rx="12" fill="#15803d"/><text x="59" y="60" text-anchor="middle" font-size="36">🚵</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Downhill</text></g>
+      <g transform="translate(250 268)"><rect width="118" height="118" rx="12" fill="#f472b6"/><text x="59" y="60" text-anchor="middle" font-size="36">🫧</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Squishy</text></g>
+      <g transform="translate(375 268)">
+        <rect width="118" height="118" rx="12" fill="#78350f"/>
+        <text x="59" y="60" text-anchor="middle" font-size="36">🍻</text>
+        <text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Liar's Tavern</text>
+        <rect x="90" y="6" width="22" height="10" rx="3" fill="#ec4899"/><text x="101" y="14" text-anchor="middle" font-size="7" font-weight="900" fill="#fff">LIVE</text>
+      </g>
+      <g transform="translate(500 268)"><rect width="118" height="118" rx="12" fill="#b45309"/><text x="59" y="60" text-anchor="middle" font-size="36">🥔</text><text x="59" y="98" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">Potato Bros</text></g>
+    </g>
+
+    <!-- Promo row + footer stub -->
+    <g transform="translate(0 454)">
+      <rect x="220" y="0" width="154" height="24" rx="12" fill="rgba(168,85,247,.2)" stroke="rgba(168,85,247,.4)"/>
+      <text x="297" y="16" text-anchor="middle" font-family="Verdana" font-size="11" font-weight="700" fill="#fef3c7">👯 Invite a friend</text>
+      <rect x="388" y="0" width="194" height="24" rx="12" fill="rgba(251,191,36,.1)" stroke="rgba(251,191,36,.4)"/>
+      <text x="485" y="16" text-anchor="middle" font-family="Verdana" font-size="11" font-weight="700" fill="#fde047">⭐ Love it? Rate 5 stars</text>
+    </g>
+  </g>
+</svg>
