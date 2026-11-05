@@ -21,6 +21,7 @@ const GAME_PATHS: Record<string, string> = {
   "ninja-hop":     "/games/ninja-hop.html",
   "hangman":       "/games/hangman.html",
   "minesweeper":   "/games/minesweeper.html",
+  "feeding-frenzy":"/games/feeding-frenzy.html",
 };
 
 export default function HomePage() {

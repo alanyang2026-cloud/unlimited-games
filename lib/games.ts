@@ -168,6 +168,14 @@ export const GAMES: Game[] = [
     color: "from-green-700 to-stone-900",
     controls: "Click to reveal · right-click or Flag Mode to flag · tap face to restart",
   },
+  {
+    id: "feeding-frenzy",
+    title: "Feeding Frenzy",
+    emoji: "🐠",
+    description: "Eat smaller fish to grow through 4 tiers. Dodge bigger fish, snapping clams, mines, pufferfish, submarines.",
+    color: "from-cyan-600 to-blue-900",
+    controls: "Mouse / touch / arrow keys to swim · Eat smaller · Avoid bigger",
+  },
 ];
 
 const URL_MAP: Record<string, string> = {
@@ -191,6 +199,7 @@ const URL_MAP: Record<string, string> = {
   "ninja-hop": "/games/ninja-hop.html",
   "hangman": "/games/hangman.html",
   "minesweeper": "/games/minesweeper.html",
+  "feeding-frenzy": "/games/feeding-frenzy.html",
 };
 
 export function getGameUrl(id: string): string {
