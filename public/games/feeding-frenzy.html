@@ -85,10 +85,12 @@ const W = C.width, H = C.height;
 const EAT_MARGIN = 3;
 const DEATH_MARGIN = 6;
 const TIERS = [
-  { size: 18, xpNeeded: 60,  label: 'Tier 1' },
-  { size: 28, xpNeeded: 140, label: 'Tier 2' },
-  { size: 42, xpNeeded: 260, label: 'Tier 3' },
-  { size: 62, xpNeeded: 999, label: 'Tier 4' },  // 999 = max, no next growth
+  // Distinct player colors per tier so growth reads at a glance and
+  // the player is never confusable with a prey fish of the same hue.
+  { size: 18, xpNeeded: 60,  label: 'Tier 1', color:'#ff6b35', fin:'#c53030' }, // bright orange-red
+  { size: 28, xpNeeded: 140, label: 'Tier 2', color:'#06b6d4', fin:'#0e7490' }, // cyan
+  { size: 42, xpNeeded: 260, label: 'Tier 3', color:'#eab308', fin:'#854d0e' }, // gold
+  { size: 62, xpNeeded: 999, label: 'Tier 4', color:'#dc2626', fin:'#450a0a' }, // crimson king
 ];
 
 // ─── Enemy / prey archetype — soft chibi fish ───────────────
@@ -751,10 +753,19 @@ function draw(){
   // Submarines
   for(const s of state.subs) drawSub(s);
 
-  // Player — blink while invulnerable
+  // Player — blink while invulnerable, white halo makes it unmistakable
   const p = state.player;
   if(!(p.invuln > 0 && Math.floor(p.invuln / 5) % 2 === 0)){
-    drawFish(p.x, p.y, p.size, '#fde047', '#eab308', p.facing, p.wiggle, true);
+    const tier = TIERS[p.tier];
+    // Soft white halo so the player is always distinguishable from prey
+    ctx.save();
+    const halo = ctx.createRadialGradient(p.x, p.y, p.size * 0.6, p.x, p.y, p.size * 1.6);
+    halo.addColorStop(0, 'rgba(255,255,255,0.4)');
+    halo.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 1.6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    drawFish(p.x, p.y, p.size, tier.color, tier.fin, p.facing, p.wiggle, true);
   }
 
   // Particles
