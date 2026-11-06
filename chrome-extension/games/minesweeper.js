@@ -229,12 +229,12 @@ boardEl.addEventListener('mouseleave', () => {
 
 newGame();
 
-// CSP-safe click dispatcher (replaces inline onclick=)
-(() => {
-  document.querySelectorAll('[data-h]').forEach(el => {
-    const h = el.getAttribute('data-h');
-    if (h === "newGame()") el.addEventListener('click', () => { newGame(); });
-    if (h === "toggleFlag()") el.addEventListener('click', () => { toggleFlag(); });
-    if (h === "hideOv();newGame()") el.addEventListener('click', () => { hideOv(); newGame(); });
-  });
-})();
+// CSP-safe click dispatcher (document-level delegation, works for dynamic buttons too)
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-h]');
+  if (!el) return;
+  const h = el.getAttribute('data-h');
+  if (h === "newGame()") { newGame(); }
+  if (h === "toggleFlag()") { toggleFlag(); }
+  if (h === "hideOv();newGame()") { hideOv(); newGame(); }
+});

@@ -63,7 +63,7 @@ function over(){
   clearInterval(tid);alive=false;
   if(sc>best){best=sc;document.getElementById('bst').textContent=best}
   const ov=document.getElementById('ov');
-  ov.innerHTML=`<h2>💀 Game Over</h2><p class="big">Score: <b>${sc}</b></p><p class="big">Best: <b style="color:#f59e0b">${best}</b></p><button class="btn" onclick="start()">Play Again</button>`;
+  ov.innerHTML=`<h2>💀 Game Over</h2><p class="big">Score: <b>${sc}</b></p><p class="big">Best: <b style="color:#f59e0b">${best}</b></p><button class="btn" data-h="start()">Play Again</button>`;
   ov.style.display='flex';
 }
 function upsc(){document.getElementById('sc').textContent=sc}
@@ -85,10 +85,10 @@ document.addEventListener('touchend',e=>{
   else{nd=dy>0?{x:0,y:1}:{x:0,y:-1}}
 },{passive:true});
 
-// CSP-safe click dispatcher (replaces inline onclick=)
-(() => {
-  document.querySelectorAll('[data-h]').forEach(el => {
-    const h = el.getAttribute('data-h');
-    if (h === "start()") el.addEventListener('click', () => { start(); });
-  });
-})();
+// CSP-safe click dispatcher (document-level delegation, works for dynamic buttons too)
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-h]');
+  if (!el) return;
+  const h = el.getAttribute('data-h');
+  if (h === "start()") { start(); }
+});

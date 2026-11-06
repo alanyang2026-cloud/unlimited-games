@@ -89,11 +89,11 @@ document.addEventListener('touchend',e=>{
 
 init();
 
-// CSP-safe click dispatcher (replaces inline onclick=)
-(() => {
-  document.querySelectorAll('[data-h]').forEach(el => {
-    const h = el.getAttribute('data-h');
-    if (h === "init()") el.addEventListener('click', () => { init(); });
-    if (h === "init();document.getElementById('ov').style.display='none'") el.addEventListener('click', () => { init(); document.getElementById('ov').style.display='none'; });
-  });
-})();
+// CSP-safe click dispatcher (document-level delegation, works for dynamic buttons too)
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-h]');
+  if (!el) return;
+  const h = el.getAttribute('data-h');
+  if (h === "init()") { init(); }
+  if (h === "init();document.getElementById('ov').style.display='none'") { init(); document.getElementById('ov').style.display='none'; }
+});

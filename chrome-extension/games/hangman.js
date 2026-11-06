@@ -251,11 +251,11 @@ document.getElementById('diff').addEventListener('click', e => {
 buildKbd();
 newRound();
 
-// CSP-safe click dispatcher (replaces inline onclick=)
-(() => {
-  document.querySelectorAll('[data-h]').forEach(el => {
-    const h = el.getAttribute('data-h');
-    if (h === "newRound()") el.addEventListener('click', () => { newRound(); });
-    if (h === "hideOv();newRound()") el.addEventListener('click', () => { hideOv(); newRound(); });
-  });
-})();
+// CSP-safe click dispatcher (document-level delegation, works for dynamic buttons too)
+document.addEventListener('click', e => {
+  const el = e.target.closest && e.target.closest('[data-h]');
+  if (!el) return;
+  const h = el.getAttribute('data-h');
+  if (h === "newRound()") { newRound(); }
+  if (h === "hideOv();newRound()") { hideOv(); newRound(); }
+});
