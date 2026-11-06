@@ -129,19 +129,16 @@ function launchGame(g){
   // await — must not delay the actual launch even by a frame.
   if(window.UGHot) window.UGHot.trackClick(g.id);
 
-  // Render the iframe at the game's natural design size, then
-  // CSS-scale it so the whole thing fits inside AVAIL_W × AVAIL_H
-  // without any cropping. Center the scaled result in its slot.
-  const nw = g.nw || AVAIL_W;
-  const nh = g.nh || AVAIL_H;
-  const scale = Math.min(AVAIL_W / nw, AVAIL_H / nh, 1);
-  iframe.style.width  = nw + 'px';
-  iframe.style.height = nh + 'px';
-  iframe.style.transform = 'scale(' + scale + ')';
-  iframe.style.transformOrigin = 'top left';
-  const dispW = nw * scale, dispH = nh * scale;
-  iframe.style.marginLeft = Math.max(0, (AVAIL_W - dispW) / 2) + 'px';
-  iframe.style.marginTop  = Math.max(0, (AVAIL_H - dispH) / 2) + 'px';
+  // Let the iframe fill the entire game pane and defer to each game's
+  // own responsive CSS for its layout. Every game has viewport meta +
+  // flex-centered content + max-width:100vw on canvases, so they size
+  // themselves correctly at 764×492 without the extra outer scale that
+  // used to leave big black gutters on portrait titles.
+  iframe.style.width  = '100%';
+  iframe.style.height = '100%';
+  iframe.style.transform = 'none';
+  iframe.style.marginLeft = '0';
+  iframe.style.marginTop = '0';
 
   // Offline-capable games load from the extension's bundled copy;
   // everything else iframes the Vercel site as before.
