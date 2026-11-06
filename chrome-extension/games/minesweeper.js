@@ -230,11 +230,11 @@ boardEl.addEventListener('mouseleave', () => {
 newGame();
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "newGame()") el.addEventListener('click', () => { newGame(); });
     if (h === "toggleFlag()") el.addEventListener('click', () => { toggleFlag(); });
     if (h === "hideOv();newGame()") el.addEventListener('click', () => { hideOv(); newGame(); });
   });
-});
+})();

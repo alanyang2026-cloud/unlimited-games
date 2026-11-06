@@ -148,10 +148,10 @@ document.addEventListener('touchend',e=>{
 ctx.fillStyle='#07070d';ctx.fillRect(0,0,C.width,C.height);
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "startGame()") el.addEventListener('click', () => { startGame(); });
     if (h === "startGame();document.getElementById('ov').style.display='none'") el.addEventListener('click', () => { startGame(); document.getElementById('ov').style.display='none'; });
   });
-});
+})();

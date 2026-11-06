@@ -90,10 +90,10 @@ document.addEventListener('touchend',e=>{
 init();
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "init()") el.addEventListener('click', () => { init(); });
     if (h === "init();document.getElementById('ov').style.display='none'") el.addEventListener('click', () => { init(); document.getElementById('ov').style.display='none'; });
   });
-});
+})();

@@ -86,9 +86,9 @@ document.addEventListener('touchend',e=>{
 },{passive:true});
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "start()") el.addEventListener('click', () => { start(); });
   });
-});
+})();

@@ -51,10 +51,10 @@ function showWin(){
 startGame();
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "startGame()") el.addEventListener('click', () => { startGame(); });
     if (h === "startGame();document.getElementById('win').style.display='none'") el.addEventListener('click', () => { startGame(); document.getElementById('win').style.display='none'; });
   });
-});
+})();

@@ -252,10 +252,10 @@ buildKbd();
 newRound();
 
 // CSP-safe click dispatcher (replaces inline onclick=)
-addEventListener('DOMContentLoaded', () => {
+(() => {
   document.querySelectorAll('[data-h]').forEach(el => {
     const h = el.getAttribute('data-h');
     if (h === "newRound()") el.addEventListener('click', () => { newRound(); });
     if (h === "hideOv();newRound()") el.addEventListener('click', () => { hideOv(); newRound(); });
   });
-});
+})();
