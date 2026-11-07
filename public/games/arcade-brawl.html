@@ -3,3305 +3,995 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<style>canvas{max-width:100vw!important;max-height:100vh!important;height:auto!important}body{overflow-x:hidden!important;overflow-y:auto}.wrap,.game,#board,.board-wrap{max-width:100vw!important}</style>
-<title>Arcade Brawl</title>
-<!-- Firebase (multiplayer is a graceful no-op if it fails to load) -->
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-<script src="/mp-stability.js?v=3"></script>
+<title>Arcade Brawl — Stickman Fight</title>
+<style>canvas{max-width:100vw!important;max-height:100vh!important;height:auto!important}body{overflow-x:hidden!important;overflow-y:auto}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#05050f;overflow:hidden;font-family:'Impact','Arial Black',system-ui,sans-serif;color:#fff;user-select:none}
-canvas{display:block;image-rendering:pixelated}
-.wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
-.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.7);color:#e2e8f0;text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.12);transition:.2s}
-.hbtn:hover{background:rgba(168,85,247,.55)}
-.ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(5,5,15,.85);backdrop-filter:blur(4px);z-index:50;font-family:system-ui}
-.ov h1{font-size:4rem;font-weight:900;letter-spacing:-.02em;background:linear-gradient(135deg,#f43f5e,#a855f7,#06b6d4);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 30px rgba(168,85,247,.3);margin-bottom:6px}
-.ov h2{font-size:1.6rem;color:#fbbf24;margin-bottom:18px}
-.ov p{color:#94a3b8;font-size:14px;text-align:center;line-height:1.7;max-width:520px;margin-bottom:8px}
-.ks{display:grid;grid-template-columns:auto auto;gap:6px 18px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 22px;margin:12px 0 18px;font-size:13px;color:#cbd5e1}
+body{background:
+  radial-gradient(ellipse at top,#1e293b 0%,#0a0b14 70%,#030305 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-height:100vh;
+  font-family:'Impact','Arial Black',system-ui,sans-serif;color:#fff;user-select:none;padding-top:10px;overflow-x:hidden}
+canvas{display:block;border-radius:10px;border:2px solid #475569;background:#0f172a;
+  box-shadow:0 0 40px rgba(71,85,105,.4)}
+
+.hbtn{position:fixed;top:12px;left:12px;z-index:999;background:rgba(0,0,0,.75);color:#e2e8f0;
+  text-decoration:none;padding:6px 14px;border-radius:20px;font-size:13px;font-family:system-ui;
+  backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.15);transition:.2s}
+.hbtn:hover{background:rgba(220,38,38,.5)}
+
+.wrap{position:relative;max-width:100vw}
+
+/* HUD over canvas */
+.hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;
+  align-items:flex-start;gap:14px;pointer-events:none;z-index:5;font-family:system-ui}
+.hpbox{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(6px);
+  border-radius:10px;padding:8px 14px;min-width:170px}
+.hpbox .name{font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.hpbox .barwrap{height:12px;background:rgba(0,0,0,.4);border-radius:6px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.1)}
+.hpbox .bar{height:100%;transition:width .18s ease}
+.hpbox .bar.ok  {background:linear-gradient(90deg,#4ade80,#16a34a)}
+.hpbox .bar.mid {background:linear-gradient(90deg,#fbbf24,#ea580c)}
+.hpbox .bar.low {background:linear-gradient(90deg,#f87171,#991b1b);animation:lowP 0.5s ease-in-out infinite}
+@keyframes lowP{0%,100%{opacity:1}50%{opacity:.5}}
+.hpbox .num{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;margin-top:3px}
+.hpbox.p1 .name{color:#60a5fa}
+.hpbox.p2 .name{color:#f87171}
+.hpbox.p3 .name{color:#a78bfa}
+
+/* Menu + overlay */
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:rgba(5,5,15,.88);backdrop-filter:blur(6px);z-index:50;font-family:system-ui;padding:22px;
+  border-radius:10px;text-align:center}
+.ov.hidden{display:none}
+.ov h1{font-size:3.4rem;font-weight:900;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#f43f5e,#a855f7,#06b6d4);-webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 0 30px rgba(168,85,247,.35);margin-bottom:4px}
+.ov .tag{color:#94a3b8;font-size:14px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:22px}
+.ov p{color:#cbd5e1;font-size:14px;line-height:1.7;max-width:540px;margin-bottom:10px}
+.ks{display:grid;grid-template-columns:auto auto;gap:6px 18px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 18px;margin:10px 0 14px;
+  font-size:12px;color:#cbd5e1;text-align:left}
 .ks b{color:#a855f7;font-weight:700;font-family:'JetBrains Mono',monospace}
-.btn{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff;border:none;padding:15px 40px;border-radius:12px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.05em;transition:.15s;font-family:system-ui;box-shadow:0 4px 24px rgba(168,85,247,.4)}
-.btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(168,85,247,.6)}
-.btn.alt{background:#1e1e3a;box-shadow:none;margin-left:8px}
-.cd{font-size:8rem;font-weight:900;color:#fbbf24;text-shadow:0 0 50px rgba(251,191,36,.7),0 0 20px rgba(244,63,94,.5);animation:cdp .9s ease-out}
-@keyframes cdp{from{transform:scale(2);opacity:0}to{transform:scale(1);opacity:1}}
-.fight{font-size:8rem;font-weight:900;background:linear-gradient(135deg,#f43f5e,#fbbf24);-webkit-background-clip:text;background-clip:text;color:transparent;animation:cdp .5s ease-out;letter-spacing:.05em}
-.ko{font-size:11rem;font-weight:900;color:#fff;text-shadow:0 0 60px #f43f5e,0 0 30px #f43f5e,0 0 12px #fff;animation:koa .4s ease-out;font-family:'Impact',sans-serif;letter-spacing:.04em}
-@keyframes koa{0%{transform:scale(3) rotate(-8deg);opacity:0}50%{transform:scale(1.4) rotate(2deg)}100%{transform:scale(1) rotate(0)}}
-.rndbadge{font-size:1.8rem;color:#cbd5e1;margin-top:4px;font-weight:700;font-family:system-ui}
-.win-banner{font-size:5rem;font-weight:900;letter-spacing:.04em;margin-bottom:8px}
-/* Hero selection */
-.hero-grid{display:flex;gap:18px;margin:18px 0 14px;flex-wrap:wrap;justify-content:center}
-.hero-card{width:200px;background:linear-gradient(160deg,rgba(255,255,255,.04),rgba(0,0,0,.5));border:2px solid rgba(255,255,255,.08);border-radius:14px;padding:14px;cursor:pointer;transition:.18s;text-align:center;position:relative;overflow:hidden;font-family:system-ui}
-.hero-card:not(.locked):hover{transform:translateY(-4px);border-color:#fbbf24;box-shadow:0 8px 30px rgba(251,191,36,.3)}
-.hero-card.selected{border-color:#f97316;box-shadow:0 0 0 2px #f97316,0 8px 30px rgba(249,115,22,.45);background:linear-gradient(160deg,rgba(249,115,22,.18),rgba(0,0,0,.5))}
-.hero-card.locked{opacity:.45;cursor:not-allowed;filter:grayscale(.7)}
-.hero-canvas{width:170px;height:200px;background:radial-gradient(circle at 50% 30%,#1a0f2e 0%,#05050a 80%);border-radius:8px;margin:0 auto;display:block}
-.hero-locked-art{font-size:100px;color:#374151;height:200px;line-height:200px;background:radial-gradient(circle at 50% 30%,#0f0f1e 0%,#05050a 80%);border-radius:8px;font-weight:900}
-.hero-name{font-size:14px;font-weight:900;color:#fbbf24;letter-spacing:.06em;margin-top:10px}
-.hero-title{font-size:10px;color:#94a3b8;letter-spacing:.12em;text-transform:uppercase;margin-top:2px}
-.hero-quote{font-size:11px;color:#cbd5e1;font-style:italic;margin-top:8px;line-height:1.4;min-height:30px}
-.hero-tag{position:absolute;top:8px;right:8px;background:#f97316;color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px;letter-spacing:.08em}
-.diff-row{display:flex;gap:10px;justify-content:center;margin-top:18px;flex-wrap:wrap}
-.hero-back{margin-top:8px;background:transparent;color:#94a3b8;border:1px solid rgba(255,255,255,.15);padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:system-ui;letter-spacing:.08em}
-.hero-back:hover{color:#fff;background:rgba(255,255,255,.06)}
+.modes{display:flex;gap:10px;margin-bottom:12px}
+.modebtn{background:rgba(30,30,58,.75);color:#e2e8f0;border:2px solid rgba(255,255,255,.12);
+  padding:12px 22px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;
+  font-family:system-ui;transition:.15s;letter-spacing:.05em}
+.modebtn.active{background:linear-gradient(135deg,#a855f7,#7c3aed);border-color:#c084fc;
+  box-shadow:0 0 20px rgba(168,85,247,.5)}
+.modebtn:hover:not(.active){border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.btn{background:linear-gradient(135deg,#f43f5e,#a855f7);color:#fff;border:none;padding:14px 38px;
+  border-radius:12px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.05em;
+  transition:.15s;font-family:system-ui;box-shadow:0 4px 24px rgba(168,85,247,.45)}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(244,63,94,.55)}
+.winbanner{font-size:3.8rem;font-weight:900;letter-spacing:.04em;margin-bottom:14px;
+  text-shadow:0 0 40px currentColor}
+.winbanner.p1{color:#60a5fa}
+.winbanner.p2{color:#f87171}
+.winbanner.p3{color:#a78bfa}
+.winbanner.draw{color:#94a3b8}
+
+/* Weapon pickup hint */
+.pickHint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,.65);color:#fef3c7;padding:7px 14px;border-radius:999px;
+  font-family:system-ui;font-size:13px;font-weight:700;border:1px solid rgba(251,191,36,.35);
+  pointer-events:none;letter-spacing:.05em;display:none;z-index:4}
+.pickHint.show{display:block}
 </style>
 </head>
 <body>
 <a href="/" class="hbtn">← Games</a>
-<div class="wrap"><canvas id="c"></canvas></div>
 
-<div class="ov" id="ov-s">
-  <h1>ARCADE BRAWL</h1>
-  <h2>NEON FIGHT NIGHT</h2>
-  <p>Knock out your opponent. Best of 3 rounds. 60 seconds each.</p>
-  <div class="ks">
-    <span><b>A / D</b> · ← / →</span><span>Walk</span>
-    <span><b>W</b> · ↑</span><span>Jump</span>
-    <span><b>S</b></span><span>Block (reduces damage)</span>
-    <span><b>J</b></span><span>Punch — 3 dmg (0 if blocked), +RAGE</span>
-    <span><b>K</b></span><span>Kick — 5 dmg (0 if blocked), +RAGE</span>
-    <span><b>L</b></span><span>Dash Strike — 35 ENERGY · 30 dmg · pierces block</span>
-    <span><b>U</b></span><span>Sword Rain — 35 ENERGY · ~40 dmg over 3s · swords from sky</span>
-  </div>
-  <div>
-    <button class="btn" onclick="openHeroSelect()">CHOOSE FIGHTER</button>
-  </div>
-</div>
+<div class="wrap">
+  <canvas id="c" width="960" height="540"></canvas>
 
-<div class="ov" id="ov-hero" style="display:none">
-  <h1 style="background:linear-gradient(135deg,#f97316,#fbbf24,#fb923c);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:2.6rem">SELECT YOUR FIGHTER</h1>
-  <h2 style="color:#94a3b8;font-size:1rem;letter-spacing:.2em">Roster · 1 of 3 unlocked</h2>
-  <div class="hero-grid">
-    <div class="hero-card selected" data-hero="kenshin" onclick="selectHero('kenshin')">
-      <span class="hero-tag">NEW</span>
-      <canvas class="hero-canvas" id="hero-canvas-kenshin" width="170" height="200"></canvas>
-      <div class="hero-name">KENSHIN</div>
-      <div class="hero-title">Wandering Swordsman</div>
-      <div class="hero-quote">"The path of the blade knows no end."</div>
+  <!-- In-game HUD -->
+  <div class="hud" id="hud">
+    <div class="hpbox p1"><div class="name" id="n1">You</div>
+      <div class="barwrap"><div class="bar ok" id="b1" style="width:100%"></div></div>
+      <div class="num" id="hp1">100</div></div>
+    <div class="hpbox p2"><div class="name" id="n2">Red Bot</div>
+      <div class="barwrap"><div class="bar ok" id="b2" style="width:100%"></div></div>
+      <div class="num" id="hp2">100</div></div>
+    <div class="hpbox p3" id="box3" style="display:none"><div class="name" id="n3">Purple Bot</div>
+      <div class="barwrap"><div class="bar ok" id="b3" style="width:100%"></div></div>
+      <div class="num" id="hp3">100</div></div>
+  </div>
+
+  <div class="pickHint" id="pickHint">🤚 Press <b>E</b> to pick up</div>
+
+  <!-- Intro menu -->
+  <div class="ov" id="menu">
+    <h1>Arcade Brawl</h1>
+    <div class="tag">Ragdoll Stickman Fight</div>
+    <div class="modes">
+      <button class="modebtn active" data-mode="1v1">🥊 1 vs 1</button>
+      <button class="modebtn" data-mode="1v1v1">💥 1 vs 1 vs 1</button>
     </div>
-    <div class="hero-card locked">
-      <div class="hero-locked-art">?</div>
-      <div class="hero-name">— LOCKED —</div>
-      <div class="hero-title">Coming Soon</div>
-      <div class="hero-quote">More heroes incoming…</div>
+    <div class="ks">
+      <div>Move</div><div><b>W A S D</b></div>
+      <div>Punch / Attack</div><div><b>Mouse Click</b></div>
+      <div>Pick up / drop weapon</div><div><b>E</b></div>
+      <div>Jump</div><div><b>Space</b></div>
     </div>
-    <div class="hero-card locked">
-      <div class="hero-locked-art">?</div>
-      <div class="hero-name">— LOCKED —</div>
-      <div class="hero-title">Coming Soon</div>
-      <div class="hero-quote">Stay tuned.</div>
-    </div>
+    <p>100 HP. One life. Hit the head for 1.5× damage. Fall off the map and it's over.</p>
+    <button class="btn" id="startBtn">Fight</button>
   </div>
-  <div class="diff-row">
-    <button class="btn" onclick="confirmHero('normal')">FIGHT</button>
-    <button class="btn alt" onclick="confirmHero('hard')">HARD MODE</button>
-    <button class="btn" style="background:linear-gradient(180deg,#ec4899,#be185d)" onclick="openRoomLobby()">🌐 PvP ROOMS</button>
-  </div>
-  <p style="color:#94a3b8;font-family:system-ui;font-size:11px;margin-top:10px;letter-spacing:.06em">PvP: create a room to invite a friend, or browse public rooms.</p>
-  <button class="hero-back" onclick="backFromHero()">← Back</button>
-</div>
 
-<div class="ov" id="ov-cd" style="display:none">
-  <div class="cd" id="cd-num">3</div>
-</div>
-
-<div class="ov" id="ov-ko" style="display:none">
-  <div class="ko">K.O.</div>
-  <div class="rndbadge" id="rnd-msg"></div>
-</div>
-
-<div class="ov" id="ov-end" style="display:none">
-  <div class="win-banner" id="win-txt"></div>
-  <p id="end-stats" style="font-size:18px;color:#cbd5e1;margin-bottom:18px"></p>
-  <div>
-    <button class="btn" onclick="hideEnd();start(lastDiff)">REMATCH</button>
-    <button class="btn alt" onclick="backToMenu()">MAIN MENU</button>
+  <!-- Win overlay -->
+  <div class="ov hidden" id="winOv">
+    <div class="winbanner" id="winText">VICTORY</div>
+    <p id="winSub">You crushed them.</p>
+    <button class="btn" onclick="restartMatch()">Rematch</button>
   </div>
 </div>
 
-<!-- ─── PvP Room lobby ─── -->
-<div class="ov" id="ov-rooms" style="display:none;font-family:system-ui,-apple-system,sans-serif">
-  <h1 style="color:#ec4899;font-size:28px;margin-bottom:6px">🌐 PvP Rooms</h1>
-  <div style="display:flex;gap:12px;margin:6px 0 18px">
-    <button class="btn" id="ab-tab-create" onclick="showRoomTab('create')">➕ Create Room</button>
-    <button class="btn alt" id="ab-tab-browse" onclick="showRoomTab('browse')">📋 Browse Rooms</button>
-  </div>
-
-  <div id="ab-tab-create-body" style="width:min(90vw,420px);text-align:left">
-    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin:6px 0 3px">Room name</label>
-    <input id="ab-ri-name" placeholder="Alan's Ring" maxlength="24" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:14px;font-family:inherit"/>
-
-    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin:12px 0 3px">Your nickname</label>
-    <input id="ab-ri-nick" placeholder="Player" maxlength="12" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:14px;font-family:inherit"/>
-
-    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin:12px 0 3px">Visibility</label>
-    <div style="display:flex;gap:0;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:4px">
-      <input type="radio" name="ab-ri-type" value="public" id="ab-ri-type-public" checked onchange="onRoomTypeChange()" style="display:none"/>
-      <input type="radio" name="ab-ri-type" value="private" id="ab-ri-type-private" onchange="onRoomTypeChange()" style="display:none"/>
-      <label for="ab-ri-type-public"  id="ab-ri-type-public-lbl"  style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700;letter-spacing:.5px;transition:background .15s,color .15s">🌐 Public</label>
-      <label for="ab-ri-type-private" id="ab-ri-type-private-lbl" style="flex:1;text-align:center;cursor:pointer;padding:8px;border-radius:7px;font-size:13px;font-weight:700;letter-spacing:.5px;transition:background .15s,color .15s">🔒 Private</label>
-    </div>
-
-    <div id="ab-ri-pw-row" style="display:none;margin-top:10px">
-      <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin-bottom:3px">Password</label>
-      <input id="ab-ri-pw" type="password" placeholder="Any characters" maxlength="24" autocomplete="new-password" style="width:100%;padding:9px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:14px;font-family:inherit"/>
-    </div>
-
-    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center">
-      <button class="btn alt" onclick="backToMenu()">← Back</button>
-      <button class="btn" onclick="createRoom()">Create & Enter</button>
-    </div>
-  </div>
-
-  <div id="ab-tab-browse-body" style="width:min(90vw,480px);text-align:left;display:none">
-    <div id="ab-ri-list" style="max-height:260px;overflow-y:auto;padding:4px">
-      <div style="text-align:center;color:#94a3b8;padding:18px">Loading rooms…</div>
-    </div>
-    <div style="margin-top:14px;display:flex;gap:8px;justify-content:center">
-      <button class="btn alt" onclick="backToMenu()">← Back</button>
-    </div>
-  </div>
-</div>
-
-<!-- ─── Waiting rooms (post-create / post-join) ─── -->
-<div class="ov" id="ov-wait" style="display:none;font-family:system-ui,-apple-system,sans-serif">
-  <div style="font-size:14px;color:#94a3b8;letter-spacing:.15em;margin-bottom:8px" id="ab-wait-kicker">🌐 ROOM</div>
-  <div style="font-size:32px;font-weight:900;letter-spacing:6px;color:#ec4899;margin-bottom:6px" id="ab-wait-room">------</div>
-  <div style="font-size:16px;color:#cbd5e1;margin-bottom:18px" id="ab-wait-title">Waiting…</div>
-  <div id="ab-wait-players" style="min-height:60px;color:#fbbf24;margin-bottom:14px">—</div>
-  <div style="display:flex;gap:10px">
-    <button class="btn alt" onclick="leaveRoom()">← Leave</button>
-    <button class="btn" id="ab-wait-start" onclick="hostStartMatch()" style="display:none">START MATCH</button>
-  </div>
-</div>
-
-<!-- ─── Join modal ─── -->
-<div id="ab-pw-modal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.72);backdrop-filter:blur(6px);align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif">
-  <div style="width:min(88vw,380px);background:linear-gradient(180deg,#1e1b4b,#0a0612);border:1px solid rgba(236,72,153,.4);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);padding:22px">
-    <div id="ab-pw-kicker" style="font-size:14px;color:#94a3b8;letter-spacing:.05em;margin-bottom:6px">🌐 JOIN ROOM</div>
-    <div id="ab-pw-title" style="font-size:18px;font-weight:800;color:#fef3c7;margin-bottom:16px">Room</div>
-    <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin-bottom:4px">Your nickname</label>
-    <input id="ab-pw-nick" type="text" maxlength="12" placeholder="Player" style="width:100%;padding:11px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:15px;outline:none"/>
-    <div id="ab-pw-pw-row" style="display:none;margin-top:12px">
-      <label style="display:block;font-size:12px;letter-spacing:.05em;color:#94a3b8;margin-bottom:4px">Password</label>
-      <input id="ab-pw-input" type="password" maxlength="24" autocomplete="new-password" placeholder="Password" style="width:100%;padding:11px 14px;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(0,0,0,.4);color:#fff;font-size:15px;outline:none"/>
-    </div>
-    <div id="ab-pw-error" style="display:none;color:#ff8a8a;font-size:12px;margin-top:8px">Wrong password.</div>
-    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
-      <button class="btn alt" style="font-size:13px;padding:8px 18px" onclick="pwModalCancel()">Cancel</button>
-      <button class="btn" style="font-size:13px;padding:8px 18px" onclick="pwModalOk()">Join</button>
-    </div>
-  </div>
-</div>
-
+<script src="_esc-back.js"></script>
 <script>
-// ═══════════════════════════════════════════════════════════════
-//  ARCADE BRAWL — neon fighting game
-// ═══════════════════════════════════════════════════════════════
-const C=document.getElementById('c'),ctx=C.getContext('2d');
-C.width=960; C.height=540;
-const W=C.width, H=C.height, GROUND=H-72;
+// ─── Matter.js shortcuts ──────────────────────────────────
+const { Engine, World, Bodies, Body, Composite, Constraint, Events, Vector } = Matter;
 
-// ── Input ──────────────────────────────────────────────────────
-const KEYS={};
-const PRESSED={}; // edge-triggered
-addEventListener('keydown',e=>{
-  if(!KEYS[e.code])PRESSED[e.code]=true;
-  KEYS[e.code]=true;
-  if(['Space','KeyJ','KeyK','KeyL','KeyU','KeyI','ArrowUp','ArrowDown','KeyW','KeyS'].includes(e.code))e.preventDefault();
-});
-addEventListener('keyup',e=>{KEYS[e.code]=false});
+// ─── Canvas + config ──────────────────────────────────────
+const C = document.getElementById('c');
+const ctx = C.getContext('2d');
+const W = C.width, H = C.height;
 
-// ── Game state ────────────────────────────────────────────────
-let f1=null, f2=null;
-let phase='menu'; // menu | countdown | play | ko | end
-let cdTimer=0, koTimer=0, roundTimer=60, frameTimer=0;
-let p1Wins=0, p2Wins=0, round=1, totalRounds=5;
-let particles=[], hitSparks=[], damageNums=[];
-let projectiles=[], shadowClones=[], swords=[];
-let shake=0, hitstop=0, frame=0;
-let lastDiff='normal', aiDiff='normal';
-let bgTime=0;
+const engine = Engine.create({ enableSleeping: false });
+engine.world.gravity.y = 1.0;
+engine.positionIterations = 6;
+engine.velocityIterations = 4;
 
-// ── Multiplayer (Firebase) ─────────────────────────────────────
-const FIREBASE_CONFIG={
-  apiKey:"AIzaSyAN1x_-_ayc63ZRM7fnU2sDHXqGCGaaCTQ",
-  authDomain:"unlimited-games-522cb.firebaseapp.com",
-  databaseURL:"https://unlimited-games-522cb-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:"unlimited-games-522cb",
-  storageBucket:"unlimited-games-522cb.firebasestorage.app",
-  messagingSenderId:"336774802790",
-  appId:"1:336774802790:web:070b9dcb062542d1a82ca7"
-};
-const MP={
-  ready:false, db:null,
-  playerId:null, playerName:'YOU',
-  inLobby:false, matched:false,
-  matchId:null, opponentId:null, opponentName:'',
-  isHost:false,
-  lobbyRef:null, lobbyWatcher:null, inviteRef:null,
-  myStateRef:null, oppStateRef:null,
-  removeTimer:null,
-  lastBroadcastFrame:0,
-  opponentHasBroadcast:false,
-  lastSentName:null,
-  // ── Room system state ──
-  roomId:null,                 // 6-char code once we've picked or created a room
-  roomMeta:null,               // host-only: {roomName, isPublic, maxPlayers:2, pw}
-  waitingInRoom:false,         // true while sitting in ov-wait
-  roomListeners:null,          // handlers to detach on leave/start
-};
-try{
-  if(typeof firebase!=='undefined'){
-    firebase.initializeApp(FIREBASE_CONFIG);
-    MP.db=firebase.database();
-    MP.ready=true;
-    let pid=sessionStorage.getItem('mp.pid');
-    if(!pid){
-      pid='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      sessionStorage.setItem('mp.pid',pid);
-    }
-    MP.playerId=pid;
-    if(window.MPStability) MPStability.attach({ db:MP.db, playerId:MP.playerId });
-  }
-}catch(e){ console.warn('Multiplayer disabled:',e); }
+// ─── Config ───────────────────────────────────────────────
+const COLLISION = { WORLD: 0x0001, FIGHTER: 0x0002, WEAPON: 0x0004, PROJECTILE: 0x0008 };
+// A fighter's bodies collide with world + weapons + projectiles, but NOT with
+// other members of the same fighter's ragdoll (that would stiffen the joints).
+let nextFighterGroup = -1;  // negative = never self-collide
 
-function mpEnterLobby(name){
-  if(!MP.ready||MP.inLobby||MP.matched) return;
-  MP.playerName=name||'Player';
-  MP.inLobby=true;
-  console.log('[MP] Entering brawl lobby as', MP.playerId);
+const FIGHTER_COLORS = [
+  { name: 'You',        line: '#60a5fa', skin: '#dbeafe', accent: '#1d4ed8' },
+  { name: 'Red Bot',    line: '#f87171', skin: '#fecaca', accent: '#991b1b' },
+  { name: 'Purple Bot', line: '#c084fc', skin: '#e9d5ff', accent: '#6b21a8' },
+];
 
-  MP.lobbyRef=MP.db.ref('lobby/brawl/'+MP.playerId);
-  MP.lobbyRef.set({ name:MP.playerName, ts:firebase.database.ServerValue.TIMESTAMP });
-  MP.lobbyRef.onDisconnect().remove();
-
-  // Listen for incoming invitations
-  if(MP.inviteRef) MP.inviteRef.off();
-  MP.inviteRef=MP.db.ref('invitations/brawl/'+MP.playerId);
-  MP.inviteRef.onDisconnect().remove();
-  MP.inviteRef.on('value',snap=>{
-    if(MP.matched) return;
-    const inv=snap.val();
-    if(!inv||!inv.fromId) return;
-    console.log('[MP] Got invite from', inv.fromName);
-    MP.inviteRef.remove();
-    mpStartMatch(inv.fromId, inv.fromName||'Player');
-  });
-
-  // Watch lobby — lower-ID player initiates with an invitation
-  if(MP.lobbyWatcher) MP.lobbyWatcher.off();
-  MP.lobbyWatcher=MP.db.ref('lobby/brawl');
-  MP.lobbyWatcher.on('value',snap=>{
-    if(MP.matched) return;
-    const all=snap.val()||{};
-    const now=Date.now();
-    const others=Object.entries(all)
-      .filter(([id,v])=>id!==MP.playerId)
-      .filter(([id,v])=>v&&(typeof v.ts!=='number'||now-v.ts<120000))
-      .sort((a,b)=>(a[1].ts||0)-(b[1].ts||0));
-    if(others.length===0) return;
-    const [otherId,other]=others[0];
-    const ids=[MP.playerId,otherId].sort();
-    if(ids[0]!==MP.playerId) return;  // not the initiator
-    console.log('[MP] Inviting', other.name);
-    MP.db.ref('invitations/brawl/'+otherId).set({
-      fromId:MP.playerId, fromName:MP.playerName,
-      ts:firebase.database.ServerValue.TIMESTAMP,
-    }).then(()=>{
-      mpStartMatch(otherId, other.name||'Player');
-    }).catch(e=>console.warn('[MP] invite failed',e));
-  });
-}
-
-function mpStartMatch(otherId, otherName){
-  if(MP.matched) return;
-  MP.matched=true;
-  MP.inLobby=false;
-  const ids=[MP.playerId,otherId].sort();
-  MP.matchId=ids.join('__');
-  MP.isHost=ids[0]===MP.playerId;
-  MP.opponentId=otherId;
-  MP.opponentName=otherName;
-  MP.opponentHasBroadcast=false;
-  // Tear down lobby listener and entry
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef=null; }
-  MP.db.ref('lobby/brawl/'+MP.playerId).remove().catch(()=>{});
-
-  console.log('[MP] Matched with', otherName, 'host?', MP.isHost);
-
-  MP.myStateRef=MP.db.ref('matches/brawl/'+MP.matchId+'/state/'+MP.playerId);
-  MP.oppStateRef=MP.db.ref('matches/brawl/'+MP.matchId+'/state/'+otherId);
-  MP.myStateRef.onDisconnect().remove();
-  if(window.MPStability) MPStability.attach({ db:MP.db, playerId:MP.playerId, myRef:MP.myStateRef });
-
-  MP.oppStateRef.on('value',snap=>{
-    const data=snap.val();
-    if(!data){
-      if(MP.opponentHasBroadcast) mpOpponentLeft();
-      return;
-    }
-    MP.opponentHasBroadcast=true;
-    mpApplyOpponentState(data);
-  });
-
-  // Convert f2 from AI to remote (will be initialized when round starts)
-  if(f2) f2.isRemote=true;
-  if(f2) f2.name=otherName;
-  showMpToast('🥊 Matched with '+otherName+'!');
-}
-
-function mpOpponentLeft(){
-  if(!MP.matched) return;
-  console.log('[MP] Opponent disconnected');
-  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
-  if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
-  MP.matched=false;
-  MP.matchId=null; MP.opponentId=null; MP.opponentName='';
-  MP.opponentHasBroadcast=false;
-  if(f2){ f2.isRemote=false; f2.name='CPU'; }
-  showMpToast('🛡️ Opponent left — AI restored');
-}
-
-function mpLeaveAll(){
-  if(!MP.ready) return;
-  if(MP.lobbyWatcher){ MP.lobbyWatcher.off(); MP.lobbyWatcher=null; }
-  if(MP.lobbyRef){ MP.lobbyRef.remove().catch(()=>{}); MP.lobbyRef=null; }
-  MP.db.ref('lobby/brawl/'+MP.playerId).remove().catch(()=>{});
-  if(MP.inviteRef){ MP.inviteRef.off(); MP.inviteRef.remove().catch(()=>{}); MP.inviteRef=null; }
-  if(MP.oppStateRef){ MP.oppStateRef.off(); MP.oppStateRef=null; }
-  if(MP.myStateRef){ MP.myStateRef.remove().catch(()=>{}); MP.myStateRef=null; }
-  MP.matched=false; MP.inLobby=false;
-  MP.matchId=null; MP.opponentId=null; MP.opponentName='';
-  MP.opponentHasBroadcast=false; MP.lastSentName=null;
-  // Room state
-  if(MP.roomListeners){
-    const L = MP.roomListeners;
-    if(L.rosterRef){ L.rosterRef.off('child_added',   L.onAdded); L.rosterRef.off('child_changed', L.onChanged); L.rosterRef.off('child_removed', L.onRemoved); }
-    if(L.hostRef){ L.hostRef.off('value', L.onHostChange); }
-    MP.roomListeners=null;
-  }
-  MP.roomId=null; MP.roomMeta=null; MP.waitingInRoom=false; MP.isHost=false;
-  if(f2) f2.isRemote=false;
-}
-
-// ═══════════════════════════════════════════════════════════════
-//   Room system (create / browse / join / host-Start match)
-// ═══════════════════════════════════════════════════════════════
-// Room metadata lives on the host's own lobby/brawl/<pid> entry —
-// we can't create new Firebase paths on this project without a rules
-// edit, and lobby/brawl/* is already whitelisted. Non-host players
-// carry just their roomId so the roster listener groups them.
-//
-// Flow:
-//   1. Host clicks Create → writes {roomId, isHost:true, roomName…} → shows ov-wait
-//   2. Guest browses, clicks Join → writes {roomId, isHost:false} → shows ov-wait
-//   3. Host sees the guest arrive in their roster listener → Start button lights up
-//   4. Host clicks Start → sets started:true, guestPid:X on own entry
-//   5. Guest's host-watcher sees started:true → both call startPvpFromRoom(other)
-//   6. startPvpFromRoom runs the normal init + mpStartMatch, game runs
-
-function newRoomId(){
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s=''; for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
-  return s;
-}
-function _escHtml(s){
-  return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
-}
-
-function openRoomLobby(){
-  hideAllOv(); showOv('ov-rooms');
-  showRoomTab('browse');
-  onRoomTypeChange();
-}
-
-function showRoomTab(which){
-  document.getElementById('ab-tab-create-body').style.display = (which==='create') ? 'block' : 'none';
-  document.getElementById('ab-tab-browse-body').style.display = (which==='browse') ? 'block' : 'none';
-  const c = document.getElementById('ab-tab-create');
-  const b = document.getElementById('ab-tab-browse');
-  c.className = (which==='create') ? 'btn' : 'btn alt';
-  b.className = (which==='browse') ? 'btn' : 'btn alt';
-  if(which==='browse') startBrowseRooms(); else stopBrowseRooms();
-}
-
-function onRoomTypeChange(){
-  const el = document.querySelector('input[name="ab-ri-type"]:checked');
-  if(!el) return;
-  const priv = el.value === 'private';
-  const row  = document.getElementById('ab-ri-pw-row');
-  if(row) row.style.display = priv ? 'block' : 'none';
-  const pub = document.getElementById('ab-ri-type-public-lbl');
-  const prv = document.getElementById('ab-ri-type-private-lbl');
-  if(!pub || !prv) return;
-  pub.style.background = priv ? 'transparent' : '#ec4899';
-  pub.style.color      = priv ? '#94a3b8'    : '#fff';
-  prv.style.background = priv ? '#ec4899'    : 'transparent';
-  prv.style.color      = priv ? '#fff'       : '#94a3b8';
-}
-
-function createRoom(){
-  if(!MP.ready){ alert('Multiplayer offline — refresh and try again'); return; }
-  const name = document.getElementById('ab-ri-name').value.trim() || 'Untitled Ring';
-  const nick = document.getElementById('ab-ri-nick').value.trim() || 'Player';
-  const isPublic = document.querySelector('input[name="ab-ri-type"]:checked').value === 'public';
-  const pw = document.getElementById('ab-ri-pw').value.trim();
-  if(!isPublic && !pw){ alert('Private rooms need a password.'); return; }
-  document.getElementById('ab-ri-pw').value = '';
-  mpLeaveAll();
-  MP.roomId = newRoomId();
-  MP.isHost = true;
-  MP.roomMeta = { roomName: name, isPublic, maxPlayers: 2, pw: isPublic ? null : pw };
-  MP.playerName = nick;
-  enterWaitingRoom();
-}
-
-function joinRoomBtn(roomId, needsPassword, hostPid){
-  if(!MP.ready){ alert('Multiplayer offline'); return; }
-  const roomEl = document.querySelector('#ab-ri-list button[onclick*="'+roomId+'"]');
-  const displayName = roomEl ? roomEl.closest('div').querySelector('div').textContent.replace(/^[🔒🌐]\s*/,'').trim() : ('Room ' + roomId);
-
-  const enter = (nick) => {
-    mpLeaveAll();
-    MP.roomId = roomId;
-    MP.isHost = false;
-    MP.roomMeta = null;
-    MP.playerName = nick;
-    enterWaitingRoom(hostPid);
-  };
-
-  pwModalOpen(displayName, needsPassword, result => {
-    if(result === null) return;
-    const nick = (result.nick || 'Player').slice(0,12);
-    if(!needsPassword){ pwModalClose(); enter(nick); return; }
-    MP.db.ref('lobby/brawl/'+hostPid+'/pw').once('value')
-      .then(snap => {
-        const stored = snap.val();
-        if(stored == null){ console.warn('[Rooms] no pw stored, joining anyway'); pwModalClose(); enter(nick); return; }
-        if(stored === result.pw){ pwModalClose(); enter(nick); }
-        else pwModalShowError('Wrong password.');
-      })
-      .catch(err => {
-        console.error('[Rooms] pw read failed:', err);
-        pwModalClose();
-        alert('Password check failed (' + (err && err.code || 'unknown') + '), joining anyway.');
-        enter(nick);
-      });
-  });
-}
-
-// Write our own lobby entry, then subscribe to the room's roster so
-// host sees guest arrive / guest sees host start.
-function enterWaitingRoom(hostPidIfGuest){
-  hideAllOv(); showOv('ov-wait');
-  document.getElementById('ab-wait-room').textContent = MP.roomId;
-  document.getElementById('ab-wait-kicker').textContent = MP.isHost ? '🌐 YOUR ROOM' : '🌐 JOINED';
-  document.getElementById('ab-wait-title').textContent = MP.isHost ? 'Waiting for opponent…' : 'Waiting for host to start…';
-  document.getElementById('ab-wait-start').style.display = 'none';  // enabled only when guest arrives
-  document.getElementById('ab-wait-players').innerHTML = MP.isHost
-    ? '<b>1/2</b> · You (host)'
-    : '<b>2/2</b> · Waiting for the host to press Start.';
-
-  MP.waitingInRoom = true;
-
-  // Announce ourselves
-  const entry = {
-    name: MP.playerName || 'Player',
-    ts: firebase.database.ServerValue.TIMESTAMP,
-    roomId: MP.roomId,
-    isHost: !!MP.isHost,
-  };
-  if(MP.isHost && MP.roomMeta){
-    entry.roomName   = MP.roomMeta.roomName;
-    entry.isPublic   = !!MP.roomMeta.isPublic;
-    entry.maxPlayers = MP.roomMeta.maxPlayers || 2;
-    if(MP.roomMeta.pw) entry.pw = MP.roomMeta.pw;
-  }
-  MP.lobbyRef = MP.db.ref('lobby/brawl/'+MP.playerId);
-  MP.lobbyRef.set(entry);
-  MP.lobbyRef.onDisconnect().remove();
-
-  // Subscribe to the room roster (all lobby entries; filter by roomId)
-  const rosterRef = MP.db.ref('lobby/brawl');
-  const rosterCache = {};
-  rosterCache[MP.playerId] = entry;
-  const rerenderHost = () => {
-    if(!MP.isHost || !MP.waitingInRoom) return;
-    const inRoom = Object.entries(rosterCache).filter(([pid,e]) => e && e.roomId === MP.roomId);
-    const guest = inRoom.find(([pid,e]) => pid !== MP.playerId && !e.isHost);
-    if(guest){
-      document.getElementById('ab-wait-players').innerHTML = '<b>2/2</b> · You (host) vs ' + _escHtml(guest[1].name||'Player');
-      document.getElementById('ab-wait-title').textContent = 'Ready! Start when you are.';
-      document.getElementById('ab-wait-start').style.display = 'inline-block';
-    } else {
-      document.getElementById('ab-wait-players').innerHTML = '<b>1/2</b> · You (host)';
-      document.getElementById('ab-wait-title').textContent = 'Waiting for opponent…';
-      document.getElementById('ab-wait-start').style.display = 'none';
-    }
-  };
-  const onAdded   = snap => { rosterCache[snap.key] = snap.val()||{}; rerenderHost(); };
-  const onChanged = snap => { rosterCache[snap.key] = snap.val()||{}; rerenderHost(); };
-  const onRemoved = snap => {
-    delete rosterCache[snap.key];
-    rerenderHost();
-    // If host disappears while we're a guest, bail out
-    if(!MP.isHost && MP.waitingInRoom && hostPidIfGuest && snap.key === hostPidIfGuest){
-      showMpToast('Host left the room');
-      leaveRoom();
-    }
-  };
-  rosterRef.on('child_added',   onAdded);
-  rosterRef.on('child_changed', onChanged);
-  rosterRef.on('child_removed', onRemoved);
-
-  // Guest also watches the host's entry for the "started" flag
-  let hostRef=null, onHostChange=null;
-  if(!MP.isHost && hostPidIfGuest){
-    hostRef = MP.db.ref('lobby/brawl/'+hostPidIfGuest);
-    onHostChange = snap => {
-      const v = snap.val();
-      if(!v) return;
-      if(v.started && v.guestPid === MP.playerId){
-        startPvpFromRoom(hostPidIfGuest, v.name || 'Host');
-      }
-    };
-    hostRef.on('value', onHostChange);
-  }
-
-  MP.roomListeners = { rosterRef, onAdded, onChanged, onRemoved, hostRef, onHostChange };
-}
-
-// Host clicks Start.
-function hostStartMatch(){
-  if(!MP.isHost || !MP.waitingInRoom) return;
-  const cache = MP.roomListeners; if(!cache) return;
-  // Find guest via a one-off read (cache might be stale, but usually current)
-  MP.db.ref('lobby/brawl').once('value').then(snap => {
-    const all = snap.val() || {};
-    const guest = Object.entries(all).find(([pid,e]) => e && e.roomId === MP.roomId && pid !== MP.playerId && !e.isHost);
-    if(!guest){ alert('Guest left. Try again.'); return; }
-    const [guestPid, guestData] = guest;
-    // Signal start to the guest
-    MP.lobbyRef.update({ started: true, guestPid }).then(() => {
-      startPvpFromRoom(guestPid, guestData.name || 'Player');
-    });
-  });
-}
-
-function leaveRoom(){
-  mpLeaveAll();
-  hideAllOv(); showOv('ov-s');
-}
-
-// Bridge — called on both sides once the host presses Start.
-function startPvpFromRoom(otherPid, otherName){
-  MP.waitingInRoom = false;
-  // Detach room listeners (mpStartMatch below will also drop the lobby entry)
-  if(MP.roomListeners){
-    const L = MP.roomListeners;
-    if(L.rosterRef){ L.rosterRef.off('child_added',   L.onAdded); L.rosterRef.off('child_changed', L.onChanged); L.rosterRef.off('child_removed', L.onRemoved); }
-    if(L.hostRef){ L.hostRef.off('value', L.onHostChange); }
-    MP.roomListeners=null;
-  }
-  hideAllOv();
-  aiDiff = 'hard';
-  lastDiff = 'pvp';
-  p1Wins=0; p2Wins=0; round=1;
-  applyHero(PAL.p1, selectedHeroId);
-  applyHero(PAL.p2, 'kenshin');
-  initRound(0,0);
-  mpStartMatch(otherPid, otherName);
-}
-
-// ── Browse tab ──
-let _abBrowse = null;
-function startBrowseRooms(){
-  if(!MP.ready){
-    document.getElementById('ab-ri-list').innerHTML = '<div style="text-align:center;color:#f87171;padding:24px 12px">Multiplayer is offline — refresh.</div>';
-    return;
-  }
-  stopBrowseRooms();
-  document.getElementById('ab-ri-list').innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 12px">Loading rooms…</div>';
-  const cache = {};
-  const ref = MP.db.ref('lobby/brawl');
-  let scheduled=false;
-  const rerender = () => {
-    if(scheduled) return;
-    scheduled=true;
-    requestAnimationFrame(() => {
-      scheduled=false;
-      const players = Object.entries(cache).map(([pid,p]) => ({pid, ...(p||{})}));
-      const hosts = players.filter(p => p.isHost && p.roomId && !p.started);
-      const rooms = hosts.map(h => ({
-        id: h.roomId,
-        hostPid: h.pid,
-        name: h.roomName || 'Untitled',
-        hostName: h.name || 'Player',
-        isPublic: h.isPublic !== false,
-        hasPassword: h.isPublic === false,
-        maxPlayers: h.maxPlayers || 2,
-        playerCount: players.filter(p => p.roomId === h.roomId).length,
-      })).sort((a,b) => (b.id||'').localeCompare(a.id||''));
-      renderRoomList(rooms);
-    });
-  };
-  const onAdded   = snap => { cache[snap.key] = snap.val()||{}; rerender(); };
-  const onChanged = snap => { cache[snap.key] = snap.val()||{}; rerender(); };
-  const onRemoved = snap => { delete cache[snap.key]; rerender(); };
-  ref.on('child_added',   onAdded);
-  ref.on('child_changed', onChanged);
-  ref.on('child_removed', onRemoved);
-  _abBrowse = { ref, onAdded, onChanged, onRemoved };
-  setTimeout(rerender, 800);
-}
-function stopBrowseRooms(){
-  if(_abBrowse){
-    _abBrowse.ref.off('child_added', _abBrowse.onAdded);
-    _abBrowse.ref.off('child_changed', _abBrowse.onChanged);
-    _abBrowse.ref.off('child_removed', _abBrowse.onRemoved);
-    _abBrowse=null;
-  }
-}
-function renderRoomList(rooms){
-  const el = document.getElementById('ab-ri-list');
-  if(!rooms.length){
-    el.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:24px 12px">No rooms yet. Create one!</div>';
-    return;
-  }
-  el.innerHTML = rooms.map(r => {
-    const full = (r.playerCount||0) >= (r.maxPlayers||2);
-    const btn = full
-      ? '<span style="color:#94a3b8;font-size:12px;padding:6px 12px">FULL</span>'
-      : `<button class="btn" style="padding:6px 14px;font-size:12px;font-weight:700" onclick="joinRoomBtn('${r.id}',${r.hasPassword?1:0},'${r.hostPid}')">Join</button>`;
-    return `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;margin-bottom:6px;background:rgba(255,255,255,.04);border-radius:8px;border:1px solid rgba(255,255,255,.08)">
-        <div style="flex:1;min-width:0">
-          <div style="font-size:14px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            ${r.hasPassword?'🔒':'🌐'} ${_escHtml(r.name)}
-          </div>
-          <div style="font-size:11px;color:#94a3b8;margin-top:2px">Host: ${_escHtml(r.hostName||'?')} · ${r.playerCount||0}/${r.maxPlayers||2}</div>
-        </div>
-        ${btn}
-      </div>`;
-  }).join('');
-}
-
-// ── Custom join modal ──
-let _pwCallback=null;
-function pwModalOpen(title, needsPassword, cb){
-  _pwCallback=cb;
-  document.getElementById('ab-pw-kicker').textContent = needsPassword ? '🔒 PRIVATE ROOM' : '🌐 JOIN ROOM';
-  document.getElementById('ab-pw-title').textContent = 'Join "' + title + '"';
-  document.getElementById('ab-pw-pw-row').style.display = needsPassword ? 'block' : 'none';
-  const nickInp = document.getElementById('ab-pw-nick');
-  const pwInp   = document.getElementById('ab-pw-input');
-  const seed = document.getElementById('ab-ri-nick').value.trim() || '';
-  nickInp.value = seed;
-  pwInp.value = '';
-  document.getElementById('ab-pw-error').style.display='none';
-  document.getElementById('ab-pw-modal').style.display='flex';
-  setTimeout(() => {
-    (seed || !needsPassword ? nickInp : pwInp).focus();
-    if(seed && !needsPassword) nickInp.select();
-  }, 30);
-}
-function pwModalClose(){ document.getElementById('ab-pw-modal').style.display='none'; document.getElementById('ab-pw-input').value=''; _pwCallback=null; }
-function pwModalCancel(){ const cb=_pwCallback; pwModalClose(); if(cb) cb(null); }
-function pwModalOk(){
-  const nick = document.getElementById('ab-pw-nick').value.trim();
-  const pw   = document.getElementById('ab-pw-input').value;
-  if(!nick){ pwModalShowError('Please enter a nickname.'); return; }
-  const cb=_pwCallback;
-  if(cb) cb({ nick, pw });
-}
-function pwModalShowError(msg){
-  const el = document.getElementById('ab-pw-error');
-  el.textContent = msg; el.style.display='block';
-}
-document.addEventListener('keydown', e => {
-  if(document.getElementById('ab-pw-modal').style.display !== 'flex') return;
-  if(e.key === 'Enter'){ e.preventDefault(); pwModalOk(); }
-  else if(e.key === 'Escape'){ e.preventDefault(); pwModalCancel(); }
-});
-
-// Mirror horizontal world coordinate so both players see themselves on
-// the LEFT — the game world is flipped between the two clients.
-const mx = x => W - x;
-
-function mpBroadcast(){
-  if(!MP.matched||!MP.myStateRef||!f1) return;
-  if(frame-MP.lastBroadcastFrame<4) return;  // ~15Hz for fighter
-  MP.lastBroadcastFrame=frame;
-  const payload={
-    x:Math.round(f1.x), y:Math.round(f1.y),
-    vx:+f1.vx.toFixed(1), vy:+f1.vy.toFixed(1),
-    fc:f1.facing,
-    st:f1.state, t:f1.sTime,
-    hp:Math.round(f1.hp), m:Math.round(f1.meter), r:Math.round(f1.rage),
-    hs:f1.hitstun||0,
-    bl:f1.blocking?1:0,
-    og:f1.onGround?1:0,
-    sr:f1.swordRainT||0,
-    ko:f1.ko?1:0,
-  };
-  if(f1.state==='dashing'){
-    payload.dsx=Math.round(f1.dashStartX);
-    payload.dex=Math.round(f1.dashEndX);
-  }
-  if(MP.playerName!==MP.lastSentName){
-    payload.n=MP.playerName;
-    MP.lastSentName=MP.playerName;
-  }
-  MP.myStateRef.set(payload).catch(()=>{});
-}
-
-function mpApplyOpponentState(data){
-  if(!f2 || !MP.matched) return;
-  // Mirror x / vx / facing so opponent appears on RIGHT side of our screen
-  if(typeof data.x==='number') f2.x = mx(data.x);
-  if(typeof data.y==='number') f2.y = data.y;
-  if(typeof data.vx==='number') f2.vx = -data.vx;
-  if(typeof data.vy==='number') f2.vy = data.vy;
-  if(typeof data.fc==='number') f2.facing = -data.fc;
-  if(data.st) f2.state = data.st;
-  if(typeof data.t==='number') f2.sTime = data.t;
-  if(typeof data.hp==='number') f2.hp = data.hp;
-  if(typeof data.m==='number') f2.meter = data.m;
-  if(typeof data.r==='number') f2.rage = data.r;
-  if(typeof data.hs==='number') f2.hitstun = data.hs;
-  if(typeof data.bl==='number') f2.blocking = !!data.bl;
-  if(typeof data.og==='number') f2.onGround = !!data.og;
-  if(typeof data.sr==='number') f2.swordRainT = data.sr;
-  // Detect KO from network — opponent reported their HP hit 0 in their game
-  const wasKO = f2.ko;
-  if(typeof data.ko==='number') f2.ko = !!data.ko;
-  if(!wasKO && f2.ko && phase==='play'){
-    triggerKO(f1, f2);
-  }
-  if(typeof data.dsx==='number') f2.dashStartX = mx(data.dsx);
-  if(typeof data.dex==='number') f2.dashEndX  = mx(data.dex);
-  if(data.n) f2.name = data.n;
-}
-
-function showMpToast(msg){
-  const el=document.createElement('div');
-  el.style.cssText='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.92);color:#fbbf24;padding:10px 18px;border-radius:10px;border:1px solid rgba(251,191,36,.4);font-weight:700;z-index:300;font-size:14px;backdrop-filter:blur(8px);box-shadow:0 0 30px rgba(251,191,36,.3);font-family:system-ui;letter-spacing:.05em';
-  el.textContent=msg;
-  document.body.appendChild(el);
-  setTimeout(()=>el.remove(),3500);
-}
-
-function mpUpdateIndicator(){
-  let el=document.getElementById('mpInd');
-  if(!el){
-    el=document.createElement('div');
-    el.id='mpInd';
-    el.style.cssText='position:fixed;top:12px;right:50%;transform:translateX(50%);background:rgba(0,0,0,.7);padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;color:#fff;z-index:50;backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.1);font-family:system-ui';
-    document.body.appendChild(el);
-  }
-  if(!MP.ready||phase==='menu'){ el.style.display='none'; return; }
-  if(!MP.inLobby && !MP.matched){ el.style.display='none'; return; }
-  el.style.display='block';
-  if(MP.matched){
-    el.innerHTML='🥊 PvP vs <span style="color:#ec4899">'+MP.opponentName+'</span>';
-  } else {
-    el.innerHTML='🔍 <span style="color:#94a3b8">Looking for opponent…</span>';
-  }
-}
-
-// ── Palettes ──────────────────────────────────────────────────
-const PAL={
-  p1:{skin:'#fcd5b5',hair:'#1e1b4b',top:'#a855f7',pants:'#06b6d4',accent:'#ec4899',glow:'#c084fc'},
-  p2:{skin:'#fde2c8',hair:'#7c2d12',top:'#dc2626',pants:'#0f172a',accent:'#f59e0b',glow:'#fb7185'},
+// Damage multiplier by body part (head is a critical zone)
+const PART_DMG = {
+  head: 1.5, torso: 1.0,
+  upperArmL: 0.4, lowerArmL: 0.4, upperArmR: 0.4, lowerArmR: 0.4,
+  upperLegL: 0.6, lowerLegL: 0.5, upperLegR: 0.6, lowerLegR: 0.5,
 };
 
-// ── Heroes (selectable fighters) ───────────────────────────────
-const HEROES = {
-  kenshin: {
-    id: 'kenshin',
-    name: 'KENSHIN',
-    colors: {
-      skin: '#f0d5b5',
-      hair: '#ecedf2',
-      hairTip: '#b5b8c6',
-      top: '#0a0a14',
-      topDark: '#000000',
-      topAccent: '#daa520',
-      pants: '#0a0a14',
-      belt: '#1a1a28',
-      beltTrim: '#daa520',
-      accent: '#3b82f6',
-      glow: '#60a5fa',
-      eyeWhite: '#ffffff',
-      eyeIris: '#1d4ed8',
-      eyeGlow: '#60a5fa',
-      bladeMetal: '#e0e7ff',
-      bladeGlow: '#3b82f6',
-      whisker: '#3d2817',
-      headband: '#0a0a14',
-      plate: '#c0c5d0',
+// Weapon catalogue — base damage; final = base × part multiplier
+const WEAPONS = {
+  fist:    { label: 'Fist',    base: 7,  reach: 48,  cool: 18, color: '#f8fafc' },
+  bat:     { label: 'Bat',     base: 22, reach: 70,  cool: 32, color: '#a16207' },
+  sword:   { label: 'Sword',   base: 34, reach: 80,  cool: 36, color: '#e2e8f0' },
+  pistol:  { label: 'Pistol',  base: 28, reach: 300, cool: 22, color: '#334155', ammo: 6 },
+  grenade: { label: 'Grenade', base: 55, reach: 0,   cool: 70, color: '#16a34a', fuse: 110, radius: 110 },
+};
+
+// Hand-designed arenas. Each shape spec is drawn later as solid rectangles.
+// `pit` entries are kill-zones where ragdolls get removed when touched.
+const MAPS = [
+  { // Factory platforms with pits
+    name: 'Factory',
+    bg: ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#0c0a1f');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     },
-    features: {
-      hairStyle: 'longFlow',
-      kimono: true,
-      katana: true,
-      glowingEye: true,
-      profileEye: true,
-      mouth: 'stoic',
-    },
+    ground: [
+      { x: 160, y: 500, w: 310, h: 40, c: '#334155' },
+      { x: 800, y: 500, w: 310, h: 40, c: '#334155' },
+      { x: 480, y: 360, w: 180, h: 20, c: '#475569' },
+    ],
+    walls: [
+      { x: -20, y: 270, w: 40, h: 540, c: '#1e293b' },
+      { x: 980, y: 270, w: 40, h: 540, c: '#1e293b' },
+    ],
+    weaponSpots: [{x:200, y:470, kind:'bat'}, {x:760, y:470, kind:'sword'}, {x:480, y:330, kind:'pistol'}],
   },
-};
+  { // Rooftop — one long roof, no pits except the sides
+    name: 'Rooftop',
+    bg: ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#7c2d12'); g.addColorStop(1, '#431407');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Distant buildings silhouette
+      ctx.fillStyle = '#1c1917';
+      for(let i = 0; i < 8; i++){
+        const bx = i * 130 + 20, bh = 100 + ((i*73)%80);
+        ctx.fillRect(bx, H - 120 - bh, 100, bh);
+      }
+    },
+    ground: [{ x: 60, y: 460, w: 840, h: 40, c: '#57534e' }],
+    walls: [],
+    weaponSpots: [{x:180, y:430, kind:'sword'}, {x:780, y:430, kind:'pistol'}, {x:480, y:430, kind:'grenade'}],
+  },
+  { // Floating islands, tight gaps
+    name: 'Sky Isles',
+    bg: ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#0891b2'); g.addColorStop(1, '#083344');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Clouds
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      for(let i = 0; i < 5; i++){
+        const cx = (i * 190 + 40), cy = 100 + (i%2)*50;
+        ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI*2);
+        ctx.arc(cx+30, cy, 26, 0, Math.PI*2);
+        ctx.arc(cx-30, cy+6, 22, 0, Math.PI*2);
+        ctx.fill();
+      }
+    },
+    ground: [
+      { x:  80, y: 440, w: 220, h: 30, c: '#78716c' },
+      { x: 380, y: 400, w: 200, h: 30, c: '#78716c' },
+      { x: 660, y: 440, w: 220, h: 30, c: '#78716c' },
+    ],
+    walls: [],
+    weaponSpots: [{x:160, y:410, kind:'bat'}, {x:480, y:370, kind:'grenade'}, {x:730, y:410, kind:'sword'}],
+  },
+  { // Flat desert arena — all weapons, easy to start with
+    name: 'Desert Pit',
+    bg: ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#f59e0b'); g.addColorStop(0.7, '#b45309'); g.addColorStop(1, '#78350f');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      // Sand dunes silhouette
+      ctx.fillStyle = 'rgba(0,0,0,.18)';
+      ctx.beginPath();
+      ctx.moveTo(0, 350);
+      ctx.quadraticCurveTo(240, 280, 480, 340);
+      ctx.quadraticCurveTo(720, 400, 960, 330);
+      ctx.lineTo(960, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    },
+    ground: [{ x: 20, y: 480, w: 920, h: 60, c: '#92400e' }],
+    walls: [
+      { x: 0,   y: 270, w: 40, h: 540, c: '#78350f' },
+      { x: 960, y: 270, w: 40, h: 540, c: '#78350f' },
+    ],
+    weaponSpots: [{x:150, y:450, kind:'bat'}, {x:380, y:450, kind:'sword'}, {x:580, y:450, kind:'pistol'}, {x:810, y:450, kind:'grenade'}],
+  },
+];
 
-let selectedHeroId = 'kenshin';
-
-function applyHero(palette, heroId){
-  const hero = HEROES[heroId];
-  if(!hero) return;
-  Object.assign(palette, hero.colors);
-  palette.heroId = hero.id;
-  palette.features = hero.features;
-}
-applyHero(PAL.p1, 'kenshin');
-applyHero(PAL.p2, 'kenshin'); // AI also Kenshin
-
-// ── Fighter factory ───────────────────────────────────────────
-function mkFighter(x,facing,isP,name,colors){
-  return {
-    x, y:GROUND, vx:0, vy:0,
-    facing, isPlayer:isP, name, c:colors,
-    state:'idle', sTime:0,
-    hp:100, maxHp:100, meter:0, maxMeter:100,   // meter = CHAKRA
-    rage:0, maxRage:100,
-    onGround:true, blocking:false,
-    hitFlash:0, hitstun:0, ko:false,
-    combo:0, comboTimer:0,
-    walkPhase:0,
-    aiTimer:0, aiPlan:'wait', aiBlock:0,
-    hitThisAttack:false,
-    // Dash Strike (L)
-    dashCool:0, dashHit:false, dashStartX:0, dashEndX:0,
-    // Sword Rain (U) — 3-second over-time barrage
-    swordRainT:0, swordRainSpawned:0,
-    // legacy fields (kept so old animation code doesn't crash)
-    holdingShuriken:0, shurikenCool:0, rasenganCool:0, cloneCool:0,
+// ─── Stickman ragdoll factory ─────────────────────────────
+// Returns {name, color, bodies:{head,torso,...}, constraints, hp, controller, weapon}
+function createFighter(x, y, colorIdx, isAI){
+  const col = FIGHTER_COLORS[colorIdx];
+  const group = nextFighterGroup--;
+  const COLL = {
+    collisionFilter: {
+      group,
+      category: COLLISION.FIGHTER,
+      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.WEAPON | COLLISION.PROJECTILE,
+    },
+    friction: 0.6, restitution: 0.1, density: 0.001,
   };
-}
 
-// ── Move data ──────────────────────────────────────────────────
-// active = [startFrame, endFrame]; damage; knockback; meterGain; reach; height
-const MOVES={
-  // Melee: 3 / 5 damage when unblocked; ZERO damage if defender is blocking
-  punch:  {dur:18, active:[6,10],  dmg:3, kb:3,  meter:0,  reach:78,  height:42, hStart:-18, name:'punch'},
-  kick:   {dur:30, active:[12,18], dmg:5, kb:7,  meter:0,  reach:96,  height:50, hStart:-12, name:'kick'},
-  // Legacy 'special' kept for safety (not invoked anymore — dash replaces it)
-  special:{dur:55, active:[20,32], dmg:0, kb:0,  meter:0,  reach:0,   height:0,  hStart:0,   name:'special'},
-  // Push gesture for Rasengan — short, no melee damage (Rasengan projectile does it)
-  rasenganCast:{dur:24, active:[0,0], dmg:0, kb:0, meter:0, reach:0, height:0, hStart:0, name:'rasenganCast'},
-  // Casting pose during Shadow Clone — locks the caster in place
-  cloneCast:{dur:90, active:[0,0], dmg:0, kb:0, meter:0, reach:0, height:0, hStart:0, name:'cloneCast'},
-};
-
-// ── Init / restart ─────────────────────────────────────────────
-function start(diff){
-  hideAllOv();
-  // Clean up any previous multiplayer state from the last round
-  mpLeaveAll();
-  // 'pvp' is a network mode; AI difficulty defaults to 'hard' for the
-  // brief solo period before the opponent joins.
-  const isPvp = diff === 'pvp';
-  aiDiff = isPvp ? 'hard' : diff;
-  lastDiff = diff;
-  p1Wins=0; p2Wins=0; round=1;
-  applyHero(PAL.p1, selectedHeroId);
-  applyHero(PAL.p2, 'kenshin');  // AI is always Kenshin for now
-  initRound(0,0);
-  if(isPvp) mpEnterLobby('YOU');
-}
-
-// Render a hero portrait into a preview canvas
-function drawHeroPortrait(canvasId, heroId){
-  const cv = document.getElementById(canvasId);
-  if(!cv) return;
-  const g = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
-  g.clearRect(0,0,W,H);
-
-  // Background — moody blue glow
-  const bgg = g.createRadialGradient(W/2, H*0.3, 4, W/2, H*0.5, W*0.8);
-  bgg.addColorStop(0,'rgba(59,130,246,0.2)');
-  bgg.addColorStop(1,'rgba(5,5,10,0)');
-  g.fillStyle = bgg;
-  g.fillRect(0,0,W,H);
-  // Floor shadow
-  g.fillStyle = 'rgba(0,0,0,0.45)';
-  g.beginPath(); g.ellipse(W/2, H-22, 38, 7, 0, 0, Math.PI*2); g.fill();
-
-  if(heroId !== 'kenshin') return;
-  const c = HEROES.kenshin.colors;
-  // ═══ Side profile (facing right) — wandering swordsman ═══
-  const cx = W/2 - 6;
-  const baseY = H - 28;
-  const hy = baseY - 130;
-
-  // ── Long silver hair flowing back (behind everything) ──
-  g.fillStyle = c.hair;
-  g.beginPath();
-  g.moveTo(cx-14, hy-10);
-  // Going back and down with wind sweep
-  g.bezierCurveTo(cx-22, hy-4, cx-30, hy+6, cx-34, hy+22);
-  g.bezierCurveTo(cx-36, hy+40, cx-32, hy+58, cx-26, hy+70);
-  // Hair tip
-  g.lineTo(cx-20, hy+74);
-  // Inner curve back up along the back of the head/neck
-  g.bezierCurveTo(cx-22, hy+50, cx-22, hy+25, cx-16, hy+8);
-  g.bezierCurveTo(cx-14, hy+2, cx-14, hy-4, cx-14, hy-10);
-  g.closePath();
-  g.fill();
-  // Hair darker tips for depth
-  g.fillStyle = c.hairTip;
-  g.beginPath();
-  g.moveTo(cx-34, hy+38);
-  g.bezierCurveTo(cx-32, hy+58, cx-26, hy+70, cx-20, hy+74);
-  g.lineTo(cx-22, hy+72);
-  g.bezierCurveTo(cx-28, hy+58, cx-32, hy+48, cx-32, hy+38);
-  g.closePath();
-  g.fill();
-  // Floating strands (wind effect)
-  g.strokeStyle = c.hair;
-  g.lineWidth = 1.8;
-  g.beginPath();
-  g.moveTo(cx-26, hy+20);
-  g.bezierCurveTo(cx-38, hy+30, cx-40, hy+50, cx-34, hy+62);
-  g.stroke();
-  g.lineWidth = 1.2;
-  g.beginPath();
-  g.moveTo(cx-22, hy+8);
-  g.bezierCurveTo(cx-32, hy+14, cx-36, hy+28, cx-32, hy+38);
-  g.stroke();
-
-  // ── Foot (one visible in profile) ──
-  g.fillStyle = '#0a0a0a';
-  rRect(g, cx-6, baseY-4, 24, 5, 2); g.fill();
-
-  // ── Hakama (wide flared pants, black) ──
-  g.fillStyle = c.pants;
-  g.beginPath();
-  g.moveTo(cx-14, baseY-58);
-  g.lineTo(cx-22, baseY-4);
-  g.lineTo(cx+22, baseY-4);
-  g.lineTo(cx+14, baseY-58);
-  g.closePath(); g.fill();
-  // Hakama pleats (subtle vertical lines)
-  g.strokeStyle = 'rgba(255,255,255,0.05)';
-  g.lineWidth = 1;
-  for(let i = 0; i < 4; i++){
-    g.beginPath();
-    g.moveTo(cx-14 + i*9, baseY-58);
-    g.lineTo(cx-16 + i*10.5, baseY-6);
-    g.stroke();
-  }
-
-  // ── Obi (black belt with gold trim) ──
-  g.fillStyle = c.belt;
-  rRect(g, cx-16, baseY-66, 32, 10, 1); g.fill();
-  g.fillStyle = c.beltTrim;
-  g.fillRect(cx-16, baseY-66, 32, 1.5);
-  g.fillRect(cx-16, baseY-57.5, 32, 1.5);
-  // Knot on side (back)
-  g.fillStyle = c.belt;
-  rRect(g, cx-20, baseY-64, 6, 12, 2); g.fill();
-  g.fillStyle = c.beltTrim;
-  g.fillRect(cx-20, baseY-64, 1, 12);
-
-  // ── Kimono top (black with gold trim) ──
-  // Outer robe back panel
-  g.fillStyle = c.top;
-  g.beginPath();
-  g.moveTo(cx-20, baseY-110);
-  g.bezierCurveTo(cx-22, baseY-90, cx-22, baseY-70, cx-18, baseY-66);
-  g.lineTo(cx+18, baseY-66);
-  g.bezierCurveTo(cx+22, baseY-70, cx+22, baseY-90, cx+20, baseY-110);
-  g.closePath(); g.fill();
-  // V-neck lapels (right over left)
-  g.fillStyle = c.top;
-  g.beginPath();
-  g.moveTo(cx+20, baseY-110);
-  g.lineTo(cx+8, baseY-92);
-  g.lineTo(cx+2, baseY-66);
-  g.lineTo(cx+18, baseY-66);
-  g.closePath(); g.fill();
-  // Gold trim along V-neck
-  g.strokeStyle = c.topAccent;
-  g.lineWidth = 2.2;
-  g.beginPath();
-  g.moveTo(cx+20, baseY-110);
-  g.lineTo(cx+8, baseY-92);
-  g.lineTo(cx+2, baseY-66);
-  g.stroke();
-  // Gold trim along bottom edge of jacket
-  g.lineWidth = 1.5;
-  g.beginPath();
-  g.moveTo(cx-18, baseY-66);
-  g.lineTo(cx+18, baseY-66);
-  g.stroke();
-  // Gold trim along back edge
-  g.beginPath();
-  g.moveTo(cx-20, baseY-110);
-  g.lineTo(cx-22, baseY-68);
-  g.stroke();
-  // Decorative gold swirl pattern on the side
-  g.strokeStyle = c.topAccent;
-  g.lineWidth = 1.1;
-  g.beginPath();
-  g.arc(cx-6, baseY-88, 3, 0, Math.PI*1.5);
-  g.stroke();
-  g.beginPath();
-  g.moveTo(cx-3, baseY-86);
-  g.bezierCurveTo(cx+2, baseY-84, cx+4, baseY-90, cx-1, baseY-92);
-  g.stroke();
-  g.fillStyle = c.topAccent;
-  g.beginPath(); g.arc(cx-6, baseY-88, 1, 0, Math.PI*2); g.fill();
-
-  // ── Sleeve (foreground arm — wide kimono sleeve) ──
-  g.fillStyle = c.top;
-  g.beginPath();
-  g.moveTo(cx+10, baseY-106);
-  g.lineTo(cx+24, baseY-88);
-  g.lineTo(cx+22, baseY-66);
-  g.lineTo(cx+9, baseY-78);
-  g.closePath(); g.fill();
-  // Gold trim on sleeve edge
-  g.strokeStyle = c.topAccent;
-  g.lineWidth = 1.5;
-  g.beginPath();
-  g.moveTo(cx+24, baseY-88);
-  g.lineTo(cx+22, baseY-66);
-  g.stroke();
-
-  // ── Hand (foreground, holding katana) ──
-  const handX = cx+20, handY = baseY-72;
-  g.fillStyle = c.skin;
-  g.beginPath(); g.arc(handX, handY, 4.5, 0, Math.PI*2); g.fill();
-
-  // ── KATANA (held in right hand, blade extends forward-down with blue glow) ──
-  g.save();
-  g.translate(handX, handY);
-  g.rotate(0.5);  // angled forward-down
-  // Hilt (wrapped black handle)
-  g.fillStyle = '#0a0a0a';
-  rRect(g, -16, -3, 18, 6, 1); g.fill();
-  // Diamond wrapping pattern
-  g.strokeStyle = c.beltTrim;
-  g.lineWidth = 0.6;
-  for(let i = 0; i < 5; i++){
-    g.beginPath();
-    g.moveTo(-15 + i*3.5, -3);
-    g.lineTo(-12 + i*3.5, 3);
-    g.stroke();
-    g.beginPath();
-    g.moveTo(-12 + i*3.5, -3);
-    g.lineTo(-15 + i*3.5, 3);
-    g.stroke();
-  }
-  // Pommel (gold cap at end of hilt)
-  g.fillStyle = c.beltTrim;
-  rRect(g, -18, -3.5, 2.5, 7, 0.5); g.fill();
-  // Tsuba (gold guard)
-  g.fillStyle = c.beltTrim;
-  rRect(g, 2, -6.5, 3.5, 13, 1); g.fill();
-  g.fillStyle = '#fbbf24';
-  g.fillRect(2, -6.5, 3.5, 1.2);
-  g.fillRect(2, 5.3, 3.5, 1.2);
-  // Blade glow halo
-  g.save();
-  g.shadowBlur = 18;
-  g.shadowColor = c.bladeGlow;
-  g.globalAlpha = 0.55;
-  g.fillStyle = c.bladeGlow;
-  g.fillRect(5.5, -3.5, 68, 7);
-  g.restore();
-  // Blade metal core
-  const bgrd = g.createLinearGradient(5.5, -2, 73, -2);
-  bgrd.addColorStop(0, '#dbeafe');
-  bgrd.addColorStop(0.4, '#f5f9ff');
-  bgrd.addColorStop(1, '#a5b4fc');
-  g.fillStyle = bgrd;
-  g.fillRect(5.5, -2, 65, 4);
-  // Tip
-  g.beginPath();
-  g.moveTo(70.5, -2);
-  g.lineTo(76, 0);
-  g.lineTo(70.5, 2);
-  g.fillStyle = '#dbeafe';
-  g.fill();
-  // Edge highlight
-  g.fillStyle = '#bfdbfe';
-  g.fillRect(5.5, -2, 65, 0.6);
-  // Hi groove (center line glowing blue)
-  g.fillStyle = c.bladeGlow;
-  g.fillRect(5.5, -0.3, 65, 0.7);
-  g.restore();
-
-  // ── Neck (profile) ──
-  g.fillStyle = c.skin;
-  g.beginPath();
-  g.moveTo(cx-2, baseY-110);
-  g.lineTo(cx+9, baseY-110);
-  g.lineTo(cx+8, baseY-118);
-  g.lineTo(cx-1, baseY-118);
-  g.closePath(); g.fill();
-
-  // ── Head silhouette (profile, nose pointing right) ──
-  g.fillStyle = c.skin;
-  g.beginPath();
-  g.moveTo(cx-14, hy+2);
-  g.bezierCurveTo(cx-15, hy-16, cx+4, hy-20, cx+15, hy-10);
-  g.bezierCurveTo(cx+20, hy-4, cx+21, hy+2, cx+19, hy+6);
-  // Nose bridge & tip
-  g.lineTo(cx+22, hy+4);
-  g.lineTo(cx+24, hy+9);
-  g.lineTo(cx+22, hy+11);
-  g.lineTo(cx+19, hy+11);
-  // Mouth area
-  g.lineTo(cx+18, hy+13);
-  g.lineTo(cx+19, hy+15);
-  // Chin
-  g.bezierCurveTo(cx+16, hy+22, cx+4, hy+24, cx-6, hy+20);
-  g.bezierCurveTo(cx-13, hy+14, cx-15, hy+8, cx-14, hy+2);
-  g.closePath();
-  g.fill();
-
-  // ── Front bangs (fringe falling over forehead) ──
-  g.fillStyle = c.hair;
-  g.beginPath();
-  g.moveTo(cx-14, hy-2);
-  g.bezierCurveTo(cx-14, hy-18, cx+10, hy-22, cx+18, hy-10);
-  g.lineTo(cx+18, hy-5);
-  // Front strands
-  g.bezierCurveTo(cx+14, hy-2, cx+8, hy+1, cx+10, hy+5);
-  g.lineTo(cx+6, hy+3);
-  g.bezierCurveTo(cx-2, hy+1, cx-10, hy-1, cx-14, hy-2);
-  g.closePath(); g.fill();
-  // A strand falling in front of the eye
-  g.fillStyle = c.hair;
-  g.beginPath();
-  g.moveTo(cx+12, hy-6);
-  g.bezierCurveTo(cx+16, hy-2, cx+15, hy+4, cx+11, hy+6);
-  g.lineTo(cx+9, hy+4);
-  g.bezierCurveTo(cx+13, hy, cx+12, hy-2, cx+10, hy-4);
-  g.closePath(); g.fill();
-
-  // ── Glowing deep-blue eye ──
-  // Outer glow
-  g.save();
-  g.shadowBlur = 16;
-  g.shadowColor = c.eyeGlow;
-  g.fillStyle = 'rgba(96,165,250,0.5)';
-  g.beginPath(); g.arc(cx+12, hy+7, 5, 0, Math.PI*2); g.fill();
-  g.restore();
-  // White (sclera)
-  g.fillStyle = c.eyeWhite;
-  g.beginPath(); g.ellipse(cx+12, hy+7, 3.6, 3.4, 0, 0, Math.PI*2); g.fill();
-  // Iris (deep blue)
-  g.fillStyle = c.eyeIris;
-  g.beginPath(); g.arc(cx+13, hy+7, 2.5, 0, Math.PI*2); g.fill();
-  // Glow ring inside iris
-  g.save();
-  g.shadowBlur = 6;
-  g.shadowColor = c.eyeGlow;
-  g.fillStyle = c.eyeGlow;
-  g.beginPath(); g.arc(cx+13, hy+7, 1.8, 0, Math.PI*2); g.fill();
-  g.restore();
-  // Pupil
-  g.fillStyle = '#000';
-  g.beginPath(); g.arc(cx+13, hy+7, 0.9, 0, Math.PI*2); g.fill();
-  // Shine
-  g.fillStyle = '#fff';
-  g.beginPath(); g.arc(cx+13.5, hy+6.2, 0.6, 0, Math.PI*2); g.fill();
-  // Eyebrow (silver)
-  g.fillStyle = c.hairTip;
-  g.fillRect(cx+8, hy+3, 9, 1.6);
-
-  // ── Stoic mouth (small horizontal line, no smile) ──
-  g.strokeStyle = '#3d2817';
-  g.lineWidth = 1.4;
-  g.beginPath();
-  g.moveTo(cx+11, hy+15);
-  g.lineTo(cx+19, hy+15);
-  g.stroke();
-
-  // ── Aura ──
-  const glow = g.createRadialGradient(cx+4, baseY-80, 5, cx+4, baseY-80, 110);
-  glow.addColorStop(0,'rgba(59,130,246,0.10)');
-  glow.addColorStop(1,'rgba(59,130,246,0)');
-  g.fillStyle = glow;
-  g.fillRect(0,0,W,H);
-}
-
-function rRect(g, x, y, w, h, r){
-  g.beginPath();
-  if(g.roundRect) g.roundRect(x, y, w, h, r);
-  else g.rect(x, y, w, h);
-}
-
-// Hero selection screen control
-function openHeroSelect(){
-  hideAllOv();
-  showOv('ov-hero');
-  // Default selection
-  document.querySelectorAll('.hero-card').forEach(c=>c.classList.remove('selected'));
-  const card = document.querySelector(`.hero-card[data-hero="${selectedHeroId}"]`);
-  if(card) card.classList.add('selected');
-  // Render preview
-  drawHeroPortrait('hero-canvas-kenshin', 'kenshin');
-}
-function selectHero(id){
-  if(!HEROES[id]) return;
-  selectedHeroId = id;
-  document.querySelectorAll('.hero-card').forEach(c=>c.classList.remove('selected'));
-  const card = document.querySelector(`.hero-card[data-hero="${id}"]`);
-  if(card) card.classList.add('selected');
-}
-function confirmHero(diff){ start(diff); }
-function backFromHero(){ hideAllOv(); showOv('ov-s'); }
-
-function initRound(m1,m2){
-  f1=mkFighter(260,1,true,'YOU',PAL.p1);
-  f2=mkFighter(W-260,-1,false,MP.matched?MP.opponentName:'CPU',PAL.p2);
-  if(MP.matched) f2.isRemote=true;
-  f1.meter=m1; f2.meter=m2;
-  particles=[]; hitSparks=[]; damageNums=[];
-  projectiles=[]; shadowClones=[]; swords=[];
-  shake=0; hitstop=0; roundTimer=60; frameTimer=0;
-  phase='countdown'; cdTimer=3*60;
-  showOv('ov-cd'); document.getElementById('cd-num').textContent='3';
-}
-
-function hideAllOv(){['ov-s','ov-hero','ov-cd','ov-ko','ov-end','ov-rooms','ov-wait'].forEach(id=>document.getElementById(id).style.display='none')}
-function showOv(id){document.getElementById(id).style.display='flex'}
-function hideEnd(){document.getElementById('ov-end').style.display='none'}
-function backToMenu(){mpLeaveAll();hideAllOv();showOv('ov-s');phase='menu'}
-
-// ── Per-frame controls / actions ───────────────────────────────
-function actionFor(f, opp){
-  if(f.isPlayer){
-    return {
-      move:(KEYS.KeyA||KEYS.ArrowLeft?-1:0)+(KEYS.KeyD||KEYS.ArrowRight?1:0),
-      jump: KEYS.KeyW||KEYS.ArrowUp,
-      block: KEYS.KeyS,
-      punch: PRESSED.KeyJ,
-      kick:  PRESSED.KeyK,
-      special: PRESSED.KeyL,
-      dash: PRESSED.KeyL,
-      swordRain: PRESSED.KeyU,
-    };
-  }
-  return aiAction(f, opp);
-}
-
-// ── AI ─────────────────────────────────────────────────────────
-function aiAction(f, opp){
-  const a={move:0,jump:false,block:false,punch:false,kick:false,special:false};
-  if(f.state!=='idle' && f.state!=='walk' && f.state!=='jump' && f.state!=='crouch' && f.state!=='block')return a;
-
-  const dx = opp.x - f.x;
-  const adx = Math.abs(dx);
-  const facingOpp = (dx>0?1:-1) === f.facing;
-  const oppAttacking = ['punch','kick','special'].includes(opp.state);
-  const isHard = aiDiff==='hard';
-
-  // Block reaction to opponent attack
-  if(oppAttacking && adx<160){
-    const blockChance = isHard?0.78:0.45;
-    if(Math.random()<blockChance/4){a.block=true; return a;}
-  }
-  if(f.aiBlock>0){f.aiBlock--; a.block=true; return a}
-
-  // Tactical decisions throttled
-  f.aiTimer--;
-  if(f.aiTimer>0){
-    // continue current plan
-    if(f.aiPlan==='approach')a.move=dx>0?1:-1;
-    else if(f.aiPlan==='retreat')a.move=dx>0?-1:1;
-    else if(f.aiPlan==='attack'){
-      a.move=dx>0?1:-1;
-      if(adx<110)a.punch=true;
-    }
-    return a;
-  }
-  f.aiTimer=isHard?rndI(8,18):rndI(16,32);
-
-  // Kenshin AI: ENERGY skill — Dash up close, Sword Rain at range
-  const specialThresh = 35;
-  if(f.meter >= specialThresh && facingOpp && Math.random()<(isHard?0.4:0.22)){
-    if(adx > 240 && f.swordRainT <= 0){
-      a.swordRainAI = true; f.aiPlan='wait'; return a;
-    }
-    if(adx < 300){
-      a.special = true; f.aiPlan='wait'; return a;
-    }
-  }
-
-  // Attack if in range
-  if(adx<130 && facingOpp){
-    if(Math.random()<(isHard?0.7:0.5)){
-      if(Math.random()<0.55)a.punch=true; else a.kick=true;
-      f.aiPlan='attack'; f.aiTimer=isHard?14:22;
-      return a;
-    }
-  }
-
-  // Close range: maybe jump in
-  if(adx<280 && adx>140 && Math.random()<(isHard?0.18:0.08)){
-    a.jump=true; a.move=dx>0?1:-1;
-    f.aiPlan='approach'; return a;
-  }
-
-  // Pick movement plan
-  if(adx>180){ f.aiPlan='approach'; a.move=dx>0?1:-1; }
-  else if(adx<70){ f.aiPlan='retreat'; a.move=dx>0?-1:1; }
-  else { f.aiPlan=Math.random()<0.5?'approach':'wait'; a.move=f.aiPlan==='approach'?(dx>0?1:-1):0 }
-
-  return a;
-}
-const rndI=(a,b)=>Math.floor(a+Math.random()*(b-a));
-
-// ── Constants ──────────────────────────────────────────────────
-const WALK=2.6, JUMP_VY=-12, GRAV=0.62;
-
-// ── Update one fighter ─────────────────────────────────────────
-function updateFighter(f, opp){
-  // In multiplayer, the remote opponent's state is fully driven by network
-  // broadcasts. Skip local physics/AI; their position, animation, hp, etc.
-  // are set by mpApplyOpponentState.
-  if(f.isRemote){
-    // Light tick — still decay some local-only counters so visuals work
-    if(f.hitFlash>0) f.hitFlash--;
-    if(f.comboTimer>0) f.comboTimer--; else f.combo=0;
-    f.sTime++;
-    return;
-  }
-  // Gravity (always except certain locks)
-  f.vy+=GRAV;
-  f.y+=f.vy;
-  if(f.y>=GROUND){f.y=GROUND;f.vy=0;
-    if(!f.onGround && f.state==='jump'){f.state='idle';f.sTime=0}
-    f.onGround=true;
-  } else f.onGround=false;
-
-  f.x+=f.vx;
-  f.vx*=0.78;
-  f.x=Math.max(60,Math.min(W-60,f.x));
-
-  // Face opponent (when grounded & free)
-  if(f.onGround && ['idle','walk','crouch','block'].includes(f.state)){
-    f.facing = opp.x>f.x ? 1 : -1;
-  }
-
-  // Tick timers
-  f.sTime++;
-  if(f.hitFlash>0)f.hitFlash--;
-  if(f.hitstun>0)f.hitstun--;
-  if(f.comboTimer>0)f.comboTimer--; else f.combo=0;
-  if(f.dashCool>0)f.dashCool--;
-  // ENERGY auto-regen: +2 per second
-  if(f.meter < f.maxMeter && !f.ko) f.meter = Math.min(f.maxMeter, f.meter + 2/60);
-
-  // Sword Rain — spawn 24 swords evenly over the 180-frame duration
-  if(f.swordRainT > 0){
-    f.swordRainT--;
-    const elapsed = 180 - f.swordRainT;
-    const totalSwords = 24;
-    // Spawn rate: ~3 swords per 22 frames → 24 over 180
-    const shouldHave = Math.min(totalSwords, Math.ceil(elapsed * totalSwords / 180));
-    while(f.swordRainSpawned < shouldHave){
-      spawnSword(f, opp);
-      f.swordRainSpawned++;
-    }
-    if(f.swordRainT === 0) f.swordRainSpawned = 0;
-  }
-
-  if(f.ko){
-    if(f.state!=='ko'){f.state='ko';f.sTime=0}
-    return;
-  }
-  if(f.hitstun>0){
-    if(f.state!=='hit'){f.state='hit';f.sTime=0}
-    return;
-  }
-
-  // Dash Strike state — interpolate position, check hit at midpoint
-  if(f.state === 'dashing'){
-    const total = 26;
-    const t = Math.min(1, f.sTime / total);
-    // Smooth ease (slow in, very fast through middle, slow out)
-    const ease = t<0.5 ? 2*t*t : 1 - Math.pow(-2*t+2, 2)/2;
-    f.x = f.dashStartX + (f.dashEndX - f.dashStartX) * ease;
-    // Mid-dash hit window
-    if(!f.dashHit && f.sTime >= 8 && f.sTime <= 18){
-      if(Math.abs(opp.x - f.x) < 60 && !opp.ko){
-        applyDashHit(f, opp);
-      }
-    }
-    if(f.sTime >= total){
-      f.state = 'idle'; f.sTime = 0; f.dashHit = false;
-    }
-    return;
-  }
-
-  // Decide / handle action
-  const act = actionFor(f, opp);
-
-  // While attacking, lock out new actions
-  const atking = ['punch','kick','special'].includes(f.state);
-  if(atking){
-    const dur = MOVES[f.state] ? MOVES[f.state].dur : 22;
-    if(f.sTime>=dur){f.state='idle';f.sTime=0;f.hitThisAttack=false}
-    return;
-  }
-
-  // Block
-  if(act.block && f.onGround){
-    if(f.state!=='block'){f.state='block';f.sTime=0}
-    f.blocking=true; return;
-  }
-  f.blocking=false;
-
-  // ─── Dash Strike ───
-  if(f.onGround && (act.dash || (!f.isPlayer && act.special)) &&
-     f.meter >= 35 && f.dashCool <= 0 && f.state !== 'dashing'){
-    triggerDash(f, opp);
-    return;
-  }
-  // ─── Sword Rain ─── (non-blocking; player can keep moving during it)
-  if(f.onGround && (act.swordRain || (!f.isPlayer && act.swordRainAI)) &&
-     f.meter >= 35 && f.swordRainT <= 0){
-    triggerSwordRain(f, opp);
-    // no return — Sword Rain runs in the background
-  }
-  // Kick
-  if(act.kick && f.onGround){
-    f.state='kick'; f.sTime=0; f.hitThisAttack=false;
-    return;
-  }
-  // Punch
-  if(act.punch && f.onGround){
-    f.state='punch'; f.sTime=0; f.hitThisAttack=false;
-    return;
-  }
-  // Jump
-  if(act.jump && f.onGround){
-    f.vy = JUMP_VY;
-    f.state='jump'; f.sTime=0;
-    if(act.move!==0) f.vx = act.move * WALK * 1.6;
-    return;
-  }
-  // Move
-  if(f.onGround){
-    if(act.move!==0){
-      f.vx = act.move * WALK;
-      f.walkPhase+=0.22;
-      if(f.state!=='walk'){f.state='walk';f.sTime=0}
-    } else {
-      if(f.state!=='idle'){f.state='idle';f.sTime=0}
-    }
-  } else {
-    // air control
-    if(act.move!==0) f.vx += act.move*0.3;
-    f.vx = Math.max(-4,Math.min(4,f.vx));
-  }
-}
-
-// ── Attack hit detection ───────────────────────────────────────
-function checkHits(){
-  for(const [a,d] of [[f1,f2],[f2,f1]]){
-    if(!['punch','kick','special'].includes(a.state))continue;
-    if(a.hitThisAttack)continue;
-    const mv = MOVES[a.state];
-    if(a.sTime<mv.active[0] || a.sTime>mv.active[1])continue;
-
-    // Hitbox in world coords
-    const hx = a.x + a.facing * (mv.reach*0.55);
-    const hy = a.y + mv.hStart - mv.height*0.5 + mv.height*0.5; // anchor
-    const hbX = a.x + (a.facing>0 ? 10 : -mv.reach-10);
-    const hbY = a.y - 110 + mv.hStart + 20;
-    const hbW = mv.reach;
-    const hbH = mv.height;
-
-    // Defender body rect approx (head+torso+legs)
-    const dW = 56, dH = 130;
-    const dbX = d.x - dW/2;
-    const dbY = d.y - dH;
-
-    if(rectsOverlap(hbX,hbY,hbW,hbH, dbX,dbY,dW,dH)){
-      registerHit(a, d, mv);
-      a.hitThisAttack = true;
-    }
-  }
-}
-
-function rectsOverlap(ax,ay,aw,ah, bx,by,bw,bh){
-  return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
-}
-
-// ── Dash Strike — phase through opponent for 30 dmg, costs 35 ENERGY ───
-function triggerDash(att, def){
-  att.meter -= 35;
-  att.dashCool = 40;
-  att.state = 'dashing';
-  att.sTime = 0;
-  att.dashStartX = att.x;
-  // Travel ~120 px past the opponent (or a fixed 240 if opponent is behind)
-  const dirToOpp = def.x > att.x ? 1 : -1;
-  att.facing = dirToOpp;
-  att.dashEndX = def.x + dirToOpp * 120;
-  // Cap inside the stage
-  att.dashEndX = Math.max(40, Math.min(W-40, att.dashEndX));
-  att.dashHit = false;
-  // Brief flash at start
-  pulseRing(att);
-}
-
-// ── Sword Rain — 8 swords from the sky over 3 seconds, ~5 dmg each ──
-function triggerSwordRain(att, def){
-  att.meter -= 35;
-  att.swordRainT = 180;       // 3 seconds at 60 fps
-  att.swordRainSpawned = 0;
-  pulseRing(att);
-}
-
-function spawnSword(owner, target){
-  // Spawn high above, spread laterally — falls toward the target while homing in
-  const sx = target.x + (Math.random()-0.5)*220;
-  const sy = -60 + Math.random()*30; // above screen
-  swords.push({
-    x: sx, y: sy,
-    vx: (Math.random()-0.5)*2,        // small initial lateral drift
-    vy: 6 + Math.random()*2,          // moderate falling start
-    owner, target,
-    damage: 2,                        // 24 swords × 2 = ~48 max (≈ 40+ guaranteed)
-    alive: true,
-    trailPhase: Math.floor(Math.random()*3),
-  });
-}
-
-function updateSwords(){
-  for(const s of swords){
-    const t = s.target;
-    // ── STRONG homing — always steer toward target so the sword cannot miss ──
-    if(t && !t.ko){
-      const dx = t.x - s.x;
-      const dy = (t.y - 50) - s.y;
-      const dist = Math.hypot(dx, dy);
-      if(dist > 0.1){
-        const desired = 9;
-        const tvx = (dx / dist) * desired;
-        const tvy = (dy / dist) * desired;
-        // Stronger horizontal correction so they curve into the target
-        s.vx += (tvx - s.vx) * 0.18;
-        s.vy += (tvy - s.vy) * 0.10;
-      }
-    }
-    s.x += s.vx;
-    s.y += s.vy;
-    s.trailPhase++;
-    // Particle trail (blue + white)
-    if(s.trailPhase % 2 === 0){
-      const angBack = Math.atan2(s.vy, s.vx) + Math.PI;
-      for(let k = 0; k < 2; k++){
-        const off = Math.random()*6;
-        particles.push({
-          x: s.x + Math.cos(angBack)*off,
-          y: s.y + Math.sin(angBack)*off,
-          vx: Math.cos(angBack)*0.3 + (Math.random()-0.5)*0.8,
-          vy: Math.sin(angBack)*0.3 + (Math.random()-0.5)*0.8,
-          life: 1,
-          col: Math.random()<0.55 ? '#bfdbfe' : '#ffffff',
-          r: 2 + Math.random()*2,
-        });
-      }
-    }
-    // ── Guaranteed hit window: when close enough OR crossing the target's y level ──
-    if(t && !t.ko){
-      const dx = s.x - t.x;
-      const dy = s.y - (t.y - 50);
-      const close = Math.abs(dx) < 50 && Math.abs(dy) < 70;
-      const crossing = s.y >= t.y - 70 && s.y <= t.y - 5;
-      if(close || crossing){
-        // Snap onto target visually before applying the hit
-        s.x = t.x + (Math.random()-0.5)*8;
-        t.hp = Math.max(0, t.hp - s.damage);
-        t.rage = Math.min(t.maxRage, t.rage + 3);
-        s.owner.rage = Math.min(s.owner.maxRage, s.owner.rage + 1);
-        t.hitFlash = 6;
-        t.hitstun = Math.max(t.hitstun, 3);
-        t.vx = (Math.random()-0.5) * 2;
-        shake = Math.min(14, shake + 1.5);
-        spawnHitSpark(s.x, s.y, false, 'punch');
-        spawnDamageNum(s.x, s.y - 18, s.damage, false);
-        s.alive = false;
-        if(t.hp <= 0){
-          t.ko = true; t.vy = -7; t.vx = s.owner.facing * 5;
-          triggerKO(s.owner, t);
-        }
-      }
-    }
-    // Safety: vanish if it somehow goes off-screen
-    if(s.y > GROUND + 40 || s.x < -100 || s.x > W+100) s.alive = false;
-  }
-  swords = swords.filter(s => s.alive);
-}
-
-function drawSwords(){
-  for(const s of swords){
-    const ang = Math.atan2(s.vy, s.vx);
-    ctx.save();
-    ctx.translate(s.x, s.y);
-    ctx.rotate(ang);
-    // Outer blue glow halo
-    ctx.shadowBlur = 14;
-    ctx.shadowColor = '#3b82f6';
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#3b82f6';
-    ctx.fillRect(-6, -3, 40, 6);
-    // Blade metal
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = 1;
-    const grd = ctx.createLinearGradient(-6, 0, 32, 0);
-    grd.addColorStop(0, '#dbeafe');
-    grd.addColorStop(0.6, '#f5f9ff');
-    grd.addColorStop(1, '#a5b4fc');
-    ctx.fillStyle = grd;
-    ctx.fillRect(-6, -1.6, 38, 3.2);
-    // Tip
-    ctx.beginPath();
-    ctx.moveTo(32, -1.6); ctx.lineTo(38, 0); ctx.lineTo(32, 1.6);
-    ctx.fillStyle = '#dbeafe';
-    ctx.fill();
-    // Center glowing line
-    ctx.fillStyle = '#3b82f6';
-    ctx.fillRect(-6, -0.3, 38, 0.6);
-    // Hilt
-    ctx.fillStyle = '#0a0a0f';
-    ctx.fillRect(-12, -2, 6, 4);
-    // Gold guard
-    ctx.fillStyle = '#daa520';
-    ctx.fillRect(-6, -3, 2, 6);
-    ctx.restore();
-  }
-}
-
-function applyDashHit(att, def){
-  att.dashHit = true;
-  // Dash Strike PIERCES block — block is useless against ENERGY skills.
-  const dmg = 30;
-  def.hp = Math.max(0, def.hp - dmg);
-  def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
-  att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
-  def.hitstun = 28;
-  def.hitFlash = 14;
-  def.blocking = false;   // dash breaks the block
-  def.vx = att.facing * 9;
-  def.vy = -5;
-  shake = Math.min(22, shake + 14);
-  hitstop = 8;
-  spawnHitSpark(def.x - att.facing*22, def.y - 70, false, 'special');
-  spawnDamageNum(def.x, def.y - 95, dmg, false);
-  if(def.hp <= 0){
-    def.ko = true; def.vy = -8; def.vx = att.facing * 6;
-    triggerKO(att, def);
-  }
-}
-
-function registerHit(att, def, mv){
-  let dmg = mv.dmg;          // punch/kick now dmg=0, so HP never drops from melee
-  let kb = mv.kb;
-  const blocked = def.blocking && def.facing !== att.facing;
-  // In multiplayer, each side is authoritative for their own fighter:
-  //   - Changes to `def` only apply if def is f1 (owned by us)
-  //   - Changes to `att` only apply if att is f1
-  // Otherwise the broadcast overwrites local writes and you get flicker.
-  const ownsDef = !MP.matched || def === f1;
-  const ownsAtt = !MP.matched || att === f1;
-
-  if(!blocked){
-    if(ownsDef){
-      def.hitstun = (mv.name==='kick'?18:13);
-      def.hitFlash = 8;
-    }
-    if(ownsAtt){
-      att.combo++; att.comboTimer = 80;
-    }
-  } else {
-    dmg = 0;
-    kb = Math.max(2, Math.floor(kb*0.35));
-  }
-  if(ownsDef) def.hp = Math.max(0, def.hp - dmg);
-  if(!blocked){
-    if(ownsDef) def.rage = Math.min(def.maxRage, (def.rage||0) + 8);
-    if(ownsAtt){
-      att.rage = Math.min(att.maxRage, (att.rage||0) + 3);
-      if(mv.name === 'punch') att.meter = Math.min(att.maxMeter, att.meter + 3);
-      else if(mv.name === 'kick') att.meter = Math.min(att.maxMeter, att.meter + 5);
-    }
-  }
-  if(ownsDef){
-    def.vx = att.facing * kb;
-    if(mv.name==='kick' && !blocked){def.vy = -3.5; def.y -= 1}
-  }
-
-  // VFX always (visual feedback on both sides)
-  const hx = def.x - def.facing*22;
-  const hy = def.y - 70;
-  spawnHitSpark(hx, hy, blocked, mv.name);
-  if(dmg > 0) spawnDamageNum(hx, hy-20, dmg, blocked);
-  if(!blocked){
-    shake = Math.min(18, shake + (mv.name==='kick'?7:3));
-    hitstop = mv.name==='kick'?5:2;
-  }
-
-  if(ownsDef && def.hp<=0){
-    def.ko=true; def.vy=-8; def.vx=att.facing*6;
-    triggerKO(att, def);
-  }
-}
-
-// ── Effects ────────────────────────────────────────────────────
-function spawnHitSpark(x,y,blocked,kind){
-  const n = kind==='special'?26:(kind==='kick'?14:8);
-  const col = blocked?'#06b6d4':(kind==='special'?'#fbbf24':'#fff');
-  for(let i=0;i<n;i++){
-    const a = Math.random()*Math.PI*2;
-    const sp = 3+Math.random()*(kind==='special'?9:5);
-    hitSparks.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-1,life:1,col,r:2+Math.random()*3});
-  }
-  // Star burst
-  hitSparks.push({x,y,life:1,col:blocked?'#06b6d4':'#fff',star:true,r:kind==='special'?60:(kind==='kick'?40:26)});
-}
-function spawnDamageNum(x,y,dmg,blocked){
-  damageNums.push({x,y,vy:-2.2,life:1,txt:blocked?'BLOCK':String(dmg),col:blocked?'#06b6d4':(dmg>20?'#fbbf24':'#f43f5e')});
-}
-function pulseRing(f){
-  hitSparks.push({x:f.x, y:f.y-65, life:1, col:f.c.glow, star:true, r:90, ringOnly:true});
-}
-
-// ── Naruto jutsu spawners ──────────────────────────────────────
-function spawnRasengan(att, def){
-  // Brief two-hands-together flash on the player
-  hitSparks.push({x: att.x + att.facing*22, y: att.y-58, life:1, col:'#bfdbfe', star:true, r:30, ringOnly:true});
-  projectiles.push({
-    type: 'rasengan',
-    x: att.x + att.facing*36,
-    y: att.y - 56,
-    vx: att.facing * 10,
-    owner: att,
-    damage: 22,
-    radius: 18,         // ~fist sized
-    life: 70,
-    spin: 0,
-    alive: true,
-  });
-}
-
-function throwShuriken(att, def){
-  if(att.holdingShuriken<=0) return;
-  att.holdingShuriken = 0;
-  att.shurikenCool = 30;
-  hitSparks.push({x: att.x + att.facing*30, y: att.y-65, life:1, col:'#fff', star:true, r:50, ringOnly:true});
-  projectiles.push({
-    type: 'rasenShuriken',
-    x: att.x + att.facing*40,
-    y: att.y - 64,
-    vx: att.facing * 8.5,
-    owner: att,
-    damage: 27,          // Rasengan(22) + 5
-    radius: 36,          // ~2x Rasengan
-    life: 110,
-    spin: 0,
-    alive: true,
-  });
-}
-
-// SHADOW CLONE JUTSU — requires full rage (100)
-// Freezes the enemy and spawns 4 clones (2 on each side) that punch sequentially.
-// Total damage across all clones = 30. After the sequence, clones disappear.
-function triggerShadowClone(att, def){
-  att.rage = 0;            // consume full rage
-  att.cloneCool = 200;
-  att.meter = Math.min(att.maxMeter, att.meter); // no chakra change
-  // Caster pose
-  att.state = 'cloneCast';
-  att.sTime = 0;
-  att.hitThisAttack = false;
-  // Freeze the opponent: long hitstun, zero velocity, no block
-  def.hitstun = Math.max(def.hitstun, 90);
-  def.vx = 0;
-  def.blocking = false;
-  // VFX: big ring
-  pulseRing(att);
-  // Spawn 4 clones around the opponent
-  const positions = [
-    {x: def.x - 130, side:  1, delay:  0},  // far left,  facing right
-    {x: def.x -  70, side:  1, delay: 12},  // close left
-    {x: def.x +  70, side: -1, delay: 24},  // close right, facing left
-    {x: def.x + 130, side: -1, delay: 36},  // far right
+  const head      = Bodies.circle(x, y - 48, 12, { ...COLL, label: 'head', density: 0.0012 });
+  const torso     = Bodies.rectangle(x, y - 10, 18, 50, { ...COLL, label: 'torso', density: 0.0025 });
+  const upperArmL = Bodies.rectangle(x - 14, y - 18, 8, 22, { ...COLL, label: 'upperArmL' });
+  const lowerArmL = Bodies.rectangle(x - 14, y + 4,  8, 22, { ...COLL, label: 'lowerArmL' });
+  const upperArmR = Bodies.rectangle(x + 14, y - 18, 8, 22, { ...COLL, label: 'upperArmR' });
+  const lowerArmR = Bodies.rectangle(x + 14, y + 4,  8, 22, { ...COLL, label: 'lowerArmR' });
+  const upperLegL = Bodies.rectangle(x - 6, y + 28, 9, 26, { ...COLL, label: 'upperLegL' });
+  const lowerLegL = Bodies.rectangle(x - 6, y + 54, 9, 26, { ...COLL, label: 'lowerLegL' });
+  const upperLegR = Bodies.rectangle(x + 6, y + 28, 9, 26, { ...COLL, label: 'upperLegR' });
+  const lowerLegR = Bodies.rectangle(x + 6, y + 54, 9, 26, { ...COLL, label: 'lowerLegR' });
+
+  const parts = { head, torso, upperArmL, lowerArmL, upperArmR, lowerArmR, upperLegL, lowerLegL, upperLegR, lowerLegR };
+  const bodies = Object.values(parts);
+
+  // Build joints with soft stiffness so the fighter can flex but still feels solid.
+  const J = (a, b, pa, pb, stiff = 0.9) =>
+    Constraint.create({ bodyA: a, bodyB: b, pointA: pa, pointB: pb, length: 0, stiffness: stiff, damping: 0.25 });
+  const constraints = [
+    J(head, torso, { x: 0, y: 10 }, { x: 0, y: -25 }),         // neck
+    J(torso, upperArmL, { x: -8, y: -22 }, { x: 0, y: -10 }),  // left shoulder
+    J(upperArmL, lowerArmL, { x: 0, y: 10 }, { x: 0, y: -10 }),// left elbow
+    J(torso, upperArmR, { x: 8, y: -22 }, { x: 0, y: -10 }),   // right shoulder
+    J(upperArmR, lowerArmR, { x: 0, y: 10 }, { x: 0, y: -10 }),// right elbow
+    J(torso, upperLegL, { x: -5, y: 24 }, { x: 0, y: -12 }),   // left hip
+    J(upperLegL, lowerLegL, { x: 0, y: 12 }, { x: 0, y: -12 }),// left knee
+    J(torso, upperLegR, { x: 5, y: 24 }, { x: 0, y: -12 }),    // right hip
+    J(upperLegR, lowerLegR, { x: 0, y: 12 }, { x: 0, y: -12 }),// right knee
   ];
-  for(const pos of positions){
-    // Smoke puff at the spawn location
-    for(let i=0;i<10;i++){
-      const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
-      particles.push({x:pos.x, y:def.y-50, vx:Math.cos(a)*sp, vy:-Math.random()*2-1,
-        life:1, col:'rgba(225,225,235,1)', r:6+Math.random()*4});
+
+  // Register with world
+  World.add(engine.world, [...bodies, ...constraints]);
+
+  // Each bodyPart knows which fighter it belongs to (for damage routing)
+  const fighter = {
+    id: colorIdx, name: col.name, color: col, parts, bodies, constraints,
+    hp: 100, maxHp: 100,
+    alive: true,
+    isAI, facing: isAI ? -1 : 1,
+    weapon: null,                   // {kind, ammo?}
+    weaponBody: null,               // visual Matter body attached to hand
+    weaponConstraint: null,
+    attackCool: 0,                  // frames until can attack again
+    attackSwing: 0,                 // frames remaining in swing animation
+    jumpCool: 0,
+    aiState: { targetIdx: null, moveDir: 0, wantAttack: 0, wantJump: 0, cool: 0, retarget: 0 },
+    group,
+  };
+  bodies.forEach(b => b.fighterRef = fighter);
+  return fighter;
+}
+
+// ─── Weapons on the ground (pickups) ───────────────────────
+function spawnPickup(kind, x, y){
+  const body = Bodies.rectangle(x, y, 32, 12, {
+    label: 'pickup', isStatic: true, isSensor: true,
+    collisionFilter: { category: COLLISION.WEAPON, mask: COLLISION.FIGHTER },
+  });
+  body.pickupKind = kind;
+  body.pickupOrigin = { x, y };
+  World.add(engine.world, body);
+  pickups.push(body);
+}
+
+// ─── Game state ───────────────────────────────────────────
+let fighters = [];
+let pickups = [];
+let projectiles = [];         // bullets, grenades
+let hitParticles = [];
+let currentMap = MAPS[0];
+let mode = '1v1';
+let gameState = 'menu';       // 'menu' | 'fight' | 'ended'
+let frame = 0;
+
+// ─── Input ────────────────────────────────────────────────
+const keys = {};
+const mouse = { x: 0, y: 0, down: false };
+addEventListener('keydown', e => {
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
+  keys[e.code] = true;
+  if(e.code === 'KeyE') tryPickupOrDrop(fighters[0]);
+});
+addEventListener('keyup', e => keys[e.code] = false);
+C.addEventListener('mousemove', e => {
+  const r = C.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) * (W / r.width);
+  mouse.y = (e.clientY - r.top) * (H / r.height);
+});
+C.addEventListener('mousedown', e => { if(e.button === 0) mouse.down = true; });
+addEventListener('mouseup',   e => { if(e.button === 0) mouse.down = false; });
+
+// ─── Scene build (per map) ────────────────────────────────
+function buildScene(){
+  // Clear world of everything
+  World.clear(engine.world, false);
+  Engine.clear(engine);
+  fighters = []; pickups = []; projectiles = []; hitParticles = [];
+  nextFighterGroup = -1;
+
+  // Static ground + walls
+  for(const g of currentMap.ground){
+    World.add(engine.world, Bodies.rectangle(g.x + g.w/2, g.y + g.h/2, g.w, g.h, {
+      isStatic: true, friction: 1, label: 'ground',
+      collisionFilter: { category: COLLISION.WORLD, mask: 0xFFFF },
+      renderFill: g.c,
+    }));
+  }
+  for(const w of currentMap.walls){
+    World.add(engine.world, Bodies.rectangle(w.x + w.w/2, w.y + w.h/2, w.w, w.h, {
+      isStatic: true, friction: 0.3, label: 'wall',
+      collisionFilter: { category: COLLISION.WORLD, mask: 0xFFFF },
+      renderFill: w.c,
+    }));
+  }
+
+  // Place weapons
+  for(const s of currentMap.weaponSpots) spawnPickup(s.kind, s.x, s.y);
+
+  // Spawn fighters by mode
+  if(mode === '1v1'){
+    fighters.push(createFighter(220, 380, 0, false));
+    fighters.push(createFighter(740, 380, 1, true));
+  } else {
+    fighters.push(createFighter(180, 380, 0, false));
+    fighters.push(createFighter(500, 380, 1, true));
+    fighters.push(createFighter(780, 380, 2, true));
+  }
+}
+
+// ─── Pickups ──────────────────────────────────────────────
+function tryPickupOrDrop(f){
+  if(!f || !f.alive) return;
+  if(f.weapon){
+    // Drop current
+    const pos = f.parts.lowerArmR.position;
+    detachWeapon(f);
+    spawnPickup(f.weapon.kind, pos.x, pos.y);
+    f.weapon = null;
+    return;
+  }
+  // Find nearest pickup within reach
+  const hand = f.parts.lowerArmR.position;
+  let best = null, bestD = 70;
+  for(const p of pickups){
+    const d = Math.hypot(p.position.x - hand.x, p.position.y - hand.y);
+    if(d < bestD){ bestD = d; best = p; }
+  }
+  if(best){
+    const kind = best.pickupKind;
+    World.remove(engine.world, best);
+    pickups = pickups.filter(x => x !== best);
+    f.weapon = { kind, ammo: WEAPONS[kind].ammo };
+    attachWeapon(f);
+  }
+}
+
+function attachWeapon(f){
+  const hand = f.parts.lowerArmR;
+  const spec = WEAPONS[f.weapon.kind];
+  // Weapon is an elongated body rigidly attached to the hand
+  const len = spec.reach > 0 ? Math.min(60, spec.reach * 0.6) : 24;
+  const body = Bodies.rectangle(hand.position.x, hand.position.y, len, 6, {
+    density: 0.0005,
+    collisionFilter: { group: f.group, category: COLLISION.WEAPON,
+      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.PROJECTILE },
+    label: 'wpn',
+  });
+  body.weaponOf = f;
+  World.add(engine.world, body);
+  const c1 = Constraint.create({ bodyA: hand, bodyB: body, pointA:{x:0,y:4}, pointB:{x:-len/2,y:0}, stiffness: 1, length: 0 });
+  const c2 = Constraint.create({ bodyA: hand, bodyB: body, pointA:{x:3,y:-3}, pointB:{x:-len/2+6,y:0}, stiffness: 1, length: 0 });
+  World.add(engine.world, [c1, c2]);
+  f.weaponBody = body; f.weaponConstraint = [c1, c2];
+}
+
+function detachWeapon(f){
+  if(f.weaponConstraint) for(const c of f.weaponConstraint) World.remove(engine.world, c);
+  if(f.weaponBody) World.remove(engine.world, f.weaponBody);
+  f.weaponBody = null; f.weaponConstraint = null;
+}
+
+// ─── Player controller ────────────────────────────────────
+function updatePlayer(f){
+  if(!f.alive) return;
+  const torso = f.parts.torso;
+
+  // Walk via horizontal velocity nudge
+  const left  = keys.KeyA || keys.ArrowLeft;
+  const right = keys.KeyD || keys.ArrowRight;
+  const speed = 4.2;
+  if(left)  { Body.setVelocity(torso, { x: Math.max(torso.velocity.x - 0.6, -speed), y: torso.velocity.y }); f.facing = -1; }
+  if(right) { Body.setVelocity(torso, { x: Math.min(torso.velocity.x + 0.6,  speed), y: torso.velocity.y }); f.facing = 1; }
+
+  // Jump
+  if(f.jumpCool > 0) f.jumpCool--;
+  if((keys.Space || keys.KeyW || keys.ArrowUp) && f.jumpCool === 0 && isGrounded(f)){
+    Body.setVelocity(torso, { x: torso.velocity.x, y: -9 });
+    f.jumpCool = 20;
+  }
+
+  // Attack on mouse down
+  if(f.attackCool > 0) f.attackCool--;
+  if(f.attackSwing > 0) f.attackSwing--;
+  if(mouse.down && f.attackCool === 0){
+    performAttack(f, mouse.x, mouse.y);
+    mouse.down = false;  // consume so one click = one swing
+  }
+}
+
+function isGrounded(f){
+  const foot = f.parts.lowerLegR.position;
+  // Ray check: is there any static body directly below feet
+  for(const body of Composite.allBodies(engine.world)){
+    if(!body.isStatic || body.isSensor) continue;
+    const dy = body.bounds.min.y - foot.y;
+    if(dy < 20 && dy > -4 &&
+       foot.x > body.bounds.min.x - 4 && foot.x < body.bounds.max.x + 4) return true;
+  }
+  return false;
+}
+
+// ─── AI controller ────────────────────────────────────────
+function updateAI(f){
+  if(!f.alive) return;
+  const st = f.aiState;
+  if(st.retarget <= 0){
+    // Pick nearest alive opponent
+    let best = null, bestD = Infinity;
+    for(const other of fighters){
+      if(other === f || !other.alive) continue;
+      const d = Math.hypot(other.parts.torso.position.x - f.parts.torso.position.x,
+                           other.parts.torso.position.y - f.parts.torso.position.y);
+      if(d < bestD){ bestD = d; best = other; }
     }
-    shadowClones.push({
-      x: pos.x, y: def.y,
-      facing: pos.side,
-      owner: att,
-      target: def,
-      state: 'wait',          // wait for delay
-      sTime: 0,
-      wait: pos.delay,
-      hasHit: false,
-      damage: 7.5,            // 4 clones × 7.5 = 30 total
-      alive: true,
+    st.targetIdx = best ? fighters.indexOf(best) : null;
+    st.retarget = 40 + Math.floor(Math.random() * 40);
+  }
+  st.retarget--;
+
+  const target = st.targetIdx !== null ? fighters[st.targetIdx] : null;
+  if(!target || !target.alive){ return; }
+
+  const myPos = f.parts.torso.position;
+  const tgPos = target.parts.torso.position;
+  const dx = tgPos.x - myPos.x;
+  const dist = Math.hypot(dx, tgPos.y - myPos.y);
+  f.facing = dx > 0 ? 1 : -1;
+
+  // Pick up a weapon if standing on one and unarmed
+  if(!f.weapon){
+    for(const p of pickups){
+      if(Math.hypot(p.position.x - myPos.x, p.position.y - myPos.y) < 50){
+        tryPickupOrDrop(f);
+        break;
+      }
+    }
+  }
+
+  // Walk toward target
+  const torso = f.parts.torso;
+  const speed = 3.6;
+  const wantX = dx > 0 ? 1 : -1;
+  // Slow down when close so we don't walk through
+  const walk = f.weapon && WEAPONS[f.weapon.kind].reach < 100 ? 48 : 180;
+  if(dist > walk){
+    Body.setVelocity(torso, {
+      x: Math.sign(wantX) * Math.min(Math.abs(torso.velocity.x) + 0.5, speed),
+      y: torso.velocity.y,
     });
+  } else if(dist < 28){
+    // Back up slightly if too close
+    Body.setVelocity(torso, { x: -Math.sign(wantX) * 1.5, y: torso.velocity.y });
+  }
+
+  // Jump occasionally to cross gaps
+  if(f.jumpCool > 0) f.jumpCool--;
+  if(f.jumpCool === 0 && Math.random() < 0.015 && isGrounded(f)){
+    Body.setVelocity(torso, { x: torso.velocity.x, y: -9 });
+    f.jumpCool = 30;
+  }
+
+  // Attack when in range
+  if(f.attackCool > 0) f.attackCool--;
+  if(f.attackSwing > 0) f.attackSwing--;
+  const reach = f.weapon ? WEAPONS[f.weapon.kind].reach : WEAPONS.fist.reach;
+  if(f.attackCool === 0 && dist < reach + 24){
+    performAttack(f, tgPos.x, tgPos.y);
   }
 }
 
-function triggerKO(winner, loser){
-  phase='ko'; koTimer=120;
-  if(loser===f2)p1Wins++; else p2Wins++;
-  showOv('ov-ko');
-  const msg = `Round ${round} — ${winner.name} wins!  ·  Score ${p1Wins} - ${p2Wins}`;
-  document.getElementById('rnd-msg').textContent = msg;
-}
+// ─── Attack dispatch ──────────────────────────────────────
+function performAttack(f, aimX, aimY){
+  const spec = f.weapon ? WEAPONS[f.weapon.kind] : WEAPONS.fist;
+  f.attackCool = spec.cool;
+  f.attackSwing = 14;
 
-function endRound(){
-  hideAllOv();
-  if(p1Wins>=Math.ceil(totalRounds/2) || p2Wins>=Math.ceil(totalRounds/2)){
-    showEnd(); return;
+  if(f.weapon?.kind === 'pistol'){
+    if(f.weapon.ammo <= 0){ f.weapon = null; detachWeapon(f); return; }
+    f.weapon.ammo--;
+    fireBullet(f, aimX, aimY);
+    return;
   }
-  round++;
-  initRound(f1.meter, f2.meter);
-}
-
-// ── Projectile update / hit detection ──────────────────────────
-function updateProjectiles(){
-  for(const p of projectiles){
-    p.x += p.vx;
-    p.spin += p.type==='rasenShuriken' ? 0.45 : 0.32;
-    p.life--;
-    if(p.life<=0 || p.x<-50 || p.x>W+50){ p.alive=false; continue; }
-    const opp = p.owner===f1 ? f2 : f1;
-    if(!opp || opp.ko) continue;
-    // Body box approx
-    const dx = opp.x - p.x;
-    const dy = (opp.y-65) - p.y;
-    if(Math.abs(dx) < p.radius+24 && Math.abs(dy) < 70){
-      applyProjectileHit(p, opp);
-      p.alive=false;
-    }
-  }
-  projectiles = projectiles.filter(p=>p.alive);
-}
-
-function applyProjectileHit(proj, def){
-  const att = proj.owner;
-  let dmg = proj.damage;
-  const blocked = def.blocking && def.facing !== att.facing;
-  if(blocked){
-    dmg = Math.max(2, Math.floor(dmg*0.35));
-    def.meter = Math.min(def.maxMeter, def.meter + 5);
-  } else {
-    def.hitstun = proj.type==='rasenShuriken' ? 34 : 26;
-    def.hitFlash = 12;
-    att.combo++; att.comboTimer = 80;
-  }
-  def.hp = Math.max(0, def.hp - dmg);
-  // Rage gain from skill damage
-  def.rage = Math.min(def.maxRage, def.rage + dmg);
-  def.vx = att.facing * (proj.type==='rasenShuriken' ? 14 : 10);
-  if(!blocked){ def.vy = -6; def.y -= 1; }
-  // VFX
-  spawnHitSpark(proj.x, proj.y, blocked, proj.type==='rasenShuriken'?'special':'kick');
-  spawnDamageNum(proj.x, proj.y-22, dmg, blocked);
-  if(!blocked){
-    shake = Math.min(26, shake + (proj.type==='rasenShuriken' ? 14 : 8));
-    hitstop = proj.type==='rasenShuriken' ? 9 : 5;
-  }
-  if(def.hp<=0){
-    def.ko=true; def.vy=-8; def.vx=att.facing*6;
-    triggerKO(att, def);
-  }
-}
-
-// ── Shadow clone update + attack ───────────────────────────────
-function updateShadowClones(){
-  for(const c of shadowClones){
-    c.sTime++;
-    if(c.state==='wait'){
-      // Stagger spawn — wait then enter attack
-      if(c.sTime >= c.wait){ c.state='attack'; c.sTime=0; }
-    } else if(c.state==='attack'){
-      const opp = c.target;
-      // Keep the target frozen for the duration of the jutsu
-      if(opp && !opp.ko){ opp.hitstun = Math.max(opp.hitstun, 4); opp.vx = 0; }
-      // Hit window
-      if(c.sTime>=6 && c.sTime<=12 && !c.hasHit && opp && !opp.ko){
-        const dmg = c.damage;
-        opp.hp = Math.max(0, opp.hp - dmg);
-        opp.rage = Math.min(opp.maxRage, opp.rage + dmg);
-        opp.hitFlash = 8;
-        spawnHitSpark(opp.x - c.facing*22, opp.y-65, false, 'punch');
-        spawnDamageNum(opp.x - c.facing*22, opp.y-90, Math.ceil(dmg), false);
-        shake = Math.min(20, shake + 4);
-        c.hasHit = true;
-        if(opp.hp<=0){
-          opp.ko=true; opp.vy=-7; opp.vx=c.facing*5;
-          triggerKO(c.owner, opp);
-        }
-      }
-      if(c.sTime > 22){ c.state='leave'; c.sTime=0; }
-    } else if(c.state==='leave'){
-      if(c.sTime===1){
-        for(let i=0;i<12;i++){
-          const a=Math.random()*Math.PI*2, sp=1+Math.random()*3;
-          particles.push({x:c.x, y:c.y-50, vx:Math.cos(a)*sp, vy:-Math.random()*2-0.5,
-            life:1, col:'rgba(225,225,235,1)', r:5+Math.random()*4});
-        }
-      }
-      if(c.sTime > 8){ c.alive=false; }
-    }
-  }
-  shadowClones = shadowClones.filter(c=>c.alive);
-}
-
-function showEnd(){
-  phase='end';
-  showOv('ov-end');
-  const playerWon = p1Wins>p2Wins;
-  const el = document.getElementById('win-txt');
-  el.textContent = playerWon ? 'VICTORY!' : 'DEFEAT';
-  el.style.background = playerWon
-    ? 'linear-gradient(135deg,#fbbf24,#f43f5e,#a855f7)'
-    : 'linear-gradient(135deg,#475569,#1e293b)';
-  el.style.webkitBackgroundClip='text';
-  el.style.backgroundClip='text';
-  el.style.color='transparent';
-  el.style.textShadow = playerWon?'0 0 40px rgba(251,191,36,.5)':'none';
-  document.getElementById('end-stats').textContent = `Final Score: ${p1Wins} – ${p2Wins}`;
-}
-
-// ── Background ────────────────────────────────────────────────
-function drawBg(){
-  // Sky gradient
-  const sky = ctx.createLinearGradient(0,0,0,H);
-  sky.addColorStop(0,'#1e0a3c');
-  sky.addColorStop(0.45,'#3b0764');
-  sky.addColorStop(0.75,'#581c87');
-  sky.addColorStop(1,'#0c0a2e');
-  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
-
-  // Distant sun/moon
-  const cx = W*0.72, cy = H*0.30;
-  const sun = ctx.createRadialGradient(cx,cy,10,cx,cy,160);
-  sun.addColorStop(0,'rgba(244,63,94,0.85)');
-  sun.addColorStop(0.5,'rgba(168,85,247,0.35)');
-  sun.addColorStop(1,'rgba(168,85,247,0)');
-  ctx.fillStyle=sun;
-  ctx.beginPath(); ctx.arc(cx,cy,160,0,Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,200,180,0.9)';
-  ctx.beginPath(); ctx.arc(cx,cy,42,0,Math.PI*2); ctx.fill();
-
-  // Skyline silhouette
-  ctx.fillStyle='rgba(8,8,18,0.92)';
-  const buildings=[[40,180,140],[180,140,90],[270,180,120],[390,90,160],[480,120,110],[590,200,140],[730,150,100],[820,90,180]];
-  for(const [x,w,h] of buildings){
-    ctx.fillRect(x, H-130-h, w, h);
-    // Windows
-    ctx.fillStyle='rgba(251,191,36,0.55)';
-    for(let wy=H-130-h+12; wy<H-140; wy+=14){
-      for(let wx=x+6; wx<x+w-6; wx+=10){
-        if(((wx*7+wy*3)%23)<8) ctx.fillRect(wx, wy, 4, 6);
-      }
-    }
-    ctx.fillStyle='rgba(8,8,18,0.92)';
-  }
-
-  // Neon horizontal lines (grid floor effect)
-  ctx.strokeStyle='rgba(168,85,247,0.35)';
-  ctx.lineWidth=1;
-  for(let i=0;i<14;i++){
-    const y = H-130 + i*(130/14);
-    const a = 0.05 + i/14 * 0.4;
-    ctx.strokeStyle=`rgba(168,85,247,${a})`;
-    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
-  }
-  // Vanishing perspective lines
-  const vpx = W/2, vpy = H-138;
-  for(let i=0;i<24;i++){
-    const a = 0.06 + (i%3===0?0.25:0.1);
-    ctx.strokeStyle=`rgba(244,63,94,${a*0.5})`;
-    ctx.beginPath(); ctx.moveTo(i*(W/24), H); ctx.lineTo(vpx, vpy); ctx.stroke();
-  }
-
-  // Floor
-  ctx.fillStyle='#0a0a18';
-  ctx.fillRect(0,GROUND+12,W,H-GROUND);
-  // Floor reflection of sun
-  const refl=ctx.createLinearGradient(0,GROUND+12,0,H);
-  refl.addColorStop(0,'rgba(244,63,94,0.18)');
-  refl.addColorStop(1,'rgba(244,63,94,0)');
-  ctx.fillStyle=refl;
-  ctx.fillRect(W*0.45,GROUND+12,W*0.4,H-GROUND-12);
-  // Stage edge glow
-  ctx.fillStyle='#a855f7';
-  ctx.fillRect(0,GROUND+10,W,2);
-  ctx.fillStyle='rgba(168,85,247,0.3)';
-  ctx.fillRect(0,GROUND+6,W,4);
-}
-
-// ── Dash beam — replaces the body during the Dash Strike ───────
-// Renders a long horizontal beam of blue-white light from dashStartX to the
-// current x, suggesting the fighter has become pure energy.
-function drawDashBeam(f){
-  const c = f.c;
-  const x1 = f.dashStartX;
-  const x2 = f.x;
-  const y  = f.y - 60;        // beam centered around the torso line
-  const dir = f.facing;
-  const left  = Math.min(x1, x2);
-  const right = Math.max(x1, x2);
-  const len = right - left;
-  if(len < 4) return;
-
-  ctx.save();
-  // Outer glow — wide, soft
-  ctx.shadowBlur = 28;
-  ctx.shadowColor = '#60a5fa';
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = '#3b82f6';
-  ctx.fillRect(left - 8, y - 18, len + 16, 36);
-
-  // Core bright beam
-  ctx.shadowBlur = 20;
-  ctx.shadowColor = '#ffffff';
-  ctx.globalAlpha = 0.95;
-  const grd = ctx.createLinearGradient(left, y, right, y);
-  if(dir > 0){
-    grd.addColorStop(0,   'rgba(96,165,250,0)');
-    grd.addColorStop(0.6, 'rgba(219,234,254,1)');
-    grd.addColorStop(0.9, 'rgba(255,255,255,1)');
-    grd.addColorStop(1,   'rgba(255,255,255,0.9)');
-  } else {
-    grd.addColorStop(0,   'rgba(255,255,255,0.9)');
-    grd.addColorStop(0.1, 'rgba(255,255,255,1)');
-    grd.addColorStop(0.4, 'rgba(219,234,254,1)');
-    grd.addColorStop(1,   'rgba(96,165,250,0)');
-  }
-  ctx.fillStyle = grd;
-  ctx.fillRect(left, y - 6, len, 12);
-
-  // Thin razor line inside
-  ctx.shadowBlur = 0;
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(left, y - 1, len, 2);
-
-  // Leading edge spark
-  const tipX = (dir > 0 ? right : left);
-  ctx.shadowBlur = 24;
-  ctx.shadowColor = '#bfdbfe';
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.ellipse(tipX, y, 10, 16, 0, 0, Math.PI*2);
-  ctx.fill();
-
-  // Speed-line streaks behind the tip
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = '#dbeafe';
-  for(let i = 1; i <= 4; i++){
-    const sx = tipX - dir * i * 18;
-    ctx.fillRect(sx - dir*12, y - 1.5 + (i%2?2:-2), 18, 1);
-  }
-  ctx.restore();
-}
-
-// ── Fighter drawing ────────────────────────────────────────────
-function drawFighter(f, opp){
-  const c=f.c;
-  ctx.save();
-  // Shadow
-  ctx.fillStyle='rgba(0,0,0,0.45)';
-  const shadowW = f.onGround?42:32;
-  ctx.beginPath(); ctx.ellipse(f.x, GROUND+8, shadowW, 8, 0, 0, Math.PI*2); ctx.fill();
-
-  // Hit flash filter overlay
-  const flash = f.hitFlash>0 ? Math.min(1,f.hitFlash/8) : 0;
-
-  // Compute pose
-  const pose = computePose(f);
-
-  // ── DASHING: render only a long blue beam of light, NOT the body ──
-  if(f.state === 'dashing'){
-    ctx.restore();
-    drawDashBeam(f);
+  if(f.weapon?.kind === 'grenade'){
+    throwGrenade(f, aimX, aimY);
+    f.weapon = null; detachWeapon(f);
     return;
   }
 
-  // Translate + flip
-  ctx.translate(f.x, f.y);
-  ctx.scale(f.facing, 1);
+  // Melee: swing arm + apply impulse to any enemy body within reach cone
+  swingMeleeArm(f, aimX, aimY, spec);
+}
 
-  // Special move aura
-  if(f.state==='special'){
-    const t = f.sTime / MOVES.special.dur;
-    const auraR = 20 + Math.sin(t*Math.PI*4)*10 + t*40;
-    const g = ctx.createRadialGradient(0,-60,5,0,-60,auraR);
-    g.addColorStop(0,c.glow+'cc'); g.addColorStop(1,c.glow+'00');
-    ctx.fillStyle=g;
-    ctx.beginPath(); ctx.arc(0,-60,auraR,0,Math.PI*2); ctx.fill();
+// Visually fling the right arm toward the target and check overlaps.
+function swingMeleeArm(f, aimX, aimY, spec){
+  const hand = f.parts.lowerArmR;
+  const torso = f.parts.torso;
+  const ang = Math.atan2(aimY - torso.position.y, aimX - torso.position.x);
+  Body.applyForce(hand, hand.position, { x: Math.cos(ang) * 0.15, y: Math.sin(ang) * 0.15 });
+
+  // Damage window: next few frames, any opponent body within reach takes damage.
+  // Attach a brief hit sensor at the hand position.
+  const hitX = torso.position.x + Math.cos(ang) * (spec.reach * 0.6);
+  const hitY = torso.position.y + Math.sin(ang) * (spec.reach * 0.6);
+  for(const other of fighters){
+    if(other === f || !other.alive) continue;
+    for(const [partName, body] of Object.entries(other.parts)){
+      const d = Math.hypot(body.position.x - hitX, body.position.y - hitY);
+      if(d < spec.reach * 0.55){
+        applyDamage(other, partName, spec.base, f);
+        // Impulse flings the ragdoll
+        Body.applyForce(body, body.position, {
+          x: Math.cos(ang) * 0.08, y: Math.sin(ang) * 0.08 - 0.04,
+        });
+        spawnHitParticles(body.position.x, body.position.y, '#ef4444');
+        break;  // one hit per swing per fighter
+      }
+    }
+  }
+}
+
+function fireBullet(f, aimX, aimY){
+  const hand = f.parts.lowerArmR.position;
+  const ang = Math.atan2(aimY - hand.y, aimX - hand.x);
+  const sx = hand.x + Math.cos(ang) * 20;
+  const sy = hand.y + Math.sin(ang) * 20;
+  projectiles.push({
+    kind: 'bullet',
+    x: sx, y: sy,
+    vx: Math.cos(ang) * 14, vy: Math.sin(ang) * 14,
+    owner: f, life: 60, dmg: WEAPONS.pistol.base,
+  });
+  // Recoil
+  Body.applyForce(f.parts.torso, f.parts.torso.position, { x: -Math.cos(ang) * 0.04, y: 0 });
+  spawnHitParticles(sx, sy, '#fef3c7');
+}
+
+function throwGrenade(f, aimX, aimY){
+  const hand = f.parts.lowerArmR.position;
+  const ang = Math.atan2(aimY - hand.y, aimX - hand.x);
+  const nade = Bodies.circle(hand.x + Math.cos(ang) * 20, hand.y + Math.sin(ang) * 20, 7, {
+    density: 0.002, friction: 0.6, restitution: 0.4,
+    collisionFilter: { group: f.group, category: COLLISION.PROJECTILE,
+      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.WEAPON },
+    label: 'nade',
+  });
+  Body.setVelocity(nade, { x: Math.cos(ang) * 10, y: Math.sin(ang) * 10 - 2 });
+  nade.fuse = WEAPONS.grenade.fuse;
+  nade.owner = f;
+  World.add(engine.world, nade);
+  projectiles.push({ kind: 'grenadeBody', body: nade });
+}
+
+function applyDamage(target, partName, base, source){
+  if(!target.alive) return;
+  const mul = PART_DMG[partName] || 1;
+  const dmg = Math.round(base * mul);
+  target.hp = Math.max(0, target.hp - dmg);
+  if(target.hp === 0) killFighter(target);
+}
+
+function killFighter(f){
+  f.alive = false;
+  // Go completely limp — disable self-propulsion but keep physics body
+  detachWeapon(f);
+  for(const b of f.bodies) Body.setStatic(b, false);
+  spawnHitParticles(f.parts.torso.position.x, f.parts.torso.position.y, '#dc2626', 24);
+  setTimeout(checkWinCondition, 400);
+}
+
+function checkWinCondition(){
+  if(gameState !== 'fight') return;
+  const alive = fighters.filter(f => f.alive);
+  if(alive.length <= 1){
+    gameState = 'ended';
+    showWinScreen(alive[0] || null);
+  }
+}
+
+function spawnHitParticles(x, y, color, n = 8){
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1 + Math.random() * 3;
+    hitParticles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1, life: 24 + Math.random()*10, color });
+  }
+}
+
+// ─── Projectile updates ───────────────────────────────────
+function updateProjectiles(){
+  for(let i = projectiles.length - 1; i >= 0; i--){
+    const p = projectiles[i];
+    if(p.kind === 'bullet'){
+      p.x += p.vx; p.y += p.vy;
+      p.life--;
+      // Hit fighters
+      let hit = false;
+      for(const other of fighters){
+        if(!other.alive || other === p.owner) continue;
+        for(const [partName, body] of Object.entries(other.parts)){
+          const d = Math.hypot(body.position.x - p.x, body.position.y - p.y);
+          if(d < 10){
+            applyDamage(other, partName, p.dmg, p.owner);
+            Body.applyForce(body, body.position, { x: p.vx * 0.003, y: p.vy * 0.003 });
+            spawnHitParticles(p.x, p.y, '#dc2626');
+            hit = true; break;
+          }
+        }
+        if(hit) break;
+      }
+      if(hit || p.life <= 0 || p.x < 0 || p.x > W || p.y > H) projectiles.splice(i, 1);
+    } else if(p.kind === 'grenadeBody'){
+      p.body.fuse--;
+      if(p.body.fuse <= 0){
+        // Boom
+        const bx = p.body.position.x, by = p.body.position.y;
+        const r = WEAPONS.grenade.radius;
+        for(const other of fighters){
+          if(!other.alive) continue;
+          for(const [partName, body] of Object.entries(other.parts)){
+            const d = Math.hypot(body.position.x - bx, body.position.y - by);
+            if(d < r){
+              const falloff = 1 - d / r;
+              applyDamage(other, partName, WEAPONS.grenade.base * falloff, p.body.owner);
+              const ang = Math.atan2(body.position.y - by, body.position.x - bx);
+              Body.applyForce(body, body.position, { x: Math.cos(ang) * 0.3 * falloff, y: Math.sin(ang) * 0.3 * falloff });
+            }
+          }
+        }
+        spawnHitParticles(bx, by, '#fbbf24', 36);
+        spawnHitParticles(bx, by, '#ef4444', 20);
+        World.remove(engine.world, p.body);
+        projectiles.splice(i, 1);
+      }
+    }
+  }
+}
+
+// ─── Pit / fall detection ─────────────────────────────────
+function checkFalls(){
+  for(const f of fighters){
+    if(!f.alive) continue;
+    if(f.parts.torso.position.y > H + 60){ killFighter(f); }
+  }
+}
+
+// ─── Rendering ────────────────────────────────────────────
+function draw(){
+  // Background
+  currentMap.bg(ctx);
+
+  // Ground
+  for(const g of currentMap.ground){
+    ctx.fillStyle = g.c;
+    ctx.fillRect(g.x, g.y, g.w, g.h);
+    ctx.strokeStyle = 'rgba(0,0,0,.4)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(g.x, g.y, g.w, g.h);
+  }
+  for(const w of currentMap.walls){
+    ctx.fillStyle = w.c;
+    ctx.fillRect(w.x, w.y, w.w, w.h);
   }
 
-  // Limbs first (behind body)
-  // Far leg
-  drawLeg(pose.legFar, c.pants, c.skin, true);
-  // Far arm
-  drawArm(pose.armFar, c.top, c.skin, true);
-
-  // Torso
-  drawTorso(pose, c);
-
-  // Near leg
-  drawLeg(pose.legNear, c.pants, c.skin, false);
-  // Near arm
-  drawArm(pose.armNear, c.top, c.skin, false);
-
-  // Katana — drawn in the near hand if the hero wields one
-  if((c.features||{}).katana){
-    drawKatana(pose, c, f);
+  // Weapon pickups (glowing on the ground)
+  for(const p of pickups){
+    const spec = WEAPONS[p.pickupKind];
+    const bob = Math.sin((frame + p.position.x) * 0.06) * 3;
+    ctx.save();
+    ctx.translate(p.position.x, p.position.y + bob);
+    // Halo
+    ctx.fillStyle = 'rgba(251,191,36,.25)';
+    ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI*2); ctx.fill();
+    drawWeapon(0, 0, 0, spec);
+    ctx.restore();
   }
+
+  // Fighters
+  for(const f of fighters) drawFighter(f);
+
+  // Projectiles
+  for(const p of projectiles){
+    if(p.kind === 'bullet'){
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x - p.vx * 0.6, p.y - p.vy * 0.6);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    } else if(p.kind === 'grenadeBody'){
+      ctx.fillStyle = '#16a34a';
+      ctx.beginPath(); ctx.arc(p.body.position.x, p.body.position.y, 7, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#052e16'; ctx.lineWidth = 2; ctx.stroke();
+      // Fuse flash
+      const flash = p.body.fuse < 40 && Math.floor(p.body.fuse / 4) % 2 === 0;
+      if(flash){
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath(); ctx.arc(p.body.position.x, p.body.position.y - 8, 2.5, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  // Particles
+  for(const pa of hitParticles){
+    ctx.fillStyle = pa.color;
+    ctx.globalAlpha = Math.min(1, pa.life / 24);
+    ctx.beginPath(); ctx.arc(pa.x, pa.y, 2.5, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Pickup hint
+  const hintEl = document.getElementById('pickHint');
+  if(gameState === 'fight' && fighters[0]?.alive){
+    const hand = fighters[0].parts.lowerArmR.position;
+    let near = null;
+    for(const p of pickups){
+      if(Math.hypot(p.position.x - hand.x, p.position.y - hand.y) < 70){ near = p; break; }
+    }
+    if(near || fighters[0].weapon){
+      const label = near ? `Pick up ${WEAPONS[near.pickupKind].label}` :
+                           `Drop ${WEAPONS[fighters[0].weapon.kind].label}`;
+      hintEl.innerHTML = `🤚 Press <b>E</b> to ${label.toLowerCase()}`;
+      hintEl.classList.add('show');
+    } else hintEl.classList.remove('show');
+  } else hintEl.classList.remove('show');
+}
+
+function drawFighter(f){
+  const col = f.color;
+  const limbW = 5;
+  const lineCol = f.alive ? col.line : '#71717a';
+  const accentCol = f.alive ? col.accent : '#3f3f46';
+
+  // Shadow under feet
+  const feetY = Math.max(f.parts.lowerLegL.position.y, f.parts.lowerLegR.position.y) + 14;
+  const centerX = f.parts.torso.position.x;
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(centerX, feetY, 20, 5, 0, 0, Math.PI*2); ctx.fill();
+
+  // Draw bones as thick capsules between joint anchors
+  function bone(bA, bB){
+    ctx.strokeStyle = lineCol;
+    ctx.lineWidth = limbW;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bA.position.x, bA.position.y);
+    ctx.lineTo(bB.position.x, bB.position.y);
+    ctx.stroke();
+  }
+
+  // Legs
+  bone(f.parts.torso, f.parts.upperLegL);
+  bone(f.parts.upperLegL, f.parts.lowerLegL);
+  bone(f.parts.torso, f.parts.upperLegR);
+  bone(f.parts.upperLegR, f.parts.lowerLegR);
+  // Torso line
+  ctx.strokeStyle = lineCol;
+  ctx.lineWidth = limbW + 2;
+  ctx.beginPath();
+  ctx.moveTo(f.parts.torso.position.x, f.parts.torso.position.y - 22);
+  ctx.lineTo(f.parts.torso.position.x, f.parts.torso.position.y + 22);
+  ctx.stroke();
+  // Arms
+  bone(f.parts.torso, f.parts.upperArmL);
+  bone(f.parts.upperArmL, f.parts.lowerArmL);
+  bone(f.parts.torso, f.parts.upperArmR);
+  bone(f.parts.upperArmR, f.parts.lowerArmR);
 
   // Head
-  drawHead(pose, c);
-
-  // Held Rasen Shuriken in the near hand
-  if(f.holdingShuriken > 0){
-    const t = f.sTime;
-    const hx = pose.armNear.fx + 18;
-    const hy = pose.armNear.fy - 4;
-    const r = 28;
-    const spin = t * 0.55;
-    ctx.save();
-    ctx.translate(hx, hy);
-    ctx.rotate(spin);
-    // Halo
-    const halo = ctx.createRadialGradient(0,0,3, 0,0, r*1.6);
-    halo.addColorStop(0,'rgba(255,255,255,0.95)');
-    halo.addColorStop(0.5,'rgba(186,230,253,0.5)');
-    halo.addColorStop(1,'rgba(125,211,252,0)');
-    ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(0,0, r*1.6, 0, Math.PI*2); ctx.fill();
-    // 4 blades
-    ctx.fillStyle = '#fff';
-    ctx.strokeStyle = '#bae6fd';
-    ctx.lineWidth = 1.5;
-    for(let b=0;b<4;b++){
-      ctx.save();
-      ctx.rotate(b * Math.PI/2);
-      ctx.beginPath();
-      ctx.moveTo(0,0);
-      ctx.lineTo(r*0.55, -r*0.22);
-      ctx.lineTo(r*1.0, 0);
-      ctx.lineTo(r*0.55, r*0.22);
-      ctx.closePath();
-      ctx.fill(); ctx.stroke();
-      ctx.restore();
-    }
-    // Blue core
-    ctx.fillStyle = '#3b82f6';
-    ctx.beginPath(); ctx.arc(0,0, r*0.28, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#dbeafe';
-    ctx.beginPath(); ctx.arc(0,0, r*0.18, 0, Math.PI*2); ctx.fill();
-    ctx.restore();
-    // Countdown bar above the player's head (in fighter-local coords)
-    const pct = f.holdingShuriken / 300;
-    ctx.fillStyle = 'rgba(0,0,0,0.6)';
-    ctx.fillRect(-22, -150, 44, 5);
-    const bgrad = ctx.createLinearGradient(-22, 0, 22, 0);
-    bgrad.addColorStop(0, '#fff'); bgrad.addColorStop(1, '#7dd3fc');
-    ctx.fillStyle = bgrad;
-    ctx.fillRect(-22, -150, 44*pct, 5);
+  const h = f.parts.head.position;
+  ctx.fillStyle = col.skin;
+  ctx.beginPath(); ctx.arc(h.x, h.y, 11, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = lineCol; ctx.lineWidth = 2.5; ctx.stroke();
+  // Eye (facing)
+  if(f.alive){
+    ctx.fillStyle = '#111';
+    ctx.beginPath(); ctx.arc(h.x + f.facing * 3, h.y - 1, 1.8, 0, Math.PI*2); ctx.fill();
+  } else {
+    // X eyes for KO
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(h.x - 5, h.y - 3); ctx.lineTo(h.x - 1, h.y + 1);
+    ctx.moveTo(h.x - 1, h.y - 3); ctx.lineTo(h.x - 5, h.y + 1);
+    ctx.moveTo(h.x + 1, h.y - 3); ctx.lineTo(h.x + 5, h.y + 1);
+    ctx.moveTo(h.x + 5, h.y - 3); ctx.lineTo(h.x + 1, h.y + 1); ctx.stroke();
   }
 
-  // Flash overlay
-  if(flash>0){
-    ctx.globalCompositeOperation='source-atop';
-    ctx.fillStyle=`rgba(255,255,255,${flash*0.7})`;
-    ctx.fillRect(-50,-130,100,140);
-    ctx.globalCompositeOperation='source-over';
+  // Weapon in hand
+  if(f.weapon && f.weaponBody){
+    const spec = WEAPONS[f.weapon.kind];
+    const wb = f.weaponBody;
+    drawWeapon(wb.position.x, wb.position.y, wb.angle, spec);
   }
-
-  // Weapon trail / fist glow during active frames
-  if(['punch','kick','special'].includes(f.state)){
-    const mv=MOVES[f.state];
-    if(f.sTime>=mv.active[0]-2 && f.sTime<=mv.active[1]+2){
-      ctx.fillStyle=c.glow;
-      ctx.globalAlpha=0.55;
-      ctx.shadowBlur=20; ctx.shadowColor=c.glow;
-      const tx = pose.fistX, ty = pose.fistY;
-      ctx.beginPath(); ctx.arc(tx,ty, f.state==='special'?22:12, 0, Math.PI*2); ctx.fill();
-      ctx.globalAlpha=1; ctx.shadowBlur=0;
-    }
-  }
-  // Chakra glow forming between Naruto's hands during Rasengan cast (push pose)
-  if(f.state==='rasenganCast'){
-    const tx = pose.fistX, ty = pose.fistY;
-    ctx.fillStyle='#bfdbfe';
-    ctx.globalAlpha=0.7;
-    ctx.shadowBlur=22; ctx.shadowColor='#3b82f6';
-    ctx.beginPath(); ctx.arc(tx, ty, 10+Math.min(8, f.sTime*0.6), 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha=1; ctx.shadowBlur=0;
-  }
-  // Hand-seal sparkle during clone-cast pose
-  if(f.state==='cloneCast'){
-    ctx.fillStyle='rgba(255,255,255,0.6)';
-    ctx.shadowBlur=18; ctx.shadowColor='#fbbf24';
-    ctx.beginPath(); ctx.arc(0, -76, 4+Math.sin(f.sTime*0.3)*2, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur=0;
-  }
-  ctx.restore();
-
-  // Name above
-  ctx.font='bold 12px system-ui'; ctx.textAlign='center';
-  ctx.fillStyle='rgba(0,0,0,0.7)';
-  ctx.fillText(f.name, f.x+1, f.y-148);
-  ctx.fillStyle=c.glow;
-  ctx.fillText(f.name, f.x, f.y-149);
 }
 
-// ── Katana (Kenshin's weapon) ───────────────────────────────────
-// Drawn in the near hand. Blade is silver-blue with a soft glow.
-// Angle changes per fighter state to match the swing.
-function drawKatana(pose, c, f){
-  let hx, hy, angle;
-  let bladeLen = 38;
-  const s = f.state;
-  const st = f.sTime;
-
-  if(s === 'kick'){
-    // ── Sword on the BACK during a kick — sheath behind torso ──
-    hx = -12; hy = -78; angle = 1.0; // pointing down-back diagonally
-  } else if(s === 'punch'){
-    // ── Two-handed overhead slash — grip rises then sweeps down ──
-    hx = pose.fistX || 8;
-    hy = pose.fistY || -75;
-    const t = Math.min(1, st / MOVES.punch.dur);
-    if(t < 0.35){
-      // Raising overhead — blade points up-back
-      const p = t / 0.35;
-      angle = 0.5 + (-2.0 - 0.5) * p;
-    } else if(t < 0.7){
-      // Slash arc downward through the front
-      const p = (t - 0.35) / 0.35;
-      angle = -2.0 + p * 3.6;
-    } else {
-      angle = 1.6;
-    }
-  } else {
-    // Default: held forward-low in the front hand
-    hx = pose.fistX || pose.armNear.fx;
-    hy = pose.fistY || pose.armNear.fy;
-    if(s === 'idle')        angle = 0.55;
-    else if(s === 'walk')   angle = 0.5 + Math.sin(f.walkPhase||0)*0.05;
-    else if(s === 'jump')   angle = 0.1;
-    else if(s === 'crouch') angle = 0.7;
-    else if(s === 'block')  angle = -1.2;
-    else if(s === 'special'){
-      const mv = MOVES.special;
-      const t = Math.min(1, Math.max(0, (st - mv.active[0]+2) / (mv.active[1]-mv.active[0]+4)));
-      angle = 1.4 - t * 3.0;
-      bladeLen = 44;
-    }
-    else if(s === 'hit')   angle = 1.3;
-    else if(s === 'ko')    angle = 1.5;
-    else                   angle = 0.55;
-  }
-
+function drawWeapon(x, y, angle, spec){
   ctx.save();
-  ctx.translate(hx, hy);
-  ctx.rotate(angle);
-
-  // Hilt (black wrapped handle)
-  ctx.fillStyle = '#0a0a0f';
-  ctx.fillRect(-14, -2.5, 14, 5);
-  // Diamond cord wrapping
-  ctx.strokeStyle = c.beltTrim || '#daa520';
-  ctx.lineWidth = 0.5;
-  for(let i = 0; i < 4; i++){
+  ctx.translate(x, y); ctx.rotate(angle);
+  if(spec === WEAPONS.bat){
+    ctx.fillStyle = spec.color;
+    ctx.fillRect(-28, -4, 56, 8);
+    ctx.fillStyle = '#44403c';
+    ctx.fillRect(-28, -3, 12, 6);
+  } else if(spec === WEAPONS.sword){
+    ctx.fillStyle = spec.color;
     ctx.beginPath();
-    ctx.moveTo(-13 + i*3.5, -2.5);
-    ctx.lineTo(-11 + i*3.5, 2.5);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-11 + i*3.5, -2.5);
-    ctx.lineTo(-13 + i*3.5, 2.5);
-    ctx.stroke();
+    ctx.moveTo(-10, -2); ctx.lineTo(28, -3); ctx.lineTo(32, 0);
+    ctx.lineTo(28, 3); ctx.lineTo(-10, 2); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#78350f'; ctx.fillRect(-16, -3, 7, 6);
+    ctx.fillStyle = '#854d0e'; ctx.fillRect(-20, -4, 4, 8);
+  } else if(spec === WEAPONS.pistol){
+    ctx.fillStyle = spec.color;
+    ctx.fillRect(-4, -4, 20, 8);
+    ctx.fillRect(-6, 2, 8, 10);
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(14, -3, 4, 3);
+  } else if(spec === WEAPONS.grenade){
+    ctx.fillStyle = spec.color;
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(-1, -11, 3, 5);
+  } else {
+    // Fist / generic
+    ctx.fillStyle = '#fef3c7';
+    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fill();
   }
-  // Pommel cap (gold)
-  ctx.fillStyle = c.beltTrim || '#daa520';
-  ctx.fillRect(-16, -3, 2, 6);
-  // Tsuba (gold cross-guard)
-  ctx.fillStyle = c.beltTrim || '#daa520';
-  ctx.fillRect(0, -5.5, 3, 11);
-  ctx.fillStyle = '#fbbf24';
-  ctx.fillRect(0, -5.5, 3, 1);
-  ctx.fillRect(0, 4.5, 3, 1);
-
-  // Blade — soft blue glow halo
-  ctx.save();
-  ctx.shadowBlur = 14;
-  ctx.shadowColor = c.bladeGlow || '#3b82f6';
-  ctx.globalAlpha = 0.55;
-  ctx.fillStyle = c.bladeGlow || '#3b82f6';
-  ctx.fillRect(3.5, -3, bladeLen, 6);
-  ctx.restore();
-
-  // Blade metal core
-  const grd = ctx.createLinearGradient(3.5, -2, 3.5 + bladeLen, -2);
-  grd.addColorStop(0, '#dbeafe');
-  grd.addColorStop(0.4, '#f5f9ff');
-  grd.addColorStop(1, '#a5b4fc');
-  ctx.fillStyle = grd;
-  ctx.fillRect(3.5, -1.8, bladeLen-2, 3.6);
-  // Tip (kissaki)
-  ctx.beginPath();
-  ctx.moveTo(3.5 + bladeLen - 2, -1.8);
-  ctx.lineTo(3.5 + bladeLen + 4, 0);
-  ctx.lineTo(3.5 + bladeLen - 2, 1.8);
-  ctx.fillStyle = '#dbeafe';
-  ctx.fill();
-  // Edge highlight (top)
-  ctx.fillStyle = '#bfdbfe';
-  ctx.fillRect(3.5, -1.8, bladeLen-2, 0.5);
-  // Hi (center glowing line)
-  ctx.fillStyle = c.bladeGlow || '#3b82f6';
-  ctx.fillRect(3.5, -0.3, bladeLen-2, 0.6);
-
   ctx.restore();
 }
 
-function drawTorso(pose, c){
-  const feat = c.features || {};
-
-  if(feat.kimono){
-    // Kenshin's black kimono with gold trim
-    // Hakama (wide flared trousers)
-    ctx.fillStyle = c.pants;
-    ctx.beginPath();
-    ctx.moveTo(-15, -52);
-    ctx.lineTo(-19, -22);
-    ctx.lineTo(19, -22);
-    ctx.lineTo(15, -52);
-    ctx.closePath(); ctx.fill();
-    // Pleats
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 0.6;
-    for(let i = 0; i < 3; i++){
-      ctx.beginPath();
-      ctx.moveTo(-10 + i*10, -52);
-      ctx.lineTo(-12 + i*12, -22);
-      ctx.stroke();
-    }
-    // Obi (black belt)
-    ctx.fillStyle = c.belt || '#1a1a28';
-    roundRect(-18, -58, 36, 8, 1); ctx.fill();
-    // Gold trim on obi
-    ctx.fillStyle = c.topAccent || '#daa520';
-    ctx.fillRect(-18, -58, 36, 1.4);
-    ctx.fillRect(-18, -51.5, 36, 1.4);
-    // Kimono top (outer robe)
-    ctx.fillStyle = c.top;
-    ctx.beginPath();
-    ctx.moveTo(-19, -98);
-    ctx.bezierCurveTo(-21, -84, -21, -68, -19, -58);
-    ctx.lineTo(19, -58);
-    ctx.bezierCurveTo(21, -68, 21, -84, 19, -98);
-    ctx.closePath(); ctx.fill();
-    // V-neck lapel (right over left)
-    ctx.beginPath();
-    ctx.moveTo(19, -98);
-    ctx.lineTo(6, -84);
-    ctx.lineTo(2, -58);
-    ctx.lineTo(17, -58);
-    ctx.closePath(); ctx.fill();
-    // Gold trim along V-neck
-    ctx.strokeStyle = c.topAccent || '#daa520';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(19, -98);
-    ctx.lineTo(6, -84);
-    ctx.lineTo(2, -58);
-    ctx.stroke();
-    // Gold trim along robe back edge
-    ctx.beginPath();
-    ctx.moveTo(-19, -98);
-    ctx.lineTo(-21, -58);
-    ctx.stroke();
-    // Decorative gold swirl on side
-    ctx.strokeStyle = c.topAccent || '#daa520';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.arc(-6, -78, 2.5, 0, Math.PI*1.5);
-    ctx.stroke();
-    ctx.fillStyle = c.topAccent || '#daa520';
-    ctx.beginPath(); ctx.arc(-6, -78, 0.8, 0, Math.PI*2); ctx.fill();
-    return;
+// ─── HUD update ───────────────────────────────────────────
+function updateHUD(){
+  const names = ['n1','n2','n3'], bars = ['b1','b2','b3'], nums = ['hp1','hp2','hp3'];
+  const box3 = document.getElementById('box3');
+  box3.style.display = mode === '1v1v1' ? '' : 'none';
+  for(let i = 0; i < fighters.length; i++){
+    const f = fighters[i];
+    document.getElementById(names[i]).textContent = f.name;
+    const pct = (f.hp / f.maxHp) * 100;
+    const bar = document.getElementById(bars[i]);
+    bar.style.width = pct + '%';
+    bar.className = 'bar ' + (pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low');
+    document.getElementById(nums[i]).textContent = f.hp + ' / ' + f.maxHp;
   }
+}
 
-  // Pants/shorts
-  ctx.fillStyle=c.pants;
-  roundRect(-15, -52, 30, 28, 5); ctx.fill();
-  // Top (jacket)
-  ctx.fillStyle=c.top;
-  roundRect(-18, -98, 36, 50, 8); ctx.fill();
-
-  if(feat.shoulderPatches){
-    // Black shoulder patches (Naruto's jacket)
-    ctx.fillStyle = c.topDark || '#000';
-    roundRect(-18, -98, 10, 18, 5); ctx.fill();
-    roundRect(8, -98, 10, 18, 5); ctx.fill();
-    // Black collar
-    ctx.fillStyle = c.topDark || '#000';
-    roundRect(-14, -98, 28, 7, 3); ctx.fill();
-    // Orange zipper stripe down the middle
-    ctx.fillStyle = c.topAccent || '#fb923c';
-    ctx.fillRect(-1, -90, 2, 38);
-    // Two small zipper dots
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-2, -78, 4, 2);
-    ctx.fillRect(-2, -68, 4, 2);
-    ctx.fillRect(-2, -58, 4, 2);
+// ─── Win screen ───────────────────────────────────────────
+function showWinScreen(winner){
+  const ov = document.getElementById('winOv');
+  const txt = document.getElementById('winText');
+  const sub = document.getElementById('winSub');
+  if(!winner){
+    txt.textContent = 'DRAW';
+    txt.className = 'winbanner draw';
+    sub.textContent = 'Everyone fell.';
   } else {
-    // Default accent stripe
-    ctx.fillStyle=c.accent;
-    ctx.fillRect(-18, -76, 36, 4);
+    const isPlayer = winner === fighters[0];
+    txt.textContent = isPlayer ? 'VICTORY' : 'KO';
+    txt.className = 'winbanner p' + (winner.id + 1);
+    sub.textContent = isPlayer ? 'You crushed them.' : winner.name + ' wins.';
   }
-  // Belt
-  ctx.fillStyle = c.belt || '#0f172a';
-  ctx.fillRect(-18, -52, 36, 5);
-  if(!feat.shoulderPatches){
-    ctx.fillStyle=c.accent;
-    ctx.fillRect(-3, -52, 6, 5);
-  }
+  ov.classList.remove('hidden');
 }
 
-function drawHead(pose, c){
-  const feat = c.features || {};
-  const tilt = pose.headTilt||0;
-  ctx.save();
-  ctx.translate(0,-108);
-  ctx.rotate(tilt);
-
-  // Skin (head)
-  ctx.fillStyle=c.skin;
-  ctx.beginPath(); ctx.arc(0,0,14,0,Math.PI*2); ctx.fill();
-
-  // Hair
-  ctx.fillStyle=c.hair;
-  if(feat.hairStyle === 'longFlow'){
-    // Long silver hair flowing back (animated wind effect)
-    const wave = Math.sin(frame*0.07)*1.5;
-    ctx.fillStyle = c.hair;
-    // Main back hair (extends behind/below the head, draped down)
-    ctx.beginPath();
-    ctx.moveTo(-14, -2);
-    ctx.bezierCurveTo(-20, -6, -24, 4, -24+wave*0.4, 16);
-    ctx.bezierCurveTo(-26+wave, 28, -22+wave, 42, -16, 46+wave*0.6);
-    ctx.lineTo(-12, 44);
-    ctx.bezierCurveTo(-16, 30, -16, 18, -12, 6);
-    ctx.bezierCurveTo(-11, 0, -12, -4, -14, -2);
-    ctx.closePath();
-    ctx.fill();
-    // Top crown / bangs over forehead
-    ctx.beginPath();
-    ctx.moveTo(-14, -2);
-    ctx.bezierCurveTo(-14, -16, 10, -18, 14, -8);
-    ctx.lineTo(14, -2);
-    ctx.bezierCurveTo(10, -6, 4, -6, -2, -4);
-    ctx.bezierCurveTo(-8, -3, -12, -3, -14, -2);
-    ctx.closePath();
-    ctx.fill();
-    // Strand falling in front of eye
-    ctx.beginPath();
-    ctx.moveTo(8, -5);
-    ctx.bezierCurveTo(14, -2, 13, 4, 9, 6);
-    ctx.lineTo(7, 4);
-    ctx.bezierCurveTo(11, 0, 10, -2, 8, -4);
-    ctx.closePath();
-    ctx.fill();
-    // Darker tips
-    ctx.fillStyle = c.hairTip || 'rgba(100,100,120,0.5)';
-    ctx.beginPath();
-    ctx.moveTo(-24+wave*0.4, 16);
-    ctx.bezierCurveTo(-26+wave, 28, -22+wave, 42, -16, 46+wave*0.6);
-    ctx.lineTo(-12, 44);
-    ctx.bezierCurveTo(-18, 36, -22, 24, -22+wave*0.4, 18);
-    ctx.closePath();
-    ctx.fill();
-  } else if(feat.hairStyle === 'spiky'){
-    // Spiky Naruto hair — multiple zigzag points
-    ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    const spikes = [
-      [-13,-9], [-10,-3], [-7,-15], [-3,-5],
-      [0,-18], [4,-5], [7,-16], [10,-3],
-      [13,-9], [14, 0]
-    ];
-    for(const [x,y] of spikes) ctx.lineTo(x,y);
-    ctx.quadraticCurveTo(0, -3, -14, 0);
-    ctx.closePath();
-    ctx.fill();
-    // Inner shadow at base
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.quadraticCurveTo(0, -5, 14, 0);
-    ctx.quadraticCurveTo(0, -1, -14, 0);
-    ctx.fill();
-    // A few darker hair tips
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.beginPath();
-    ctx.moveTo(-7,-15); ctx.lineTo(-6,-9); ctx.lineTo(-4,-13); ctx.closePath(); ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(7,-16); ctx.lineTo(6,-10); ctx.lineTo(4,-14); ctx.closePath(); ctx.fill();
-  } else {
-    // Default sweep hair
-    ctx.beginPath();
-    ctx.moveTo(-14,-2);
-    ctx.quadraticCurveTo(-16,-18, 4,-15);
-    ctx.quadraticCurveTo(16,-14, 14,2);
-    ctx.lineTo(14,-4);
-    ctx.quadraticCurveTo(8,-12, -2,-10);
-    ctx.quadraticCurveTo(-12,-8, -14,-2);
-    ctx.fill();
-  }
-
-  // Headband (Naruto's blue forehead protector with metal plate)
-  if(feat.hasHeadband){
-    ctx.fillStyle = c.headband || '#1e40af';
-    ctx.fillRect(-14, -7, 28, 4);
-    ctx.fillStyle = c.plate || '#c0c5d0';
-    ctx.fillRect(-9, -7, 18, 4);
-    // Plate shading
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(-9, -4, 18, 1);
-    // Leaf symbol (simplified swirl)
-    ctx.strokeStyle = '#3d2817';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.arc(0, -5, 1.6, -0.5, Math.PI*1.4);
-    ctx.stroke();
-    // Headband side ties
-    ctx.fillStyle = c.headband || '#1e40af';
-    ctx.fillRect(-14, -3, 3, 5);
-    ctx.fillRect(11, -3, 3, 5);
-  }
-
-  // Eye (single, in profile)
-  if(feat.profileEye){
-    if(feat.glowingEye){
-      // Outer glow
-      ctx.save();
-      ctx.shadowBlur = 12;
-      ctx.shadowColor = c.eyeGlow || '#60a5fa';
-      ctx.fillStyle = 'rgba(96,165,250,0.5)';
-      ctx.beginPath(); ctx.arc(4, 1, 3.5, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.fillStyle = c.eyeWhite || '#fff';
-    ctx.beginPath(); ctx.ellipse(4, 1, 2.6, 2.8, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = c.eyeIris || '#1d4ed8';
-    ctx.beginPath(); ctx.arc(4.4, 1.2, 1.7, 0, Math.PI*2); ctx.fill();
-    if(feat.glowingEye){
-      // Inner glow ring
-      ctx.save();
-      ctx.shadowBlur = 6;
-      ctx.shadowColor = c.eyeGlow || '#60a5fa';
-      ctx.fillStyle = c.eyeGlow || '#60a5fa';
-      ctx.beginPath(); ctx.arc(4.4, 1.2, 1.2, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.arc(5, 1.2, 0.6, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(5.3, 0.5, 0.45, 0, Math.PI*2); ctx.fill();
-    // Eyebrow above (use hairTip for silver hair, hair color otherwise)
-    ctx.fillStyle = c.hairTip || c.hair;
-    ctx.fillRect(1, -3, 7, 1.4);
-  } else {
-    ctx.fillStyle='#0f172a';
-    ctx.fillRect(3, -1, 3, 4);
-  }
-
-  // Whiskers — profile = visible cheek only
-  if(feat.whiskers){
-    ctx.strokeStyle = c.whisker || '#3d2817';
-    ctx.lineWidth = 0.8;
-    const sides = feat.whiskers === 'profile' ? [1] : [-1, 1];
-    for(const sd of sides){
-      for(let i = -1; i <= 1; i++){
-        const y = 5 + i * 2;
-        ctx.beginPath();
-        ctx.moveTo(sd*6, y); ctx.lineTo(sd*11, y);
-        ctx.stroke();
-      }
-    }
-  }
-
-  // Mouth
-  if(feat.mouth === 'grin'){
-    // Big toothy grin
-    ctx.strokeStyle = '#3d1c0a';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.arc(0, 6, 5, 0.15, Math.PI - 0.15);
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.beginPath();
-    ctx.ellipse(0, 7, 4, 1.6, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.15)';
-    ctx.fillRect(-3, 8.2, 6, 0.6);
-  } else if(feat.mouth === 'stoic'){
-    // Stoic samurai — thin horizontal line, side view
-    ctx.strokeStyle = '#3d2817';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(2, 6.5); ctx.lineTo(7, 6.5);
-    ctx.stroke();
-  } else {
-    ctx.fillStyle='#7c2d12';
-    ctx.fillRect(1, 6, 6, 1.5);
-  }
-
-  ctx.restore();
+function restartMatch(){
+  document.getElementById('winOv').classList.add('hidden');
+  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
+  buildScene();
+  gameState = 'fight';
 }
 
-function drawArm(arm, top, skin, behind){
-  // arm: {sx,sy, ex,ey, fx,fy}  -- shoulder/elbow/fist
-  ctx.lineCap='round';
-  ctx.strokeStyle=top; ctx.lineWidth=behind?8:9;
-  ctx.beginPath(); ctx.moveTo(arm.sx,arm.sy); ctx.lineTo(arm.ex,arm.ey); ctx.stroke();
-  // Forearm (skin)
-  ctx.strokeStyle=skin; ctx.lineWidth=behind?7:8;
-  ctx.beginPath(); ctx.moveTo(arm.ex,arm.ey); ctx.lineTo(arm.fx,arm.fy); ctx.stroke();
-  // Fist
-  ctx.fillStyle=skin;
-  ctx.beginPath(); ctx.arc(arm.fx,arm.fy, behind?5:6, 0, Math.PI*2); ctx.fill();
-}
-
-function drawLeg(leg, pants, skin, behind){
-  ctx.lineCap='round';
-  ctx.strokeStyle=pants; ctx.lineWidth=behind?10:11;
-  ctx.beginPath(); ctx.moveTo(leg.hx,leg.hy); ctx.lineTo(leg.kx,leg.ky); ctx.stroke();
-  // Shin
-  ctx.strokeStyle=skin; ctx.lineWidth=behind?8:9;
-  ctx.beginPath(); ctx.moveTo(leg.kx,leg.ky); ctx.lineTo(leg.fx,leg.fy); ctx.stroke();
-  // Shoe
-  ctx.fillStyle='#0f172a';
-  ctx.beginPath();
-  ctx.ellipse(leg.fx+3, leg.fy+1, 9, 4, 0, 0, Math.PI*2);
-  ctx.fill();
-}
-
-// ── Pose generator ─────────────────────────────────────────────
-function computePose(f){
-  // Defaults (facing right; will be flipped by canvas)
-  const breath = Math.sin(frame*0.05 + (f.isPlayer?0:1))*0.6;
-  let armNear={sx:6,sy:-92, ex:14,ey:-72, fx:18,fy:-52};
-  let armFar ={sx:-6,sy:-92, ex:-12,ey:-72, fx:-14,fy:-52};
-  let legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
-  let legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
-  let fistX=0, fistY=0, headTilt=0;
-
-  const s = f.state, st = f.sTime;
-
-  if(s==='idle'){
-    armNear.fy += breath; armFar.fy += breath;
-  }
-  if(s==='walk'){
-    const wp = f.walkPhase;
-    legNear.ky = -26 + Math.sin(wp)*4;
-    legNear.fx = 9 + Math.sin(wp)*6; legNear.fy = -2 - Math.max(0,Math.sin(wp))*4;
-    legFar.ky = -26 + Math.sin(wp+Math.PI)*4;
-    legFar.fx = -9 + Math.sin(wp+Math.PI)*6; legFar.fy = -2 - Math.max(0,Math.sin(wp+Math.PI))*4;
-    armNear.fy = -52 + Math.sin(wp+Math.PI)*5;
-    armFar.fy = -52 + Math.sin(wp)*5;
-  }
-  if(s==='jump'){
-    legNear={hx:6,hy:-50, kx:14,ky:-32, fx:18,fy:-22};
-    legFar ={hx:-6,hy:-50, kx:-2,ky:-30, fx:5,fy:-18};
-    armNear={sx:6,sy:-92, ex:20,ey:-88, fx:30,fy:-78};
-    armFar ={sx:-6,sy:-92, ex:-20,ey:-88, fx:-28,fy:-78};
-  }
-  if(s==='crouch'||s==='block'){
-    legNear={hx:8,hy:-30, kx:18,ky:-15, fx:14,fy:-2};
-    legFar ={hx:-8,hy:-30, kx:-12,ky:-15, fx:-9,fy:-2};
-    armNear={sx:8,sy:-72, ex:18,ey:-58, fx:24,fy:-44};
-    armFar ={sx:-2,sy:-72, ex:8,ey:-62, fx:18,fy:-48};
-    if(s==='block'){
-      armNear={sx:8,sy:-80, ex:22,ey:-72, fx:26,fy:-58};
-      armFar ={sx:-4,sy:-80, ex:10,ey:-72, fx:22,fy:-60};
-    }
-  }
-  if(s==='punch'){
-    // Two-handed sword strike: raise overhead, then slash down
-    const mv=MOVES.punch;
-    const t = Math.min(1, st / mv.dur);
-    let gripX, gripY, headT;
-    if(t < 0.35){
-      // Wind-up — both hands rise to overhead position
-      const p = t / 0.35;
-      gripX = 4 + p*4;
-      gripY = -78 - p*42;       // up to ~-120
-      headT = -0.12 * p;
-    } else if(t < 0.7){
-      // Slash arc — hands sweep down and forward
-      const p = (t - 0.35) / 0.35;
-      const ease2 = p<0.5 ? 2*p*p : 1 - Math.pow(-2*p+2,2)/2;
-      gripX = 8 + ease2*18;
-      gripY = -120 + ease2*70;
-      headT = -0.12 + ease2*0.18;
-    } else {
-      // Recover
-      const p = (t - 0.7) / 0.3;
-      gripX = 26 - p*12;
-      gripY = -50 - p*10;
-      headT = 0.06 - p*0.08;
-    }
-    // Both arms reach the grip together (two-handed)
-    armNear = {sx:6, sy:-92, ex:6+ (gripX-6)*0.5, ey:-86 + (gripY-(-86))*0.4, fx:gripX, fy:gripY};
-    armFar  = {sx:-6, sy:-92, ex:-2+ (gripX-(-2))*0.5, ey:-86 + (gripY-(-86))*0.4, fx:gripX-3, fy:gripY+3};
-    fistX = gripX; fistY = gripY;
-    headTilt = headT;
-  }
-  if(s==='kick'){
-    // High snap kick — leg extends forward; arms balanced on body
-    const mv=MOVES.kick;
-    const t = phaseT(st, mv);
-    const extend = ease(t);
-    legNear={hx:6,hy:-50, kx:18+extend*20,ky:-50-extend*15, fx:30+extend*50,fy:-50-extend*10};
-    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
-    // Arms tucked behind/to the side — sword is on the back, NOT in the hand
-    armNear={sx:6, sy:-92, ex:-2, ey:-78, fx:-14, fy:-66};
-    armFar ={sx:-6,sy:-92, ex:-14,ey:-82, fx:-22,fy:-72};
-    fistX=legNear.fx; fistY=legNear.fy;
-    headTilt = -0.06;
-  }
-  if(s==='special'){
-    const mv=MOVES.special;
-    const t = phaseT(st, mv);
-    const extend = ease(t);
-    armNear={sx:6,sy:-92, ex:14+extend*26, ey:-100-extend*20, fx:30+extend*60, fy:-110-extend*30};
-    armFar ={sx:-6,sy:-92, ex:-2+extend*8, ey:-100-extend*20, fx:18+extend*40, fy:-115-extend*25};
-    legNear={hx:6,hy:-50, kx:12,ky:-28, fx:18,fy:-2};
-    legFar ={hx:-6,hy:-50, kx:-14,ky:-26, fx:-22,fy:-2};
-    fistX=armNear.fx; fistY=armNear.fy;
-    headTilt = 0.08;
-  }
-  if(s==='rasenganCast'){
-    // Hands come together at chest, brief PUSH forward (no full arm extension)
-    // Phase: 0..1 wind-up (clap), 1..2 push out, then settle
-    const total = MOVES.rasenganCast.dur;
-    const phase = st / total;
-    // Wind-up: hands meet near chest
-    // Push: brief forward push of palms
-    let push = 0;
-    if(phase < 0.35){
-      const t = phase/0.35; push = 0;
-    } else if(phase < 0.6){
-      const t = (phase-0.35)/0.25; push = ease(t) * 1;
-    } else {
-      const t = (phase-0.6)/0.4; push = 1 - ease(t)*0.5;
-    }
-    const fwd = push * 14;
-    // Both arms in close, hands together (no extension)
-    armNear={sx:6,sy:-92, ex:6, ey:-74, fx:14+fwd, fy:-66};
-    armFar ={sx:-6,sy:-92, ex:-2, ey:-74, fx:10+fwd, fy:-68};
-    legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
-    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
-    fistX = (armNear.fx + armFar.fx)/2;
-    fistY = (armNear.fy + armFar.fy)/2;
-    headTilt = 0.04;
-  }
-  if(s==='cloneCast'){
-    // Hand-seal pose: both hands raised together in front of chest
-    const t = Math.min(1, st/16);
-    const lift = ease(t);
-    armNear={sx:6,sy:-92, ex:4, ey:-86, fx:6, fy:-76 - lift*4};
-    armFar ={sx:-6,sy:-92, ex:-4, ey:-86, fx:-2, fy:-76 - lift*4};
-    legNear={hx:6,hy:-50, kx:8,ky:-26, fx:9,fy:-2};
-    legFar ={hx:-6,hy:-50, kx:-8,ky:-26, fx:-9,fy:-2};
-    fistX = 0; fistY = -76;
-    headTilt = -0.03;
-  }
-  if(s==='hit'){
-    const t = Math.min(1, st/14);
-    armNear={sx:6,sy:-92, ex:-2,ey:-78, fx:-18,fy:-58};
-    armFar ={sx:-6,sy:-92, ex:-22,ey:-86, fx:-30,fy:-72};
-    headTilt = -0.18 + t*0.1;
-  }
-  if(s==='ko'){
-    // Lying down
-    const t = Math.min(1, st/40);
-    const rot = t * (Math.PI/2 - 0.08);
-    ctx.rotate(rot);
-    legNear={hx:6,hy:-50, kx:14,ky:-28, fx:22,fy:-6};
-    legFar ={hx:-6,hy:-50, kx:-14,ky:-30, fx:-22,fy:-8};
-    armNear={sx:6,sy:-92, ex:18,ey:-80, fx:28,fy:-66};
-    armFar ={sx:-6,sy:-92, ex:-18,ey:-80, fx:-28,fy:-66};
-    headTilt = 0.3;
-  }
-  return {armNear,armFar,legNear,legFar,fistX,fistY,headTilt};
-}
-function phaseT(st, mv){return Math.min(1, Math.max(0, (st-mv.active[0]+3)/(mv.active[1]-mv.active[0]+3)))}
-function ease(t){return t<.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2}
-
-// ── Sparks / numbers update + draw ─────────────────────────────
-function updateFx(){
-  for(const p of hitSparks){
-    if(p.star){ p.life -= 0.06; continue }
-    p.x += p.vx; p.y += p.vy; p.vy += 0.25;
-    p.life -= 0.045;
-  }
-  hitSparks = hitSparks.filter(p=>p.life>0);
-  for(const d of damageNums){ d.y += d.vy; d.vy *= 0.94; d.life -= 0.018 }
-  damageNums = damageNums.filter(d=>d.life>0);
-}
-function drawFx(){
-  for(const p of hitSparks){
-    ctx.globalAlpha = Math.max(0, p.life);
-    if(p.star){
-      // Burst rings
-      ctx.strokeStyle=p.col; ctx.lineWidth=3;
-      ctx.shadowBlur=18; ctx.shadowColor=p.col;
-      const sz = p.r*(1.2-p.life);
-      // Cross
-      if(!p.ringOnly){
-        ctx.beginPath();
-        for(let k=0;k<6;k++){
-          const a = k*Math.PI/3;
-          ctx.moveTo(p.x,p.y);
-          ctx.lineTo(p.x+Math.cos(a)*sz, p.y+Math.sin(a)*sz);
-        }
-        ctx.stroke();
-      }
-      // Ring
-      ctx.beginPath(); ctx.arc(p.x,p.y, sz*0.85, 0, Math.PI*2); ctx.stroke();
-      ctx.shadowBlur=0;
-    } else {
-      ctx.fillStyle=p.col;
-      ctx.shadowBlur=8; ctx.shadowColor=p.col;
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
-      ctx.shadowBlur=0;
-    }
-  }
-  ctx.globalAlpha=1;
-
-  for(const d of damageNums){
-    ctx.globalAlpha = Math.max(0, d.life);
-    ctx.font='bold 26px Impact, system-ui';
-    ctx.textAlign='center';
-    ctx.fillStyle='#000'; ctx.fillText(d.txt, d.x+2, d.y+2);
-    ctx.fillStyle=d.col; ctx.fillText(d.txt, d.x, d.y);
-  }
-  ctx.globalAlpha=1;
-}
-
-// ── HUD ────────────────────────────────────────────────────────
-function drawHUD(){
-  // Top frame strip
-  const gd = ctx.createLinearGradient(0,0,0,80);
-  gd.addColorStop(0,'rgba(5,5,15,0.95)');
-  gd.addColorStop(1,'rgba(5,5,15,0.5)');
-  ctx.fillStyle=gd; ctx.fillRect(0,0,W,80);
-  ctx.strokeStyle='rgba(168,85,247,0.4)'; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(0,80); ctx.lineTo(W,80); ctx.stroke();
-
-  // Player HP (left, fills from right toward left for player2-mirror feel? Standard: P1 fills right-to-left losing)
-  drawHPBar(40, 24, 360, true, f1);
-  drawHPBar(W-40-360, 24, 360, false, f2);
-
-  // Names
-  ctx.font='bold 16px system-ui'; ctx.textAlign='left';
-  ctx.fillStyle=f1.c.glow;
-  ctx.fillText(f1.name, 40, 18);
-  ctx.textAlign='right';
-  ctx.fillStyle=f2.c.glow;
-  ctx.fillText(f2.name, W-40, 18);
-
-  // Round indicators (in center)
-  ctx.textAlign='center';
-  const wins = Math.ceil(totalRounds/2);
-  for(let i=0;i<wins;i++){
-    const x1 = W/2 - 30 + i*16;
-    const x2 = W/2 + 14 - i*16;
-    ctx.fillStyle = i<p1Wins ? f1.c.glow : 'rgba(255,255,255,0.15)';
-    ctx.beginPath(); ctx.arc(x1, 18, 5, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = i<p2Wins ? f2.c.glow : 'rgba(255,255,255,0.15)';
-    ctx.beginPath(); ctx.arc(x2, 18, 5, 0, Math.PI*2); ctx.fill();
-  }
-
-  // Round timer + round number
-  ctx.font='bold 36px Impact, system-ui';
-  ctx.fillStyle='rgba(0,0,0,0.6)';
-  ctx.fillText(Math.ceil(roundTimer), W/2+2, 60+2);
-  const tcol = roundTimer<10 ? '#f43f5e' : '#fbbf24';
-  ctx.fillStyle=tcol;
-  ctx.shadowBlur=12; ctx.shadowColor=tcol;
-  ctx.fillText(Math.ceil(roundTimer), W/2, 60);
-  ctx.shadowBlur=0;
-  ctx.font='bold 11px system-ui';
-  ctx.fillStyle='#94a3b8';
-  ctx.fillText(`ROUND ${round}`, W/2, 72);
-
-  // Bottom resource bars: CHAKRA (blue) + RAGE (red), stacked
-  drawMeter(40, H-30, 240, f1, true);
-  drawMeter(W-40-240, H-30, 240, f2, false);
-  drawRageBar(40, H-50, 240, f1, true);
-  drawRageBar(W-40-240, H-50, 240, f2, false);
-
-  // Combo indicators
-  if(f1.combo>1){
-    ctx.font='bold 28px Impact, system-ui';
-    ctx.textAlign='left';
-    ctx.fillStyle='#fff';
-    ctx.shadowBlur=14; ctx.shadowColor=f1.c.glow;
-    ctx.fillText(`${f1.combo} HITS!`, 50, 110);
-    ctx.shadowBlur=0;
-  }
-  if(f2.combo>1){
-    ctx.textAlign='right';
-    ctx.fillStyle='#fff';
-    ctx.shadowBlur=14; ctx.shadowColor=f2.c.glow;
-    ctx.fillText(`${f2.combo} HITS!`, W-50, 110);
-    ctx.shadowBlur=0;
-  }
-}
-
-function drawHPBar(x,y,w,leftAlign,f){
-  const h=14;
-  // Back plate
-  ctx.fillStyle='rgba(0,0,0,0.7)';
-  roundRect(x-2,y-2,w+4,h+4,4); ctx.fill();
-  // Background
-  ctx.fillStyle='rgba(255,255,255,0.05)';
-  roundRect(x,y,w,h,3); ctx.fill();
-  // Fill
-  const pct = f.hp / f.maxHp;
-  const fw = w*pct;
-  const fx = leftAlign ? x : x + (w - fw);
-  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
-  if(pct>0.5){grad.addColorStop(0,'#22c55e');grad.addColorStop(1,'#10b981')}
-  else if(pct>0.25){grad.addColorStop(0,'#fbbf24');grad.addColorStop(1,'#f97316')}
-  else{grad.addColorStop(0,'#f43f5e');grad.addColorStop(1,'#dc2626')}
-  ctx.fillStyle=grad;
-  roundRect(fx,y,fw,h,3); ctx.fill();
-  // Sheen
-  ctx.fillStyle='rgba(255,255,255,0.2)';
-  roundRect(fx, y+1, fw, 3, 2); ctx.fill();
-  // Border
-  ctx.strokeStyle=f.c.glow; ctx.lineWidth=1;
-  roundRect(x,y,w,h,3); ctx.stroke();
-}
-
-function drawMeter(x,y,w,f,leftAlign){
-  const h=10;
-  ctx.fillStyle='rgba(0,0,0,0.65)';
-  roundRect(x,y,w,h,3); ctx.fill();
-  const pct = Math.max(0, Math.min(1, f.meter / f.maxMeter));
-  const fw = w*pct;
-  const fx = leftAlign ? x : x+(w-fw);
-  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
-  // Blue chakra gradient
-  grad.addColorStop(0,'#1e3a8a');
-  grad.addColorStop(0.5,'#3b82f6');
-  grad.addColorStop(1,'#93c5fd');
-  ctx.fillStyle=grad;
-  roundRect(fx,y,fw,h,3); ctx.fill();
-  // Sheen
-  ctx.fillStyle='rgba(255,255,255,0.25)';
-  roundRect(fx, y+1, fw, 2.5, 1.5); ctx.fill();
-  // Label + value
-  ctx.fillStyle = '#93c5fd';
-  ctx.shadowBlur = 6; ctx.shadowColor = '#3b82f6';
-  ctx.font='bold 10px system-ui'; ctx.textAlign=leftAlign?'left':'right';
-  ctx.fillText(`ENERGY  ${Math.floor(f.meter)}/${f.maxMeter}`, leftAlign?x:x+w, y-3);
-  ctx.shadowBlur = 0;
-}
-
-function drawRageBar(x,y,w,f,leftAlign){
-  const h=8;
-  ctx.fillStyle='rgba(0,0,0,0.65)';
-  roundRect(x,y,w,h,3); ctx.fill();
-  const pct = Math.max(0, Math.min(1, (f.rage||0) / f.maxRage));
-  const fw = w*pct;
-  const fx = leftAlign ? x : x+(w-fw);
-  const grad = ctx.createLinearGradient(fx,y,fx+fw,y);
-  grad.addColorStop(0,'#7f1d1d');
-  grad.addColorStop(0.5,'#dc2626');
-  grad.addColorStop(1,'#fca5a5');
-  ctx.fillStyle=grad;
-  roundRect(fx,y,fw,h,3); ctx.fill();
-  // Sheen
-  ctx.fillStyle='rgba(255,255,255,0.22)';
-  roundRect(fx, y+1, fw, 2, 1.5); ctx.fill();
-  // Label
-  if(pct>=0.5){
-    ctx.shadowBlur = 8; ctx.shadowColor = '#dc2626';
-  }
-  ctx.fillStyle = pct>=0.5 ? '#fca5a5' : '#7f1d1d';
-  ctx.font='bold 9px system-ui'; ctx.textAlign=leftAlign?'left':'right';
-  ctx.fillText(`RAGE  ${Math.floor(f.rage||0)}/${f.maxRage}`, leftAlign?x:x+w, y-3);
-  ctx.shadowBlur = 0;
-}
-
-function roundRect(x,y,w,h,r){
-  ctx.beginPath();
-  if(ctx.roundRect)ctx.roundRect(x,y,w,h,r);
-  else{
-    ctx.moveTo(x+r,y);
-    ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-    ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-    ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-    ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
-  }
-}
-
-// ── Main loop ──────────────────────────────────────────────────
+// ─── Main loop ────────────────────────────────────────────
 function loop(){
-  requestAnimationFrame(loop);
-  frame++; bgTime+=0.01;
-
-  // Hitstop pause
-  if(hitstop>0){ hitstop--; drawAll(); resetPressed(); return; }
-
-  if(phase==='countdown'){
-    cdTimer--;
-    if(cdTimer<=0){phase='play';hideAllOv()}
-    else {
-      const sec = Math.ceil(cdTimer/60);
-      const el = document.getElementById('cd-num');
-      if(sec===0)el.textContent='FIGHT!'; else el.textContent=String(sec);
-      el.className = sec===0?'fight':'cd';
-    }
-  }
-
-  if(phase==='play'){
-    updateFighter(f1, f2);
-    updateFighter(f2, f1);
-    checkHits();
+  frame++;
+  if(gameState === 'fight'){
+    if(fighters[0]) updatePlayer(fighters[0]);
+    for(let i = 1; i < fighters.length; i++) updateAI(fighters[i]);
+    Engine.update(engine, 1000 / 60);
     updateProjectiles();
-    updateShadowClones();
-    updateSwords();
-    frameTimer++;
-    if(frameTimer>=60){frameTimer=0; roundTimer--;}
-    if(roundTimer<=0 && phase==='play'){
-      // Time over → higher HP wins
-      if(f1.hp>f2.hp){f2.ko=true; triggerKO(f1,f2)}
-      else if(f2.hp>f1.hp){f1.ko=true; triggerKO(f2,f1)}
-      else { // draw — both lose a chance, restart same round
-        showOv('ov-ko');
-        document.getElementById('rnd-msg').textContent='Time Up — Draw!';
-        phase='ko'; koTimer=120;
-      }
-    }
+    checkFalls();
+    updateHUD();
   }
-
-  if(phase==='ko'){
-    // continue physics so fallen body falls
-    if(f1)updateFighter(f1, f2||f1);
-    if(f2)updateFighter(f2, f1||f2);
-    koTimer--;
-    if(koTimer<=0) endRound();
+  // Particles decay regardless (looks better for the KO screen)
+  for(const pa of hitParticles){
+    pa.x += pa.vx; pa.y += pa.vy; pa.vy += 0.2; pa.life--;
   }
-
-  updateFx();
-  if(shake>0)shake*=0.86;
-  drawAll();
-  mpBroadcast();
-  mpUpdateIndicator();
-  resetPressed();
+  hitParticles = hitParticles.filter(pa => pa.life > 0);
+  draw();
+  requestAnimationFrame(loop);
 }
 
-function resetPressed(){ for(const k in PRESSED)PRESSED[k]=false }
+// ─── Menu wiring ──────────────────────────────────────────
+document.querySelectorAll('.modebtn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.modebtn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+  });
+});
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('menu').classList.add('hidden');
+  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
+  buildScene();
+  gameState = 'fight';
+});
 
-function drawAll(){
-  ctx.save();
-  if(shake>0.5){
-    ctx.translate((Math.random()-0.5)*shake, (Math.random()-0.5)*shake);
-  }
-  drawBg();
-  if(f1 && f2){
-    // Draw back-to-front (whoever is farther draws first)
-    if(f1.y < f2.y){ drawFighter(f1,f2); drawFighter(f2,f1); }
-    else{ drawFighter(f2,f1); drawFighter(f1,f2); }
-    drawShadowClones();
-    drawProjectiles();
-    drawSwords();
-    drawFx();
-    drawHUD();
-  }
-  ctx.restore();
-}
-
-// ── Projectile rendering ───────────────────────────────────────
-function drawProjectiles(){
-  for(const p of projectiles){
-    if(p.type === 'rasengan'){
-      // Blue-white swirling sphere
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      // Outer glow
-      const halo = ctx.createRadialGradient(0,0,2, 0,0, p.radius*1.8);
-      halo.addColorStop(0,'rgba(191,219,254,0.9)');
-      halo.addColorStop(0.5,'rgba(59,130,246,0.45)');
-      halo.addColorStop(1,'rgba(30,58,138,0)');
-      ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.arc(0,0, p.radius*1.8, 0, Math.PI*2); ctx.fill();
-      // Solid core
-      ctx.fillStyle = '#dbeafe';
-      ctx.beginPath(); ctx.arc(0,0, p.radius*0.6, 0, Math.PI*2); ctx.fill();
-      // Swirling spiral lines
-      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-      ctx.lineWidth = 2;
-      for(let i=0;i<3;i++){
-        const a0 = p.spin + i*(Math.PI*2/3);
-        ctx.beginPath();
-        for(let t=0; t<Math.PI*1.5; t+=0.2){
-          const r = p.radius * (1 - t/(Math.PI*3));
-          const x = Math.cos(a0+t)*r;
-          const y = Math.sin(a0+t)*r;
-          if(t===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-        }
-        ctx.stroke();
-      }
-      // Highlight dot
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(-3,-3, 2, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      // Trail
-      if(frame%2===0){
-        particles.push({x:p.x - p.vx*0.5, y:p.y, vx:0, vy:0, life:0.6,
-          col:'rgba(147,197,253,0.9)', r:p.radius*0.5});
-      }
-    } else if(p.type === 'rasenShuriken'){
-      // White 4-bladed shuriken
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.spin);
-      // Outer glow (windy)
-      const halo = ctx.createRadialGradient(0,0,2, 0,0, p.radius*1.7);
-      halo.addColorStop(0,'rgba(255,255,255,0.9)');
-      halo.addColorStop(0.6,'rgba(186,230,253,0.5)');
-      halo.addColorStop(1,'rgba(125,211,252,0)');
-      ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.arc(0,0, p.radius*1.7, 0, Math.PI*2); ctx.fill();
-      // 4 blades (windmill)
-      ctx.fillStyle = '#fff';
-      ctx.strokeStyle = '#bae6fd';
-      ctx.lineWidth = 1.5;
-      for(let b=0;b<4;b++){
-        ctx.save();
-        ctx.rotate(b * Math.PI/2);
-        ctx.beginPath();
-        ctx.moveTo(0,0);
-        ctx.lineTo(p.radius*0.6, -p.radius*0.25);
-        ctx.lineTo(p.radius*1.0, 0);
-        ctx.lineTo(p.radius*0.6, p.radius*0.25);
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
-        ctx.restore();
-      }
-      // Center hub (blue rasengan core)
-      ctx.fillStyle = '#3b82f6';
-      ctx.beginPath(); ctx.arc(0,0, p.radius*0.28, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = '#dbeafe';
-      ctx.beginPath(); ctx.arc(0,0, p.radius*0.18, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-      // Trail
-      if(frame%2===0){
-        particles.push({x:p.x - p.vx*0.6, y:p.y, vx:0, vy:0, life:0.5,
-          col:'rgba(255,255,255,0.8)', r:p.radius*0.4});
-      }
-    }
-  }
-}
-
-// ── Shadow clone rendering (orange Naruto silhouette) ──────────
-function drawShadowClones(){
-  for(const c of shadowClones){
-    const owner = c.owner;
-    const cl = owner.c;
-    ctx.save();
-    ctx.translate(c.x, c.y);
-    ctx.scale(c.dir, 1);
-    ctx.globalAlpha = 0.85;
-    // Body (jacket)
-    ctx.fillStyle = cl.top || '#f97316';
-    roundRect(-18, -98, 36, 50, 8); ctx.fill();
-    // Black shoulders
-    ctx.fillStyle = cl.topDark || '#000';
-    roundRect(-18, -98, 10, 18, 5); ctx.fill();
-    roundRect(8, -98, 10, 18, 5); ctx.fill();
-    // Pants
-    ctx.fillStyle = cl.pants || '#f97316';
-    roundRect(-15, -52, 30, 28, 5); ctx.fill();
-    // Head
-    ctx.fillStyle = cl.skin || '#e8b890';
-    ctx.beginPath(); ctx.arc(0, -108, 14, 0, Math.PI*2); ctx.fill();
-    // Spiky hair (simplified)
-    ctx.fillStyle = cl.hair || '#fbbf24';
-    ctx.beginPath();
-    ctx.moveTo(-14, -106);
-    ctx.lineTo(-10, -118); ctx.lineTo(-5, -110);
-    ctx.lineTo(0, -122); ctx.lineTo(5, -110);
-    ctx.lineTo(10, -118); ctx.lineTo(14, -106);
-    ctx.closePath(); ctx.fill();
-    // Headband
-    ctx.fillStyle = cl.headband || '#1e40af';
-    ctx.fillRect(-14, -115, 28, 4);
-    ctx.fillStyle = cl.plate || '#c0c5d0';
-    ctx.fillRect(-9, -115, 18, 4);
-    // Punching arm during attack window
-    if(c.state==='attack' && c.sTime>=4 && c.sTime<=14){
-      const ext = (c.sTime-4)/10;
-      ctx.fillStyle = cl.top;
-      roundRect(8, -90, 20+ext*30, 9, 4); ctx.fill();
-      ctx.fillStyle = '#000';
-      ctx.beginPath(); ctx.arc(30+ext*30, -85, 7, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-    ctx.globalAlpha = 1;
-    // Faint orange glow underneath
-    const g = ctx.createRadialGradient(c.x, c.y-50, 4, c.x, c.y-50, 80);
-    g.addColorStop(0,'rgba(249,115,22,0.18)');
-    g.addColorStop(1,'rgba(249,115,22,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(c.x, c.y-50, 80, 0, Math.PI*2); ctx.fill();
-  }
-}
-
-// ── Boot ───────────────────────────────────────────────────────
-ctx.fillStyle='#05050f'; ctx.fillRect(0,0,W,H);
-requestAnimationFrame(loop);
+loop();
 </script>
-<script src="_esc-back.js"></script>
 </body>
 </html>
