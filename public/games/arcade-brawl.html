@@ -157,12 +157,15 @@ const PART_DMG = {
 };
 
 // Weapons (base damage scaled by part multiplier on hit)
+// Damage tuned so a fight lasts ~30-60 seconds, not 3 seconds.
+// Rule of thumb: head shot should feel strong but not one-shot.
+// head 1.5× · torso 1.0× · legs 0.5-0.6× · arms 0.4×
 const WEAPONS = {
-  fist:    { label: 'Fist',    icon: '✊', base: 9,  reach: 46,  cool: 20, swing: 14, color: '#fef3c7' },
-  bat:     { label: 'Bat',     icon: '🏏', base: 22, reach: 76,  cool: 34, swing: 20, color: '#a16207' },
-  sword:   { label: 'Sword',   icon: '🗡️', base: 34, reach: 88,  cool: 36, swing: 22, color: '#e2e8f0' },
-  pistol:  { label: 'Pistol',  icon: '🔫', base: 26, reach: 480, cool: 24, swing: 10, color: '#334155', ranged: true, ammo: 8 },
-  grenade: { label: 'Grenade', icon: '💣', base: 60, reach: 0,   cool: 85, swing: 18, color: '#16a34a', throws: true, radius: 120, fuse: 90 },
+  fist:    { label: 'Fist',    icon: '✊', base: 5,  reach: 46,  cool: 16, swing: 14, color: '#fef3c7' },
+  bat:     { label: 'Bat',     icon: '🏏', base: 12, reach: 76,  cool: 30, swing: 20, color: '#a16207' },
+  sword:   { label: 'Sword',   icon: '🗡️', base: 18, reach: 88,  cool: 32, swing: 22, color: '#e2e8f0' },
+  pistol:  { label: 'Pistol',  icon: '🔫', base: 14, reach: 480, cool: 20, swing: 10, color: '#334155', ranged: true, ammo: 8 },
+  grenade: { label: 'Grenade', icon: '💣', base: 32, reach: 0,   cool: 85, swing: 18, color: '#16a34a', throws: true, radius: 120, fuse: 90 },
 };
 
 // Maps. Flat ground line plus optional floating platforms.
@@ -483,13 +486,13 @@ function updateAI(f){
     f.vy = -9; f.grounded = false; ai.wantJump = 60;
   }
 
-  // Attack when in reach
+  // Attack when in reach. Most windows result in a swing; a small
+  // human-feel miss chance keeps the AI from being unreactable.
   if(f.cooldown === 0 && f.attackPhase === 0){
     const inReach = spec.ranged ? dist < spec.reach : dist < spec.reach + 10;
     if(inReach){
-      // Human-feel reaction delay — AI occasionally misses an opening
-      if(Math.random() < 0.4){ doAttack(f, target.x, target.y); }
-      else { f.cooldown = 10; }
+      if(Math.random() < 0.85){ doAttack(f, target.x, target.y); }
+      else { f.cooldown = 6; }
     }
   }
 }
