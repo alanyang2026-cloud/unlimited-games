@@ -1058,7 +1058,9 @@ function startMatch(){
   gameState = 'fight';
 }
 function randomAIWeapon(){
-  const keys = Object.keys(WEAPONS);
+  // Match the player's picker — Fist is a fallback (pistol-out-of-ammo)
+  // but not something the AI should start the match holding.
+  const keys = Object.keys(WEAPONS).filter(k => k !== 'fist');
   return keys[Math.floor(Math.random() * keys.length)];
 }
 
