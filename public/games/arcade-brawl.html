@@ -839,22 +839,18 @@ function drawFighter(f){
   // Weapon in hand
   drawWeapon(s.armLoR.x, s.armLoR.y, f, s);
 
-  // Overhead HP bar — only for enemies (the player already has a
-  // bar in the HUD).
+  // Overhead HP bar — only for enemies (player uses the HUD).
+  // Sits just above the head so it's clearly "theirs" without
+  // floating awkwardly in empty sky.
   if(f.isAI){
-    const barW = 44, barH = 5;
+    const barW = 40, barH = 4;
     const barX = s.head.x - barW / 2;
-    const barY = s.head.y - 22;
+    const barY = s.head.y - 18;      // ~7px above the top of the head
     const pct = f.hp / f.maxHp;
     ctx.fillStyle = 'rgba(0,0,0,.6)';
     ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
     ctx.fillStyle = pct > 0.5 ? '#22c55e' : pct > 0.2 ? '#f59e0b' : '#ef4444';
     ctx.fillRect(barX, barY, barW * pct, barH);
-    // Tiny name tag so players can tell bots apart in 1v1v1
-    ctx.font = '600 10px system-ui';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = col.line;
-    ctx.fillText(f.name, s.head.x, barY - 3);
   }
 }
 
