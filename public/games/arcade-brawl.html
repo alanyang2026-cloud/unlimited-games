@@ -615,7 +615,7 @@ function killFighter(f){
 function fighterPartsHitboxes(f){
   const s = buildSkeleton(f);  // positions of head/torso/limbs
   return [
-    { name: 'head',      x: s.head.x,     y: s.head.y,     r: 12 },
+    { name: 'head',      x: s.head.x,     y: s.head.y,     r: 15 },
     { name: 'torso',     x: s.torso.cx,   y: s.torso.cy,   r: 16 },
     { name: 'upperArm',  x: s.armUpR.x,   y: s.armUpR.y,   r: 7 },
     { name: 'lowerArm',  x: s.armLoR.x,   y: s.armLoR.y,   r: 7 },
@@ -656,9 +656,11 @@ function buildSkeleton(f){
   const moveLean = moving ? Math.sign(f.vx) * 2 : 0;
 
   // Base points
-  const hipY = f.y - 50 + bob + crouch + idle * 0.2;
-  const torsoTop = hipY - 44;
-  const headY = torsoTop - 16;
+  // Chunkier proportions — user said the old 115px-tall rail was too
+  // thin and stretched. Pulls everything about 15% shorter and wider.
+  const hipY = f.y - 40 + bob + crouch + idle * 0.2;
+  const torsoTop = hipY - 36;                 // shorter torso (was 44)
+  const headY = torsoTop - 18;                // slightly larger head (bigger gap from torso top)
 
   const torso = {
     cx: f.x + hurtLean * 0.4 + moveLean * 0.5,
@@ -674,16 +676,18 @@ function buildSkeleton(f){
   // Legs — exaggerated swing during walking, knees tuck in-air
   const legSwing = inAir ? 0.25 : (moving ? walk * 0.55 : 0);
   const kneeRise = moving ? Math.max(0, walk) * 6 : 0;
-  const legUpL = { x: f.x - 4 - legSwing * 3, y: hipY + 14 - legSwing * 12 };
-  const legUpR = { x: f.x + 4 + legSwing * 3, y: hipY + 14 + legSwing * 12 };
-  const legLoL = { x: f.x - 4 + legSwing * 14, y: f.y - 2 - (inAir ? 14 : kneeRise * (walk > 0 ? 1 : 0)) };
-  const legLoR = { x: f.x + 4 - legSwing * 14, y: f.y - 2 - (inAir ? 8  : kneeRise * (walk < 0 ? 1 : 0)) };
+  // Wider stance (hip width 16 vs 8) gives the fighter a solid base
+  const legUpL = { x: f.x - 8 - legSwing * 3, y: hipY + 12 - legSwing * 12 };
+  const legUpR = { x: f.x + 8 + legSwing * 3, y: hipY + 12 + legSwing * 12 };
+  const legLoL = { x: f.x - 8 + legSwing * 14, y: f.y - 2 - (inAir ? 14 : kneeRise * (walk > 0 ? 1 : 0)) };
+  const legLoR = { x: f.x + 8 - legSwing * 14, y: f.y - 2 - (inAir ? 8  : kneeRise * (walk < 0 ? 1 : 0)) };
 
   // Arms — idle sway + walk counterswing + attack animation
   const idleArm = Math.sin(frame * 0.05 + f.id) * 0.1;
   const armSwing = -walk * 0.45 + idleArm;
-  const shoulderL = { x: torso.topX - 10, y: torso.topY + 4 };
-  const shoulderR = { x: torso.topX + 10, y: torso.topY + 4 };
+  // Wider shoulders & hips for a chunkier silhouette
+  const shoulderL = { x: torso.topX - 14, y: torso.topY + 4 };
+  const shoulderR = { x: torso.topX + 14, y: torso.topY + 4 };
 
   let armUpR = { x: shoulderR.x + armSwing * 10, y: shoulderR.y + 20 - Math.abs(armSwing) * 5 };
   let armLoR = { x: armUpR.x + armSwing * 14, y: armUpR.y + 20 };
@@ -803,7 +807,7 @@ function draw(){
 function drawFighter(f){
   const s = buildSkeleton(f);
   const col = f.color;
-  const limbW = 5;
+  const limbW = 7;                           // thicker bones (was 5)
   const hurtFlash = f.hurtPhase > 0 && Math.floor(f.hurtPhase / 3) % 2 === 0;
   const lineCol = hurtFlash ? '#fecaca' : col.line;
 
@@ -812,9 +816,9 @@ function drawFighter(f){
   ctx.beginPath(); ctx.ellipse(f.x, f.y + 6, 20, 5, 0, 0, Math.PI*2); ctx.fill();
 
   // Legs
-  stroke(s.torso.botX - 4, s.torso.botY, s.legUpL.x, s.legUpL.y, lineCol, limbW);
+  stroke(s.torso.botX - 8, s.torso.botY, s.legUpL.x, s.legUpL.y, lineCol, limbW);
   stroke(s.legUpL.x, s.legUpL.y, s.legLoL.x, s.legLoL.y, lineCol, limbW);
-  stroke(s.torso.botX + 4, s.torso.botY, s.legUpR.x, s.legUpR.y, lineCol, limbW);
+  stroke(s.torso.botX + 8, s.torso.botY, s.legUpR.x, s.legUpR.y, lineCol, limbW);
   stroke(s.legUpR.x, s.legUpR.y, s.legLoR.x, s.legLoR.y, lineCol, limbW);
 
   // Torso
@@ -828,13 +832,13 @@ function drawFighter(f){
   stroke(s.shoulderR.x, s.shoulderR.y, s.armUpR.x, s.armUpR.y, lineCol, limbW);
   stroke(s.armUpR.x, s.armUpR.y, s.armLoR.x, s.armLoR.y, lineCol, limbW);
 
-  // Head
+  // Head — slightly larger (14 vs 11) to match the chunkier body
   ctx.fillStyle = col.skin;
-  ctx.beginPath(); ctx.arc(s.head.x, s.head.y, 11, 0, Math.PI*2); ctx.fill();
-  ctx.strokeStyle = lineCol; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(s.head.x, s.head.y, 14, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = lineCol; ctx.lineWidth = 3; ctx.stroke();
   // Eye
   ctx.fillStyle = '#111';
-  ctx.beginPath(); ctx.arc(s.head.x + f.facing * 3, s.head.y - 1, 1.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s.head.x + f.facing * 4, s.head.y - 1, 2.2, 0, Math.PI*2); ctx.fill();
 
   // Weapon in hand
   drawWeapon(s.armLoR.x, s.armLoR.y, f, s);
