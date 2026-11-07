@@ -155,11 +155,11 @@ const PART_DMG = {
 // Rule of thumb: head shot should feel strong but not one-shot.
 // head 1.5× · torso 1.0× · legs 0.5-0.6× · arms 0.4×
 const WEAPONS = {
-  fist:    { label: 'Fist',    icon: '✊', base: 5,  reach: 46,  cool: 16, swing: 14, color: '#fef3c7' },
-  bat:     { label: 'Bat',     icon: '🏏', base: 12, reach: 76,  cool: 30, swing: 20, color: '#a16207' },
-  sword:   { label: 'Sword',   icon: '🗡️', base: 18, reach: 88,  cool: 32, swing: 22, color: '#e2e8f0' },
-  pistol:  { label: 'Pistol',  icon: '🔫', base: 14, reach: 480, cool: 20, swing: 10, color: '#334155', ranged: true, ammo: 8 },
-  grenade: { label: 'Grenade', icon: '💣', base: 32, reach: 0,   cool: 85, swing: 18, color: '#16a34a', throws: true, radius: 120, fuse: 90 },
+  fist:    { label: 'Fist',    icon: '✊', base: 5,  reach: 46,  cool: 22, swing: 20, color: '#fef3c7' },
+  bat:     { label: 'Bat',     icon: '🏏', base: 12, reach: 76,  cool: 34, swing: 26, color: '#a16207' },
+  sword:   { label: 'Sword',   icon: '🗡️', base: 18, reach: 88,  cool: 36, swing: 28, color: '#e2e8f0' },
+  pistol:  { label: 'Pistol',  icon: '🔫', base: 14, reach: 480, cool: 22, swing: 12, color: '#334155', ranged: true, ammo: 8 },
+  grenade: { label: 'Grenade', icon: '💣', base: 32, reach: 0,   cool: 85, swing: 22, color: '#16a34a', throws: true, radius: 120, fuse: 90 },
 };
 
 // Maps. Flat ground line plus optional floating platforms.
@@ -191,7 +191,8 @@ const MAPS = [
     ground: 470, kills: { xMin: 300, xMax: 660 },  // central pit
     groundColor: '#334155',
     // Two ground slabs flank a pit from x=300 to x=660
-    slabs: [{ x: 0, w: 300 }, { x: 660, w: 300 }],
+    // Narrower central pit — was 300+360gap+300, now 400+160gap+400
+    slabs: [{ x: 0, w: 400 }, { x: 560, w: 400 }],
     platforms: [{ x: 420, y: 340, w: 120 }],
   },
   { name: 'Rooftop',
@@ -221,7 +222,8 @@ const MAPS = [
     },
     ground: 470, kills: { xMin: 20, xMax: 940 },
     groundColor: '#78716c',
-    slabs: [{ x: 60, w: 240 }, { x: 360, w: 240 }, { x: 660, w: 240 }],
+    // Two bigger islands instead of three skinny ones — easier to not die
+    slabs: [{ x: 40, w: 380 }, { x: 540, w: 380 }],
     platforms: [],
   },
 ];
@@ -579,10 +581,11 @@ function checkMeleeHit(f){
 // ─── Hit / damage ─────────────────────────────────────────
 function applyHit(target, partName, base, source, knockDir){
   if(!target.alive) return;
+  if(target.hurtPhase > 10) return;      // i-frame: no re-hit for 10 frames
   const mul = PART_DMG[partName] || 1;
   const dmg = Math.max(1, Math.round(base * mul));
   target.hp = Math.max(0, target.hp - dmg);
-  target.hurtPhase = 12;
+  target.hurtPhase = 22;                 // 10f i-frames + ~12f flinch visual
   // Little knockback
   target.vx += knockDir * (1 + base / 20);
   target.vy -= 2;
@@ -648,8 +651,9 @@ function buildSkeleton(f){
   const crouch = windupT * 6 + settleT * 3;
 
   // Hurt: body leans AWAY from the hit, head jerks back further
-  const hurtFrac = f.hurtPhase / 12;
-  const hurtLean = f.hurtPhase > 0 ? -f.facing * hurtFrac * 7 : 0;
+  // (hurtPhase = 22 at impact → 10 remaining = i-frames only, no visual)
+  const hurtFrac = Math.max(0, (f.hurtPhase - 10) / 12);
+  const hurtLean = hurtFrac > 0 ? -f.facing * hurtFrac * 7 : 0;
   const hurtHead = hurtLean * 1.6;
 
   // Lean slightly INTO the walking direction — feels like momentum
@@ -840,6 +844,31 @@ function drawFighter(f){
   ctx.fillStyle = '#111';
   ctx.beginPath(); ctx.arc(s.head.x + f.facing * 4, s.head.y - 1, 2.2, 0, Math.PI*2); ctx.fill();
 
+  // Swing trail — a quick white arc behind the weapon during melee.
+  // Makes attacks unmistakable, especially the AI's.
+  if(f.attackPhase > 0){
+    const spec = WEAPONS[f.weapon];
+    if(!spec.ranged && !spec.throws){
+      const t = f.attackPhase / spec.swing;
+      // Trail is strongest during the sweet-spot of the swing
+      const alpha = Math.sin(t * Math.PI) * 0.55;
+      if(alpha > 0.05){
+        const cx = s.torso.cx + f.facing * 10;
+        const cy = s.torso.cy - 4;
+        const r  = spec.reach * 0.6;
+        const ang0 = -1.6 + Math.max(0, t - 0.1) * 3.0;
+        const ang1 = -1.6 + Math.min(1, t + 0.1) * 3.0;
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+        ctx.lineWidth = 6; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.arc(cx, cy, r,
+          f.facing > 0 ? ang0 : Math.PI - ang1,
+          f.facing > 0 ? ang1 : Math.PI - ang0);
+        ctx.stroke();
+      }
+    }
+  }
+
   // Weapon in hand
   drawWeapon(s.armLoR.x, s.armLoR.y, f, s);
 
@@ -1013,15 +1042,18 @@ document.querySelectorAll('.modebtn').forEach(b => {
 function startMatch(){
   document.getElementById('menu').classList.add('hidden');
   document.getElementById('winOv').classList.add('hidden');
-  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
+  // 1v1v1 needs a flat arena so three fighters aren't spawned in a pit.
+  // Pit maps (slab-based) are restricted to 1v1.
+  const pool = mode === '1v1v1' ? MAPS.filter(m => !m.slabs) : MAPS;
+  currentMap = pool[Math.floor(Math.random() * pool.length)];
   fighters = []; projectiles = []; particles = [];
   if(mode === '1v1'){
-    fighters.push(createFighter(220, 0, false, playerWeapon));
-    fighters.push(createFighter(740, 1, true, randomAIWeapon()));
+    fighters.push(createFighter(180, 0, false, playerWeapon));   // safe on both slab layouts
+    fighters.push(createFighter(780, 1, true, randomAIWeapon()));
   } else {
-    fighters.push(createFighter(180, 0, false, playerWeapon));
-    fighters.push(createFighter(500, 1, true, randomAIWeapon()));
-    fighters.push(createFighter(780, 2, true, randomAIWeapon()));
+    fighters.push(createFighter(160, 0, false, playerWeapon));
+    fighters.push(createFighter(480, 1, true, randomAIWeapon()));
+    fighters.push(createFighter(800, 2, true, randomAIWeapon()));
   }
   gameState = 'fight';
 }
