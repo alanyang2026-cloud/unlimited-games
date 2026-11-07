@@ -319,6 +319,11 @@ function update(){
     if(f.hurtPhase > 0) f.hurtPhase--;
     if(f.jumpCool > 0) f.jumpCool--;
 
+    // Run melee hit check during active swing frames (now part of
+    // physics update, so it fires every frame instead of being tied to
+    // the render pass — fixes "only the first swing dealt damage").
+    if(f.attackPhase > 0 && f.alive) checkMeleeHit(f);
+
     // End attack animation
     const swing = WEAPONS[f.weapon].swing;
     if(f.attackPhase > swing) f.attackPhase = 0;
@@ -493,6 +498,7 @@ function updateAI(f){
 function doAttack(f, aimX, aimY){
   const spec = WEAPONS[f.weapon];
   f.attackPhase = 1;
+  f.attackHit = false;        // reset: each swing gets one fresh hit
   f.cooldown = spec.cool;
 
   if(spec.ranged){
@@ -608,59 +614,102 @@ function fighterPartsHitboxes(f){
 // All in world coordinates. Pose depends on walk / attack / hurt phases.
 function buildSkeleton(f){
   const spec = WEAPONS[f.weapon];
-  const walk = Math.sin(f.walkPhase);      // -1..1
+  const walk = Math.sin(f.walkPhase);               // -1..1, leg cadence
+  const walk2 = Math.sin(f.walkPhase * 2);          // 2x speed, bob
+  const moving = Math.abs(f.vx) > 0.5;
   const inAir = !f.grounded;
-  // Base points: feet at y, hips 50 above
-  const hipY = f.y - 50;
-  const torsoTop = hipY - 50;
+
+  // Idle breathing — always on, subtle
+  const idle = Math.sin(frame * 0.05) * 1.4;
+  // Body bob during walk — hips rise & fall
+  const bob = moving ? Math.abs(walk) * -3 : 0;
+  // Attack windup crouch — fighter dips slightly before the swing
+  const windupT = f.attackPhase > 0 && f.attackPhase < 6 ? f.attackPhase / 6 : 0;
+  const settleT = f.attackPhase > spec.swing - 6 ? (spec.swing - f.attackPhase) / 6 : 0;
+  const crouch = windupT * 6 + settleT * 3;
+
+  // Hurt: body leans AWAY from the hit, head jerks back further
+  const hurtFrac = f.hurtPhase / 12;
+  const hurtLean = f.hurtPhase > 0 ? -f.facing * hurtFrac * 7 : 0;
+  const hurtHead = hurtLean * 1.6;
+
+  // Lean slightly INTO the walking direction — feels like momentum
+  const moveLean = moving ? Math.sign(f.vx) * 2 : 0;
+
+  // Base points
+  const hipY = f.y - 50 + bob + crouch + idle * 0.2;
+  const torsoTop = hipY - 44;
   const headY = torsoTop - 16;
 
-  // Hurt: slight body lean backward
-  const hurt = f.hurtPhase > 0 ? -f.facing * (f.hurtPhase / 12) * 6 : 0;
-
   const torso = {
-    cx: f.x + hurt * 0.3, cy: (hipY + torsoTop) / 2,
-    topX: f.x + hurt, topY: torsoTop,
+    cx: f.x + hurtLean * 0.4 + moveLean * 0.5,
+    cy: (hipY + torsoTop) / 2,
+    topX: f.x + hurtLean + moveLean, topY: torsoTop,
     botX: f.x, botY: hipY,
   };
-  const head = { x: torso.topX + hurt * 0.4, y: headY + hurt * 0.1 };
+  const head = {
+    x: torso.topX + hurtHead * 0.4,
+    y: headY + hurtHead * 0.15 - Math.abs(walk) * 0.8,  // head bob
+  };
 
-  // Legs — swing based on walk phase; hover knees-tucked when in air
-  const legSwing = inAir ? 0.2 : walk * 0.35;
-  const legUpL = { x: f.x - 4, y: hipY + 14 - legSwing * 10 };
-  const legUpR = { x: f.x + 4, y: hipY + 14 + legSwing * 10 };
-  const legLoL = { x: f.x - 4 + legSwing * 8,  y: f.y - 2 - (inAir ? 10 : 0) };
-  const legLoR = { x: f.x + 4 - legSwing * 8,  y: f.y - 2 - (inAir ? 6 : 0) };
+  // Legs — exaggerated swing during walking, knees tuck in-air
+  const legSwing = inAir ? 0.25 : (moving ? walk * 0.55 : 0);
+  const kneeRise = moving ? Math.max(0, walk) * 6 : 0;
+  const legUpL = { x: f.x - 4 - legSwing * 3, y: hipY + 14 - legSwing * 12 };
+  const legUpR = { x: f.x + 4 + legSwing * 3, y: hipY + 14 + legSwing * 12 };
+  const legLoL = { x: f.x - 4 + legSwing * 14, y: f.y - 2 - (inAir ? 14 : kneeRise * (walk > 0 ? 1 : 0)) };
+  const legLoR = { x: f.x + 4 - legSwing * 14, y: f.y - 2 - (inAir ? 8  : kneeRise * (walk < 0 ? 1 : 0)) };
 
-  // Arms — idle sway opposite legs; attack overrides with weapon swing arc
-  let armSwing = -walk * 0.3;
+  // Arms — idle sway + walk counterswing + attack animation
+  const idleArm = Math.sin(frame * 0.05 + f.id) * 0.1;
+  const armSwing = -walk * 0.45 + idleArm;
   const shoulderL = { x: torso.topX - 10, y: torso.topY + 4 };
   const shoulderR = { x: torso.topX + 10, y: torso.topY + 4 };
 
-  let armUpR = { x: shoulderR.x + armSwing * 6, y: shoulderR.y + 20 - Math.abs(armSwing) * 4 };
-  let armLoR = { x: armUpR.x + armSwing * 10, y: armUpR.y + 20 };
-  let armUpL = { x: shoulderL.x - armSwing * 6, y: shoulderL.y + 20 - Math.abs(armSwing) * 4 };
-  let armLoL = { x: armUpL.x - armSwing * 10, y: armUpL.y + 20 };
+  let armUpR = { x: shoulderR.x + armSwing * 10, y: shoulderR.y + 20 - Math.abs(armSwing) * 5 };
+  let armLoR = { x: armUpR.x + armSwing * 14, y: armUpR.y + 20 };
+  let armUpL = { x: shoulderL.x - armSwing * 10, y: shoulderL.y + 20 - Math.abs(armSwing) * 5 };
+  let armLoL = { x: armUpL.x - armSwing * 14, y: armUpL.y + 20 };
 
-  // Attack animation — right arm swings up→forward→down
-  let weaponAng = 0;            // visual angle for weapon
+  // Arms raised in air (cartoon jump pose)
+  if(inAir){
+    armUpR = { x: shoulderR.x + 6, y: shoulderR.y - 6 };
+    armLoR = { x: armUpR.x + 10, y: armUpR.y - 14 };
+    armUpL = { x: shoulderL.x - 6, y: shoulderL.y - 6 };
+    armLoL = { x: armUpL.x - 10, y: armUpL.y - 14 };
+  }
+
+  // Attack animation (right arm — the weapon-holding one)
+  let weaponAng = 0;
   if(f.attackPhase > 0){
-    const t = f.attackPhase / spec.swing;  // 0..1
+    const t = f.attackPhase / spec.swing;              // 0..1
+    const ease = Math.sin(t * Math.PI);                // 0 → 1 → 0, smooth
     if(spec.throws){
-      // Overhand throw
-      const a = -1.2 + t * 2.6;              // arm sweeps front→over head→forward
-      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 14, y: shoulderR.y + Math.sin(a) * 14 };
-      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.4) * 18, y: armUpR.y + Math.sin(a + 0.4) * 18 };
+      // Overhand throw: back → overhead → release forward
+      const a = -1.2 + t * 2.6;
+      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 16, y: shoulderR.y + Math.sin(a) * 16 };
+      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.5) * 20, y: armUpR.y + Math.sin(a + 0.5) * 20 };
+      // Other arm cocks back for balance
+      armUpL = { x: shoulderL.x - f.facing * 8, y: shoulderL.y + 4 };
+      armLoL = { x: armUpL.x - f.facing * 10, y: armUpL.y + 14 };
     } else if(spec.ranged){
-      // Pistol: aim forward
-      armUpR = { x: shoulderR.x + f.facing * 10, y: shoulderR.y + 6 };
-      armLoR = { x: armUpR.x + f.facing * 16, y: armUpR.y + 2 };
+      // Pistol: aim forward, free hand supports
+      armUpR = { x: shoulderR.x + f.facing * 12, y: shoulderR.y + 6 - ease * 2 };
+      armLoR = { x: armUpR.x + f.facing * 16, y: armUpR.y + 2 - ease * 3 };
+      armUpL = { x: shoulderL.x + f.facing * 2,  y: shoulderL.y + 10 };
+      armLoL = { x: armUpL.x + f.facing * 10, y: armUpL.y + 6 };
     } else {
-      // Melee swing: arc from above-head through forward
-      const a = -1.4 + t * 2.6;
-      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 14, y: shoulderR.y + Math.sin(a) * 14 };
-      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.3) * 20, y: armUpR.y + Math.sin(a + 0.3) * 20 };
+      // Melee: wide arc from above-behind → forward → below
+      const a = -1.6 + t * 3.0;
+      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 16, y: shoulderR.y + Math.sin(a) * 16 };
+      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.3) * 22, y: armUpR.y + Math.sin(a + 0.3) * 22 };
+      // Back arm cocks for torque
+      armUpL = { x: shoulderL.x - f.facing * 6 * ease, y: shoulderL.y + 12 };
+      armLoL = { x: armUpL.x - f.facing * 14 * ease, y: armUpL.y + 14 };
       weaponAng = a + 0.3;
+      // Forward lunge
+      torso.cx += f.facing * ease * 3;
+      torso.topX += f.facing * ease * 3;
     }
   }
 
@@ -695,17 +744,9 @@ function draw(){
   // Fighters (sorted: alive ones in front)
   const order = [...fighters].sort((a, b) => (a.alive?1:0) - (b.alive?1:0));
   for(const f of order){
-    if(f.alive){
-      drawFighter(f);
-      // Melee hit check — run while swinging (visual + damage frame)
-      if(f.attackPhase > 0){
-        f.attackHit = f.attackHit || false;
-        checkMeleeHit(f);
-        if(f.attackPhase === 1) f.attackHit = false;
-      }
-    } else if(f.rag){
-      drawRagdoll(f);
-    }
+    if(f.alive) drawFighter(f);
+    else if(f.rag) drawRagdoll(f);
+  }
   }
 
   // Projectiles
