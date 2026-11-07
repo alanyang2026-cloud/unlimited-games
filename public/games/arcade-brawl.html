@@ -93,16 +93,10 @@ canvas{display:block;border-radius:10px;border:2px solid #475569;background:#0f1
       <div class="barwrap"><div class="bar ok" id="b1" style="width:100%"></div></div>
       <div class="num" id="hp1">100</div>
     </div>
-    <div class="hpbox p2">
-      <div class="row"><span class="name" id="n2">Red Bot</span><span class="w" id="w2">FIST</span></div>
-      <div class="barwrap"><div class="bar ok" id="b2" style="width:100%"></div></div>
-      <div class="num" id="hp2">100</div>
-    </div>
-    <div class="hpbox p3" id="box3" style="display:none">
-      <div class="row"><span class="name" id="n3">Purple Bot</span><span class="w" id="w3">FIST</span></div>
-      <div class="barwrap"><div class="bar ok" id="b3" style="width:100%"></div></div>
-      <div class="num" id="hp3">100</div>
-    </div>
+    <!-- Enemy HP removed from the HUD by design — each opponent shows
+         its own green bar above its head instead. Keeps the HUD clean
+         and makes the HP bar a real game element. -->
+
   </div>
 
   <!-- Intro menu -->
@@ -844,6 +838,24 @@ function drawFighter(f){
 
   // Weapon in hand
   drawWeapon(s.armLoR.x, s.armLoR.y, f, s);
+
+  // Overhead HP bar — only for enemies (the player already has a
+  // bar in the HUD).
+  if(f.isAI){
+    const barW = 44, barH = 5;
+    const barX = s.head.x - barW / 2;
+    const barY = s.head.y - 22;
+    const pct = f.hp / f.maxHp;
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillRect(barX - 1, barY - 1, barW + 2, barH + 2);
+    ctx.fillStyle = pct > 0.5 ? '#22c55e' : pct > 0.2 ? '#f59e0b' : '#ef4444';
+    ctx.fillRect(barX, barY, barW * pct, barH);
+    // Tiny name tag so players can tell bots apart in 1v1v1
+    ctx.font = '600 10px system-ui';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = col.line;
+    ctx.fillText(f.name, s.head.x, barY - 3);
+  }
 }
 
 function stroke(x1, y1, x2, y2, color, width){
@@ -944,25 +956,29 @@ function spawnParticles(x, y, color, n){
 
 // ─── HUD ──────────────────────────────────────────────────
 function updateHUD(){
-  const names = ['n1','n2','n3'], bars = ['b1','b2','b3'], nums = ['hp1','hp2','hp3'], weps = ['w1','w2','w3'];
-  document.getElementById('box3').style.display = mode === '1v1v1' ? '' : 'none';
-  for(let i = 0; i < fighters.length; i++){
-    const f = fighters[i];
-    document.getElementById(names[i]).textContent = f.name;
-    document.getElementById(weps[i]).textContent = WEAPONS[f.weapon].icon + ' ' + WEAPONS[f.weapon].label.toUpperCase();
-    const pct = (f.hp / f.maxHp) * 100;
-    const bar = document.getElementById(bars[i]);
-    bar.style.width = pct + '%';
-    bar.className = 'bar ' + (pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low');
-    document.getElementById(nums[i]).textContent = f.hp + ' / ' + f.maxHp;
-  }
+  // Only the player's bar lives in the DOM HUD; enemies get their
+  // own overhead bars drawn on the canvas (see drawFighter).
+  const p = fighters[0];
+  if(!p) return;
+  document.getElementById('n1').textContent = p.name;
+  document.getElementById('w1').textContent =
+    WEAPONS[p.weapon].icon + ' ' + WEAPONS[p.weapon].label.toUpperCase();
+  const pct = (p.hp / p.maxHp) * 100;
+  const bar = document.getElementById('b1');
+  bar.style.width = pct + '%';
+  bar.className = 'bar ' + (pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low');
+  document.getElementById('hp1').textContent = p.hp + ' / ' + p.maxHp;
 }
 
 // ─── Menu / weapon select ─────────────────────────────────
 function renderWeaponButtons(){
   const container = document.getElementById('weps');
   container.innerHTML = '';
-  for(const kind of Object.keys(WEAPONS)){
+  // Fist stays as a fallback (e.g. after a pistol runs out of ammo)
+  // but it isn't offered as a starting pick — users felt it was too
+  // weak to choose intentionally.
+  const pickable = Object.keys(WEAPONS).filter(k => k !== 'fist');
+  for(const kind of pickable){
     const spec = WEAPONS[kind];
     const b = document.createElement('button');
     b.className = 'wepbtn';
