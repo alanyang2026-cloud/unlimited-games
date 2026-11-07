@@ -473,17 +473,39 @@ function updateAI(f){
   // Keep optimal distance for weapon
   const sweet = spec.ranged ? 240 : spec.reach * 0.75;
   const speed = 2.6;
-  if(dist > sweet + 30){
-    f.vx = Math.max(Math.min(f.vx + Math.sign(dx) * 0.4, speed), -speed);
-  } else if(dist < sweet - 30){
-    f.vx = Math.max(Math.min(f.vx - Math.sign(dx) * 0.4, speed), -speed);
+  const wantDir = dist > sweet + 30 ? Math.sign(dx)
+                  : dist < sweet - 30 ? -Math.sign(dx) : 0;
+
+  // SAFETY: refuse to step off solid ground into a pit OR into a
+  // kill-zone edge (Rooftop / Desert). Peek a couple of foot-lengths
+  // ahead; if the ground drops away or we'd cross the kill line,
+  // hold position — or jump if a safe landing exists past the gap.
+  const unsafeAt = (x) => groundYAt(x) > f.y + 40 || isInKillZone(x);
+  let willStep = wantDir;
+  if(wantDir !== 0 && f.grounded){
+    const peekX = f.x + wantDir * 30;
+    if(unsafeAt(peekX)){
+      const landingX = f.x + wantDir * 110;         // roughly a jump arc
+      const canJumpOver = !unsafeAt(landingX)
+        && Math.abs(target.x - landingX) < Math.abs(target.x - f.x);
+      if(canJumpOver && ai.wantJump <= 0){
+        f.vy = -10; f.grounded = false; ai.wantJump = 45;
+        f.vx = wantDir * speed;
+      } else {
+        willStep = 0;
+      }
+    }
+  }
+
+  if(willStep !== 0){
+    f.vx = Math.max(Math.min(f.vx + willStep * 0.4, speed), -speed);
   } else {
     f.vx *= 0.7;
   }
 
-  // Occasional jump
-  if(f.grounded && ai.wantJump-- <= 0 && Math.random() < 0.02){
-    f.vy = -9; f.grounded = false; ai.wantJump = 60;
+  // Occasional random jump (less frequent now that we jump on gaps)
+  if(f.grounded && ai.wantJump-- <= 0 && Math.random() < 0.008){
+    f.vy = -9; f.grounded = false; ai.wantJump = 80;
   }
 
   // Attack when in reach. Most windows result in a swing; a small
