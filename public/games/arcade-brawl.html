@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Arcade Brawl — Stickman Fight</title>
 <style>canvas{max-width:100vw!important;max-height:100vh!important;height:auto!important}body{overflow-x:hidden!important;overflow-y:auto}</style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:
@@ -22,12 +21,14 @@ canvas{display:block;border-radius:10px;border:2px solid #475569;background:#0f1
 
 .wrap{position:relative;max-width:100vw}
 
-/* HUD over canvas */
+/* HUD */
 .hud{position:absolute;top:12px;left:12px;right:12px;display:flex;justify-content:space-between;
   align-items:flex-start;gap:14px;pointer-events:none;z-index:5;font-family:system-ui}
 .hpbox{background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(6px);
   border-radius:10px;padding:8px 14px;min-width:170px}
-.hpbox .name{font-size:11px;letter-spacing:.15em;text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.hpbox .row{display:flex;justify-content:space-between;align-items:center;font-size:11px;letter-spacing:.15em;
+  text-transform:uppercase;font-weight:700;margin-bottom:4px}
+.hpbox .w{font-size:10px;color:#fbbf24;font-weight:900;letter-spacing:.1em}
 .hpbox .barwrap{height:12px;background:rgba(0,0,0,.4);border-radius:6px;overflow:hidden;
   border:1px solid rgba(255,255,255,.1)}
 .hpbox .bar{height:100%;transition:width .18s ease}
@@ -35,49 +36,48 @@ canvas{display:block;border-radius:10px;border:2px solid #475569;background:#0f1
 .hpbox .bar.mid {background:linear-gradient(90deg,#fbbf24,#ea580c)}
 .hpbox .bar.low {background:linear-gradient(90deg,#f87171,#991b1b);animation:lowP 0.5s ease-in-out infinite}
 @keyframes lowP{0%,100%{opacity:1}50%{opacity:.5}}
-.hpbox .num{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:15px;margin-top:3px}
+.hpbox .num{font-family:'JetBrains Mono',monospace;font-weight:900;font-size:14px;margin-top:3px}
 .hpbox.p1 .name{color:#60a5fa}
 .hpbox.p2 .name{color:#f87171}
 .hpbox.p3 .name{color:#a78bfa}
 
-/* Menu + overlay */
+/* Overlays */
 .ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
   background:rgba(5,5,15,.88);backdrop-filter:blur(6px);z-index:50;font-family:system-ui;padding:22px;
   border-radius:10px;text-align:center}
 .ov.hidden{display:none}
-.ov h1{font-size:3.4rem;font-weight:900;letter-spacing:-.02em;
+.ov h1{font-size:3.2rem;font-weight:900;letter-spacing:-.02em;
   background:linear-gradient(135deg,#f43f5e,#a855f7,#06b6d4);-webkit-background-clip:text;background-clip:text;color:transparent;
   text-shadow:0 0 30px rgba(168,85,247,.35);margin-bottom:4px}
-.ov .tag{color:#94a3b8;font-size:14px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:22px}
-.ov p{color:#cbd5e1;font-size:14px;line-height:1.7;max-width:540px;margin-bottom:10px}
-.ks{display:grid;grid-template-columns:auto auto;gap:6px 18px;background:rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:12px 18px;margin:10px 0 14px;
+.ov .tag{color:#94a3b8;font-size:14px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:18px}
+.ov p{color:#cbd5e1;font-size:14px;line-height:1.6;max-width:540px;margin-bottom:10px}
+.ks{display:grid;grid-template-columns:auto auto;gap:4px 18px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 16px;margin:8px 0 14px;
   font-size:12px;color:#cbd5e1;text-align:left}
 .ks b{color:#a855f7;font-weight:700;font-family:'JetBrains Mono',monospace}
-.modes{display:flex;gap:10px;margin-bottom:12px}
-.modebtn{background:rgba(30,30,58,.75);color:#e2e8f0;border:2px solid rgba(255,255,255,.12);
-  padding:12px 22px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;
-  font-family:system-ui;transition:.15s;letter-spacing:.05em}
-.modebtn.active{background:linear-gradient(135deg,#a855f7,#7c3aed);border-color:#c084fc;
+.modes,.weps{display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap;justify-content:center}
+.modebtn,.wepbtn{background:rgba(30,30,58,.75);color:#e2e8f0;border:2px solid rgba(255,255,255,.12);
+  padding:10px 20px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;
+  font-family:system-ui;transition:.15s;letter-spacing:.03em}
+.modebtn.active,.wepbtn.active{background:linear-gradient(135deg,#a855f7,#7c3aed);border-color:#c084fc;
   box-shadow:0 0 20px rgba(168,85,247,.5)}
-.modebtn:hover:not(.active){border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.modebtn:hover:not(.active),.wepbtn:hover:not(.active){border-color:rgba(255,255,255,.3);transform:translateY(-1px)}
+.wepbtn{width:120px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:12px 10px}
+.wepbtn .ico{font-size:28px;line-height:1}
+.wepbtn .lbl{font-size:12px;letter-spacing:.05em}
+.wepbtn .dmg{font-size:10px;color:#94a3b8;font-family:'JetBrains Mono',monospace}
 .btn{background:linear-gradient(135deg,#f43f5e,#a855f7);color:#fff;border:none;padding:14px 38px;
-  border-radius:12px;font-size:18px;font-weight:800;cursor:pointer;letter-spacing:.05em;
+  border-radius:12px;font-size:17px;font-weight:800;cursor:pointer;letter-spacing:.05em;
   transition:.15s;font-family:system-ui;box-shadow:0 4px 24px rgba(168,85,247,.45)}
 .btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(244,63,94,.55)}
-.winbanner{font-size:3.8rem;font-weight:900;letter-spacing:.04em;margin-bottom:14px;
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.winbanner{font-size:3.5rem;font-weight:900;letter-spacing:.04em;margin-bottom:12px;
   text-shadow:0 0 40px currentColor}
 .winbanner.p1{color:#60a5fa}
 .winbanner.p2{color:#f87171}
 .winbanner.p3{color:#a78bfa}
 .winbanner.draw{color:#94a3b8}
-
-/* Weapon pickup hint */
-.pickHint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
-  background:rgba(0,0,0,.65);color:#fef3c7;padding:7px 14px;border-radius:999px;
-  font-family:system-ui;font-size:13px;font-weight:700;border:1px solid rgba(251,191,36,.35);
-  pointer-events:none;letter-spacing:.05em;display:none;z-index:4}
-.pickHint.show{display:block}
+.sectionlabel{color:#cbd5e1;font-size:12px;letter-spacing:.2em;text-transform:uppercase;margin:4px 0 8px}
 </style>
 </head>
 <body>
@@ -86,843 +86,805 @@ canvas{display:block;border-radius:10px;border:2px solid #475569;background:#0f1
 <div class="wrap">
   <canvas id="c" width="960" height="540"></canvas>
 
-  <!-- In-game HUD -->
+  <!-- HUD -->
   <div class="hud" id="hud">
-    <div class="hpbox p1"><div class="name" id="n1">You</div>
+    <div class="hpbox p1">
+      <div class="row"><span class="name" id="n1">You</span><span class="w" id="w1">FIST</span></div>
       <div class="barwrap"><div class="bar ok" id="b1" style="width:100%"></div></div>
-      <div class="num" id="hp1">100</div></div>
-    <div class="hpbox p2"><div class="name" id="n2">Red Bot</div>
+      <div class="num" id="hp1">100</div>
+    </div>
+    <div class="hpbox p2">
+      <div class="row"><span class="name" id="n2">Red Bot</span><span class="w" id="w2">FIST</span></div>
       <div class="barwrap"><div class="bar ok" id="b2" style="width:100%"></div></div>
-      <div class="num" id="hp2">100</div></div>
-    <div class="hpbox p3" id="box3" style="display:none"><div class="name" id="n3">Purple Bot</div>
+      <div class="num" id="hp2">100</div>
+    </div>
+    <div class="hpbox p3" id="box3" style="display:none">
+      <div class="row"><span class="name" id="n3">Purple Bot</span><span class="w" id="w3">FIST</span></div>
       <div class="barwrap"><div class="bar ok" id="b3" style="width:100%"></div></div>
-      <div class="num" id="hp3">100</div></div>
+      <div class="num" id="hp3">100</div>
+    </div>
   </div>
-
-  <div class="pickHint" id="pickHint">🤚 Press <b>E</b> to pick up</div>
 
   <!-- Intro menu -->
   <div class="ov" id="menu">
     <h1>Arcade Brawl</h1>
-    <div class="tag">Ragdoll Stickman Fight</div>
+    <div class="tag">Stickman Fight</div>
+
+    <div class="sectionlabel">Mode</div>
     <div class="modes">
       <button class="modebtn active" data-mode="1v1">🥊 1 vs 1</button>
       <button class="modebtn" data-mode="1v1v1">💥 1 vs 1 vs 1</button>
     </div>
+
+    <div class="sectionlabel">Pick your weapon</div>
+    <div class="weps" id="weps"></div>
+
     <div class="ks">
-      <div>Move</div><div><b>W A S D</b></div>
-      <div>Punch / Attack</div><div><b>Mouse Click</b></div>
-      <div>Pick up / drop weapon</div><div><b>E</b></div>
-      <div>Jump</div><div><b>Space</b></div>
+      <div>Move</div><div><b>A D</b> or <b>← →</b></div>
+      <div>Jump</div><div><b>W</b> / <b>Space</b></div>
+      <div>Attack</div><div><b>Mouse Click</b> or <b>J</b></div>
     </div>
-    <p>100 HP. One life. Hit the head for 1.5× damage. Fall off the map and it's over.</p>
-    <button class="btn" id="startBtn">Fight</button>
+    <button class="btn" id="startBtn" disabled>Pick a weapon</button>
   </div>
 
   <!-- Win overlay -->
   <div class="ov hidden" id="winOv">
     <div class="winbanner" id="winText">VICTORY</div>
     <p id="winSub">You crushed them.</p>
-    <button class="btn" onclick="restartMatch()">Rematch</button>
+    <button class="btn" id="rematchBtn">Rematch</button>
   </div>
 </div>
 
 <script src="_esc-back.js"></script>
 <script>
-// ─── Matter.js shortcuts ──────────────────────────────────
-const { Engine, World, Bodies, Body, Composite, Constraint, Events, Vector } = Matter;
-
-// ─── Canvas + config ──────────────────────────────────────
 const C = document.getElementById('c');
 const ctx = C.getContext('2d');
 const W = C.width, H = C.height;
 
-const engine = Engine.create({ enableSleeping: false });
-engine.world.gravity.y = 1.0;
-engine.positionIterations = 6;
-engine.velocityIterations = 4;
-
 // ─── Config ───────────────────────────────────────────────
-const COLLISION = { WORLD: 0x0001, FIGHTER: 0x0002, WEAPON: 0x0004, PROJECTILE: 0x0008 };
-// A fighter's bodies collide with world + weapons + projectiles, but NOT with
-// other members of the same fighter's ragdoll (that would stiffen the joints).
-let nextFighterGroup = -1;  // negative = never self-collide
+const G = 0.55;                 // gravity for jumps & projectiles
+const GROUND_Y = 470;           // default feet-line
 
-const FIGHTER_COLORS = [
+const COLORS = [
   { name: 'You',        line: '#60a5fa', skin: '#dbeafe', accent: '#1d4ed8' },
   { name: 'Red Bot',    line: '#f87171', skin: '#fecaca', accent: '#991b1b' },
   { name: 'Purple Bot', line: '#c084fc', skin: '#e9d5ff', accent: '#6b21a8' },
 ];
 
-// Damage multiplier by body part (head is a critical zone)
+// Damage multiplier by body part
 const PART_DMG = {
-  head: 1.5, torso: 1.0,
-  upperArmL: 0.4, lowerArmL: 0.4, upperArmR: 0.4, lowerArmR: 0.4,
-  upperLegL: 0.6, lowerLegL: 0.5, upperLegR: 0.6, lowerLegR: 0.5,
+  head: 1.5, torso: 1.0, upperArm: 0.4, lowerArm: 0.4, upperLeg: 0.6, lowerLeg: 0.5,
 };
 
-// Weapon catalogue — base damage; final = base × part multiplier
+// Weapons (base damage scaled by part multiplier on hit)
 const WEAPONS = {
-  fist:    { label: 'Fist',    base: 7,  reach: 48,  cool: 18, color: '#f8fafc' },
-  bat:     { label: 'Bat',     base: 22, reach: 70,  cool: 32, color: '#a16207' },
-  sword:   { label: 'Sword',   base: 34, reach: 80,  cool: 36, color: '#e2e8f0' },
-  pistol:  { label: 'Pistol',  base: 28, reach: 300, cool: 22, color: '#334155', ammo: 6 },
-  grenade: { label: 'Grenade', base: 55, reach: 0,   cool: 70, color: '#16a34a', fuse: 110, radius: 110 },
+  fist:    { label: 'Fist',    icon: '✊', base: 9,  reach: 46,  cool: 20, swing: 14, color: '#fef3c7' },
+  bat:     { label: 'Bat',     icon: '🏏', base: 22, reach: 76,  cool: 34, swing: 20, color: '#a16207' },
+  sword:   { label: 'Sword',   icon: '🗡️', base: 34, reach: 88,  cool: 36, swing: 22, color: '#e2e8f0' },
+  pistol:  { label: 'Pistol',  icon: '🔫', base: 26, reach: 480, cool: 24, swing: 10, color: '#334155', ranged: true, ammo: 8 },
+  grenade: { label: 'Grenade', icon: '💣', base: 60, reach: 0,   cool: 85, swing: 18, color: '#16a34a', throws: true, radius: 120, fuse: 90 },
 };
 
-// Hand-designed arenas. Each shape spec is drawn later as solid rectangles.
-// `pit` entries are kill-zones where ragdolls get removed when touched.
+// Maps. Flat ground line plus optional floating platforms.
+// `kill_x_min` / `kill_x_max` define horizontal kill lines (pits).
 const MAPS = [
-  { // Factory platforms with pits
-    name: 'Factory',
+  { name: 'Desert Pit',  // all closed, best for first round
+    bg: ctx => {
+      const g = ctx.createLinearGradient(0, 0, 0, H);
+      g.addColorStop(0, '#f59e0b'); g.addColorStop(.7, '#b45309'); g.addColorStop(1, '#78350f');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(0,0,0,.15)';
+      ctx.beginPath(); ctx.moveTo(0, 360);
+      ctx.quadraticCurveTo(240, 300, 480, 360);
+      ctx.quadraticCurveTo(720, 410, 960, 350);
+      ctx.lineTo(960, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+    },
+    ground: 470, kills: { xMin: 20, xMax: 940 },
+    groundColor: '#92400e',
+    platforms: [],
+  },
+  { name: 'Factory',
     bg: ctx => {
       const g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#1e3a8a'); g.addColorStop(1, '#0c0a1f');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      for(let i = 0; i < 12; i++) ctx.fillRect(40 + i*75, 50 + (i%3)*20, 50, 160);
     },
-    ground: [
-      { x: 160, y: 500, w: 310, h: 40, c: '#334155' },
-      { x: 800, y: 500, w: 310, h: 40, c: '#334155' },
-      { x: 480, y: 360, w: 180, h: 20, c: '#475569' },
-    ],
-    walls: [
-      { x: -20, y: 270, w: 40, h: 540, c: '#1e293b' },
-      { x: 980, y: 270, w: 40, h: 540, c: '#1e293b' },
-    ],
-    weaponSpots: [{x:200, y:470, kind:'bat'}, {x:760, y:470, kind:'sword'}, {x:480, y:330, kind:'pistol'}],
+    ground: 470, kills: { xMin: 300, xMax: 660 },  // central pit
+    groundColor: '#334155',
+    // Two ground slabs flank a pit from x=300 to x=660
+    slabs: [{ x: 0, w: 300 }, { x: 660, w: 300 }],
+    platforms: [{ x: 420, y: 340, w: 120 }],
   },
-  { // Rooftop — one long roof, no pits except the sides
-    name: 'Rooftop',
+  { name: 'Rooftop',
     bg: ctx => {
       const g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#7c2d12'); g.addColorStop(1, '#431407');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // Distant buildings silhouette
       ctx.fillStyle = '#1c1917';
-      for(let i = 0; i < 8; i++){
-        const bx = i * 130 + 20, bh = 100 + ((i*73)%80);
-        ctx.fillRect(bx, H - 120 - bh, 100, bh);
-      }
+      for(let i = 0; i < 8; i++){ const bx = i*130 + 20, bh = 100 + ((i*73)%80); ctx.fillRect(bx, H - 180 - bh, 100, bh); }
     },
-    ground: [{ x: 60, y: 460, w: 840, h: 40, c: '#57534e' }],
-    walls: [],
-    weaponSpots: [{x:180, y:430, kind:'sword'}, {x:780, y:430, kind:'pistol'}, {x:480, y:430, kind:'grenade'}],
+    ground: 470, kills: { xMin: 60, xMax: 900 },
+    groundColor: '#57534e',
+    platforms: [],
   },
-  { // Floating islands, tight gaps
-    name: 'Sky Isles',
+  { name: 'Sky Isles',
     bg: ctx => {
       const g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#0891b2'); g.addColorStop(1, '#083344');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // Clouds
-      ctx.fillStyle = 'rgba(255,255,255,.12)';
+      ctx.fillStyle = 'rgba(255,255,255,.14)';
       for(let i = 0; i < 5; i++){
-        const cx = (i * 190 + 40), cy = 100 + (i%2)*50;
+        const cx = i*190 + 40, cy = 100 + (i%2)*50;
         ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI*2);
         ctx.arc(cx+30, cy, 26, 0, Math.PI*2);
-        ctx.arc(cx-30, cy+6, 22, 0, Math.PI*2);
-        ctx.fill();
+        ctx.arc(cx-30, cy+6, 22, 0, Math.PI*2); ctx.fill();
       }
     },
-    ground: [
-      { x:  80, y: 440, w: 220, h: 30, c: '#78716c' },
-      { x: 380, y: 400, w: 200, h: 30, c: '#78716c' },
-      { x: 660, y: 440, w: 220, h: 30, c: '#78716c' },
-    ],
-    walls: [],
-    weaponSpots: [{x:160, y:410, kind:'bat'}, {x:480, y:370, kind:'grenade'}, {x:730, y:410, kind:'sword'}],
-  },
-  { // Flat desert arena — all weapons, easy to start with
-    name: 'Desert Pit',
-    bg: ctx => {
-      const g = ctx.createLinearGradient(0, 0, 0, H);
-      g.addColorStop(0, '#f59e0b'); g.addColorStop(0.7, '#b45309'); g.addColorStop(1, '#78350f');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-      // Sand dunes silhouette
-      ctx.fillStyle = 'rgba(0,0,0,.18)';
-      ctx.beginPath();
-      ctx.moveTo(0, 350);
-      ctx.quadraticCurveTo(240, 280, 480, 340);
-      ctx.quadraticCurveTo(720, 400, 960, 330);
-      ctx.lineTo(960, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
-    },
-    ground: [{ x: 20, y: 480, w: 920, h: 60, c: '#92400e' }],
-    walls: [
-      { x: 0,   y: 270, w: 40, h: 540, c: '#78350f' },
-      { x: 960, y: 270, w: 40, h: 540, c: '#78350f' },
-    ],
-    weaponSpots: [{x:150, y:450, kind:'bat'}, {x:380, y:450, kind:'sword'}, {x:580, y:450, kind:'pistol'}, {x:810, y:450, kind:'grenade'}],
+    ground: 470, kills: { xMin: 20, xMax: 940 },
+    groundColor: '#78716c',
+    slabs: [{ x: 60, w: 240 }, { x: 360, w: 240 }, { x: 660, w: 240 }],
+    platforms: [],
   },
 ];
 
-// ─── Stickman ragdoll factory ─────────────────────────────
-// Returns {name, color, bodies:{head,torso,...}, constraints, hp, controller, weapon}
-function createFighter(x, y, colorIdx, isAI){
-  const col = FIGHTER_COLORS[colorIdx];
-  const group = nextFighterGroup--;
-  const COLL = {
-    collisionFilter: {
-      group,
-      category: COLLISION.FIGHTER,
-      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.WEAPON | COLLISION.PROJECTILE,
-    },
-    friction: 0.6, restitution: 0.1, density: 0.001,
-  };
-
-  const head      = Bodies.circle(x, y - 48, 12, { ...COLL, label: 'head', density: 0.0012 });
-  const torso     = Bodies.rectangle(x, y - 10, 18, 50, { ...COLL, label: 'torso', density: 0.0025 });
-  const upperArmL = Bodies.rectangle(x - 14, y - 18, 8, 22, { ...COLL, label: 'upperArmL' });
-  const lowerArmL = Bodies.rectangle(x - 14, y + 4,  8, 22, { ...COLL, label: 'lowerArmL' });
-  const upperArmR = Bodies.rectangle(x + 14, y - 18, 8, 22, { ...COLL, label: 'upperArmR' });
-  const lowerArmR = Bodies.rectangle(x + 14, y + 4,  8, 22, { ...COLL, label: 'lowerArmR' });
-  const upperLegL = Bodies.rectangle(x - 6, y + 28, 9, 26, { ...COLL, label: 'upperLegL' });
-  const lowerLegL = Bodies.rectangle(x - 6, y + 54, 9, 26, { ...COLL, label: 'lowerLegL' });
-  const upperLegR = Bodies.rectangle(x + 6, y + 28, 9, 26, { ...COLL, label: 'upperLegR' });
-  const lowerLegR = Bodies.rectangle(x + 6, y + 54, 9, 26, { ...COLL, label: 'lowerLegR' });
-
-  const parts = { head, torso, upperArmL, lowerArmL, upperArmR, lowerArmR, upperLegL, lowerLegL, upperLegR, lowerLegR };
-  const bodies = Object.values(parts);
-
-  // Build joints with soft stiffness so the fighter can flex but still feels solid.
-  const J = (a, b, pa, pb, stiff = 0.9) =>
-    Constraint.create({ bodyA: a, bodyB: b, pointA: pa, pointB: pb, length: 0, stiffness: stiff, damping: 0.25 });
-  const constraints = [
-    J(head, torso, { x: 0, y: 10 }, { x: 0, y: -25 }),         // neck
-    J(torso, upperArmL, { x: -8, y: -22 }, { x: 0, y: -10 }),  // left shoulder
-    J(upperArmL, lowerArmL, { x: 0, y: 10 }, { x: 0, y: -10 }),// left elbow
-    J(torso, upperArmR, { x: 8, y: -22 }, { x: 0, y: -10 }),   // right shoulder
-    J(upperArmR, lowerArmR, { x: 0, y: 10 }, { x: 0, y: -10 }),// right elbow
-    J(torso, upperLegL, { x: -5, y: 24 }, { x: 0, y: -12 }),   // left hip
-    J(upperLegL, lowerLegL, { x: 0, y: 12 }, { x: 0, y: -12 }),// left knee
-    J(torso, upperLegR, { x: 5, y: 24 }, { x: 0, y: -12 }),    // right hip
-    J(upperLegR, lowerLegR, { x: 0, y: 12 }, { x: 0, y: -12 }),// right knee
-  ];
-
-  // Register with world
-  World.add(engine.world, [...bodies, ...constraints]);
-
-  // Each bodyPart knows which fighter it belongs to (for damage routing)
-  const fighter = {
-    id: colorIdx, name: col.name, color: col, parts, bodies, constraints,
-    hp: 100, maxHp: 100,
-    alive: true,
-    isAI, facing: isAI ? -1 : 1,
-    weapon: null,                   // {kind, ammo?}
-    weaponBody: null,               // visual Matter body attached to hand
-    weaponConstraint: null,
-    attackCool: 0,                  // frames until can attack again
-    attackSwing: 0,                 // frames remaining in swing animation
-    jumpCool: 0,
-    aiState: { targetIdx: null, moveDir: 0, wantAttack: 0, wantJump: 0, cool: 0, retarget: 0 },
-    group,
-  };
-  bodies.forEach(b => b.fighterRef = fighter);
-  return fighter;
-}
-
-// ─── Weapons on the ground (pickups) ───────────────────────
-function spawnPickup(kind, x, y){
-  const body = Bodies.rectangle(x, y, 32, 12, {
-    label: 'pickup', isStatic: true, isSensor: true,
-    collisionFilter: { category: COLLISION.WEAPON, mask: COLLISION.FIGHTER },
-  });
-  body.pickupKind = kind;
-  body.pickupOrigin = { x, y };
-  World.add(engine.world, body);
-  pickups.push(body);
-}
-
 // ─── Game state ───────────────────────────────────────────
 let fighters = [];
-let pickups = [];
-let projectiles = [];         // bullets, grenades
-let hitParticles = [];
+let projectiles = [];
+let particles = [];
 let currentMap = MAPS[0];
 let mode = '1v1';
-let gameState = 'menu';       // 'menu' | 'fight' | 'ended'
+let playerWeapon = null;
+let gameState = 'menu';
 let frame = 0;
 
 // ─── Input ────────────────────────────────────────────────
 const keys = {};
-const mouse = { x: 0, y: 0, down: false };
+let mouseX = 0, mouseY = 0, clickBuffered = false;
 addEventListener('keydown', e => {
   if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Space'].includes(e.code)) e.preventDefault();
   keys[e.code] = true;
-  if(e.code === 'KeyE') tryPickupOrDrop(fighters[0]);
+  if(e.code === 'KeyJ') clickBuffered = true;
 });
 addEventListener('keyup', e => keys[e.code] = false);
 C.addEventListener('mousemove', e => {
   const r = C.getBoundingClientRect();
-  mouse.x = (e.clientX - r.left) * (W / r.width);
-  mouse.y = (e.clientY - r.top) * (H / r.height);
+  mouseX = (e.clientX - r.left) * (W / r.width);
+  mouseY = (e.clientY - r.top) * (H / r.height);
 });
-C.addEventListener('mousedown', e => { if(e.button === 0) mouse.down = true; });
-addEventListener('mouseup',   e => { if(e.button === 0) mouse.down = false; });
+C.addEventListener('mousedown', e => { if(e.button === 0) clickBuffered = true; });
 
-// ─── Scene build (per map) ────────────────────────────────
-function buildScene(){
-  // Clear world of everything
-  World.clear(engine.world, false);
-  Engine.clear(engine);
-  fighters = []; pickups = []; projectiles = []; hitParticles = [];
-  nextFighterGroup = -1;
+// ─── Fighter factory ──────────────────────────────────────
+function createFighter(x, colorIdx, isAI, weaponKind){
+  return {
+    id: colorIdx, name: COLORS[colorIdx].name, color: COLORS[colorIdx],
+    x, y: GROUND_Y,                // y is feet position
+    vx: 0, vy: 0,
+    grounded: true,
+    facing: isAI ? -1 : 1,
+    hp: 100, maxHp: 100, alive: true,
+    isAI,
+    weapon: weaponKind, ammo: WEAPONS[weaponKind].ammo || Infinity,
 
-  // Static ground + walls
-  for(const g of currentMap.ground){
-    World.add(engine.world, Bodies.rectangle(g.x + g.w/2, g.y + g.h/2, g.w, g.h, {
-      isStatic: true, friction: 1, label: 'ground',
-      collisionFilter: { category: COLLISION.WORLD, mask: 0xFFFF },
-      renderFill: g.c,
-    }));
-  }
-  for(const w of currentMap.walls){
-    World.add(engine.world, Bodies.rectangle(w.x + w.w/2, w.y + w.h/2, w.w, w.h, {
-      isStatic: true, friction: 0.3, label: 'wall',
-      collisionFilter: { category: COLLISION.WORLD, mask: 0xFFFF },
-      renderFill: w.c,
-    }));
-  }
+    // Animation state (procedural)
+    walkPhase: 0,                  // advances with movement, drives leg swing
+    attackPhase: 0,                // 0 = idle, counts UP to swing frames when attacking
+    hurtPhase: 0,                  // flinch timer
+    cooldown: 0,                   // frames until next attack allowed
+    jumpCool: 0,
 
-  // Place weapons
-  for(const s of currentMap.weaponSpots) spawnPickup(s.kind, s.x, s.y);
+    // KO ragdoll state (only populated after death)
+    rag: null,
 
-  // Spawn fighters by mode
-  if(mode === '1v1'){
-    fighters.push(createFighter(220, 380, 0, false));
-    fighters.push(createFighter(740, 380, 1, true));
-  } else {
-    fighters.push(createFighter(180, 380, 0, false));
-    fighters.push(createFighter(500, 380, 1, true));
-    fighters.push(createFighter(780, 380, 2, true));
-  }
+    // AI
+    ai: { cool: 0, wantJump: 0, retarget: 0, targetIdx: null },
+  };
 }
 
-// ─── Pickups ──────────────────────────────────────────────
-function tryPickupOrDrop(f){
-  if(!f || !f.alive) return;
-  if(f.weapon){
-    // Drop current
-    const pos = f.parts.lowerArmR.position;
-    detachWeapon(f);
-    spawnPickup(f.weapon.kind, pos.x, pos.y);
-    f.weapon = null;
-    return;
-  }
-  // Find nearest pickup within reach
-  const hand = f.parts.lowerArmR.position;
-  let best = null, bestD = 70;
-  for(const p of pickups){
-    const d = Math.hypot(p.position.x - hand.x, p.position.y - hand.y);
-    if(d < bestD){ bestD = d; best = p; }
-  }
-  if(best){
-    const kind = best.pickupKind;
-    World.remove(engine.world, best);
-    pickups = pickups.filter(x => x !== best);
-    f.weapon = { kind, ammo: WEAPONS[kind].ammo };
-    attachWeapon(f);
-  }
-}
-
-function attachWeapon(f){
-  const hand = f.parts.lowerArmR;
-  const spec = WEAPONS[f.weapon.kind];
-  // Weapon is an elongated body rigidly attached to the hand
-  const len = spec.reach > 0 ? Math.min(60, spec.reach * 0.6) : 24;
-  const body = Bodies.rectangle(hand.position.x, hand.position.y, len, 6, {
-    density: 0.0005,
-    collisionFilter: { group: f.group, category: COLLISION.WEAPON,
-      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.PROJECTILE },
-    label: 'wpn',
-  });
-  body.weaponOf = f;
-  World.add(engine.world, body);
-  const c1 = Constraint.create({ bodyA: hand, bodyB: body, pointA:{x:0,y:4}, pointB:{x:-len/2,y:0}, stiffness: 1, length: 0 });
-  const c2 = Constraint.create({ bodyA: hand, bodyB: body, pointA:{x:3,y:-3}, pointB:{x:-len/2+6,y:0}, stiffness: 1, length: 0 });
-  World.add(engine.world, [c1, c2]);
-  f.weaponBody = body; f.weaponConstraint = [c1, c2];
-}
-
-function detachWeapon(f){
-  if(f.weaponConstraint) for(const c of f.weaponConstraint) World.remove(engine.world, c);
-  if(f.weaponBody) World.remove(engine.world, f.weaponBody);
-  f.weaponBody = null; f.weaponConstraint = null;
-}
-
-// ─── Player controller ────────────────────────────────────
-function updatePlayer(f){
-  if(!f.alive) return;
-  const torso = f.parts.torso;
-
-  // Walk via horizontal velocity nudge
-  const left  = keys.KeyA || keys.ArrowLeft;
-  const right = keys.KeyD || keys.ArrowRight;
-  const speed = 4.2;
-  if(left)  { Body.setVelocity(torso, { x: Math.max(torso.velocity.x - 0.6, -speed), y: torso.velocity.y }); f.facing = -1; }
-  if(right) { Body.setVelocity(torso, { x: Math.min(torso.velocity.x + 0.6,  speed), y: torso.velocity.y }); f.facing = 1; }
-
-  // Jump
-  if(f.jumpCool > 0) f.jumpCool--;
-  if((keys.Space || keys.KeyW || keys.ArrowUp) && f.jumpCool === 0 && isGrounded(f)){
-    Body.setVelocity(torso, { x: torso.velocity.x, y: -9 });
-    f.jumpCool = 20;
-  }
-
-  // Attack on mouse down
-  if(f.attackCool > 0) f.attackCool--;
-  if(f.attackSwing > 0) f.attackSwing--;
-  if(mouse.down && f.attackCool === 0){
-    performAttack(f, mouse.x, mouse.y);
-    mouse.down = false;  // consume so one click = one swing
-  }
-}
-
-function isGrounded(f){
-  const foot = f.parts.lowerLegR.position;
-  // Ray check: is there any static body directly below feet
-  for(const body of Composite.allBodies(engine.world)){
-    if(!body.isStatic || body.isSensor) continue;
-    const dy = body.bounds.min.y - foot.y;
-    if(dy < 20 && dy > -4 &&
-       foot.x > body.bounds.min.x - 4 && foot.x < body.bounds.max.x + 4) return true;
-  }
-  return false;
-}
-
-// ─── AI controller ────────────────────────────────────────
-function updateAI(f){
-  if(!f.alive) return;
-  const st = f.aiState;
-  if(st.retarget <= 0){
-    // Pick nearest alive opponent
-    let best = null, bestD = Infinity;
-    for(const other of fighters){
-      if(other === f || !other.alive) continue;
-      const d = Math.hypot(other.parts.torso.position.x - f.parts.torso.position.x,
-                           other.parts.torso.position.y - f.parts.torso.position.y);
-      if(d < bestD){ bestD = d; best = other; }
-    }
-    st.targetIdx = best ? fighters.indexOf(best) : null;
-    st.retarget = 40 + Math.floor(Math.random() * 40);
-  }
-  st.retarget--;
-
-  const target = st.targetIdx !== null ? fighters[st.targetIdx] : null;
-  if(!target || !target.alive){ return; }
-
-  const myPos = f.parts.torso.position;
-  const tgPos = target.parts.torso.position;
-  const dx = tgPos.x - myPos.x;
-  const dist = Math.hypot(dx, tgPos.y - myPos.y);
-  f.facing = dx > 0 ? 1 : -1;
-
-  // Pick up a weapon if standing on one and unarmed
-  if(!f.weapon){
-    for(const p of pickups){
-      if(Math.hypot(p.position.x - myPos.x, p.position.y - myPos.y) < 50){
-        tryPickupOrDrop(f);
-        break;
-      }
-    }
-  }
-
-  // Walk toward target
-  const torso = f.parts.torso;
-  const speed = 3.6;
-  const wantX = dx > 0 ? 1 : -1;
-  // Slow down when close so we don't walk through
-  const walk = f.weapon && WEAPONS[f.weapon.kind].reach < 100 ? 48 : 180;
-  if(dist > walk){
-    Body.setVelocity(torso, {
-      x: Math.sign(wantX) * Math.min(Math.abs(torso.velocity.x) + 0.5, speed),
-      y: torso.velocity.y,
-    });
-  } else if(dist < 28){
-    // Back up slightly if too close
-    Body.setVelocity(torso, { x: -Math.sign(wantX) * 1.5, y: torso.velocity.y });
-  }
-
-  // Jump occasionally to cross gaps
-  if(f.jumpCool > 0) f.jumpCool--;
-  if(f.jumpCool === 0 && Math.random() < 0.015 && isGrounded(f)){
-    Body.setVelocity(torso, { x: torso.velocity.x, y: -9 });
-    f.jumpCool = 30;
-  }
-
-  // Attack when in range
-  if(f.attackCool > 0) f.attackCool--;
-  if(f.attackSwing > 0) f.attackSwing--;
-  const reach = f.weapon ? WEAPONS[f.weapon.kind].reach : WEAPONS.fist.reach;
-  if(f.attackCool === 0 && dist < reach + 24){
-    performAttack(f, tgPos.x, tgPos.y);
-  }
-}
-
-// ─── Attack dispatch ──────────────────────────────────────
-function performAttack(f, aimX, aimY){
-  const spec = f.weapon ? WEAPONS[f.weapon.kind] : WEAPONS.fist;
-  f.attackCool = spec.cool;
-  f.attackSwing = 14;
-
-  if(f.weapon?.kind === 'pistol'){
-    if(f.weapon.ammo <= 0){ f.weapon = null; detachWeapon(f); return; }
-    f.weapon.ammo--;
-    fireBullet(f, aimX, aimY);
-    return;
-  }
-  if(f.weapon?.kind === 'grenade'){
-    throwGrenade(f, aimX, aimY);
-    f.weapon = null; detachWeapon(f);
-    return;
-  }
-
-  // Melee: swing arm + apply impulse to any enemy body within reach cone
-  swingMeleeArm(f, aimX, aimY, spec);
-}
-
-// Visually fling the right arm toward the target and check overlaps.
-function swingMeleeArm(f, aimX, aimY, spec){
-  const hand = f.parts.lowerArmR;
-  const torso = f.parts.torso;
-  const ang = Math.atan2(aimY - torso.position.y, aimX - torso.position.x);
-  Body.applyForce(hand, hand.position, { x: Math.cos(ang) * 0.15, y: Math.sin(ang) * 0.15 });
-
-  // Damage window: next few frames, any opponent body within reach takes damage.
-  // Attach a brief hit sensor at the hand position.
-  const hitX = torso.position.x + Math.cos(ang) * (spec.reach * 0.6);
-  const hitY = torso.position.y + Math.sin(ang) * (spec.reach * 0.6);
-  for(const other of fighters){
-    if(other === f || !other.alive) continue;
-    for(const [partName, body] of Object.entries(other.parts)){
-      const d = Math.hypot(body.position.x - hitX, body.position.y - hitY);
-      if(d < spec.reach * 0.55){
-        applyDamage(other, partName, spec.base, f);
-        // Impulse flings the ragdoll
-        Body.applyForce(body, body.position, {
-          x: Math.cos(ang) * 0.08, y: Math.sin(ang) * 0.08 - 0.04,
-        });
-        spawnHitParticles(body.position.x, body.position.y, '#ef4444');
-        break;  // one hit per swing per fighter
-      }
-    }
-  }
-}
-
-function fireBullet(f, aimX, aimY){
-  const hand = f.parts.lowerArmR.position;
-  const ang = Math.atan2(aimY - hand.y, aimX - hand.x);
-  const sx = hand.x + Math.cos(ang) * 20;
-  const sy = hand.y + Math.sin(ang) * 20;
-  projectiles.push({
-    kind: 'bullet',
-    x: sx, y: sy,
-    vx: Math.cos(ang) * 14, vy: Math.sin(ang) * 14,
-    owner: f, life: 60, dmg: WEAPONS.pistol.base,
-  });
-  // Recoil
-  Body.applyForce(f.parts.torso, f.parts.torso.position, { x: -Math.cos(ang) * 0.04, y: 0 });
-  spawnHitParticles(sx, sy, '#fef3c7');
-}
-
-function throwGrenade(f, aimX, aimY){
-  const hand = f.parts.lowerArmR.position;
-  const ang = Math.atan2(aimY - hand.y, aimX - hand.x);
-  const nade = Bodies.circle(hand.x + Math.cos(ang) * 20, hand.y + Math.sin(ang) * 20, 7, {
-    density: 0.002, friction: 0.6, restitution: 0.4,
-    collisionFilter: { group: f.group, category: COLLISION.PROJECTILE,
-      mask: COLLISION.WORLD | COLLISION.FIGHTER | COLLISION.WEAPON },
-    label: 'nade',
-  });
-  Body.setVelocity(nade, { x: Math.cos(ang) * 10, y: Math.sin(ang) * 10 - 2 });
-  nade.fuse = WEAPONS.grenade.fuse;
-  nade.owner = f;
-  World.add(engine.world, nade);
-  projectiles.push({ kind: 'grenadeBody', body: nade });
-}
-
-function applyDamage(target, partName, base, source){
-  if(!target.alive) return;
-  const mul = PART_DMG[partName] || 1;
-  const dmg = Math.round(base * mul);
-  target.hp = Math.max(0, target.hp - dmg);
-  if(target.hp === 0) killFighter(target);
-}
-
-function killFighter(f){
-  f.alive = false;
-  // Go completely limp — disable self-propulsion but keep physics body
-  detachWeapon(f);
-  for(const b of f.bodies) Body.setStatic(b, false);
-  spawnHitParticles(f.parts.torso.position.x, f.parts.torso.position.y, '#dc2626', 24);
-  setTimeout(checkWinCondition, 400);
-}
-
-function checkWinCondition(){
+// ─── Update ───────────────────────────────────────────────
+function update(){
   if(gameState !== 'fight') return;
-  const alive = fighters.filter(f => f.alive);
-  if(alive.length <= 1){
-    gameState = 'ended';
-    showWinScreen(alive[0] || null);
-  }
-}
 
-function spawnHitParticles(x, y, color, n = 8){
-  for(let i = 0; i < n; i++){
-    const a = Math.random() * Math.PI * 2;
-    const sp = 1 + Math.random() * 3;
-    hitParticles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 1, life: 24 + Math.random()*10, color });
+  // Player
+  const p = fighters[0];
+  if(p && p.alive) updatePlayer(p);
+  // AI
+  for(let i = 1; i < fighters.length; i++){
+    const f = fighters[i];
+    if(f.alive) updateAI(f);
   }
-}
+  // Physics (gravity / jumping) + idle animation
+  for(const f of fighters){
+    f.vy += G;
+    f.x += f.vx;
+    f.y += f.vy;
 
-// ─── Projectile updates ───────────────────────────────────
-function updateProjectiles(){
+    // Landing on main ground or a slab
+    const g = groundYAt(f.x);
+    if(f.y >= g){
+      f.y = g;
+      f.vy = 0;
+      f.grounded = true;
+    } else {
+      f.grounded = false;
+    }
+
+    // Walk animation phase
+    if(Math.abs(f.vx) > 0.5) f.walkPhase += Math.abs(f.vx) * 0.12;
+
+    // Decay attack / hurt / cool
+    if(f.attackPhase > 0) f.attackPhase++;
+    if(f.cooldown > 0) f.cooldown--;
+    if(f.hurtPhase > 0) f.hurtPhase--;
+    if(f.jumpCool > 0) f.jumpCool--;
+
+    // End attack animation
+    const swing = WEAPONS[f.weapon].swing;
+    if(f.attackPhase > swing) f.attackPhase = 0;
+
+    // Friction
+    if(f.grounded) f.vx *= 0.82;
+
+    // Keep within map
+    if(f.x < 10) { f.x = 10; f.vx = 0; }
+    if(f.x > W - 10) { f.x = W - 10; f.vx = 0; }
+
+    // Pit death
+    if(f.alive && f.y > H + 40){ killFighter(f); }
+    // Alternately fall off left/right if those are kill zones
+    if(f.alive && isInKillZone(f.x) && f.y > GROUND_Y + 10){ killFighter(f); }
+  }
+  // Update KO ragdolls (fallen bodies simulated as simple particles)
+  for(const f of fighters){ if(f.rag) updateRagdoll(f.rag); }
+
+  // Projectiles
   for(let i = projectiles.length - 1; i >= 0; i--){
-    const p = projectiles[i];
-    if(p.kind === 'bullet'){
-      p.x += p.vx; p.y += p.vy;
-      p.life--;
-      // Hit fighters
+    const pr = projectiles[i];
+    if(pr.kind === 'bullet'){
+      pr.x += pr.vx; pr.y += pr.vy; pr.life--;
       let hit = false;
       for(const other of fighters){
-        if(!other.alive || other === p.owner) continue;
-        for(const [partName, body] of Object.entries(other.parts)){
-          const d = Math.hypot(body.position.x - p.x, body.position.y - p.y);
-          if(d < 10){
-            applyDamage(other, partName, p.dmg, p.owner);
-            Body.applyForce(body, body.position, { x: p.vx * 0.003, y: p.vy * 0.003 });
-            spawnHitParticles(p.x, p.y, '#dc2626');
+        if(!other.alive || other === pr.owner) continue;
+        const parts = fighterPartsHitboxes(other);
+        for(const part of parts){
+          if(Math.abs(pr.x - part.x) < part.r && Math.abs(pr.y - part.y) < part.r + 2){
+            applyHit(other, part.name, pr.dmg, pr.owner, Math.sign(pr.vx));
+            spawnParticles(pr.x, pr.y, '#fbbf24', 6);
             hit = true; break;
           }
         }
         if(hit) break;
       }
-      if(hit || p.life <= 0 || p.x < 0 || p.x > W || p.y > H) projectiles.splice(i, 1);
-    } else if(p.kind === 'grenadeBody'){
-      p.body.fuse--;
-      if(p.body.fuse <= 0){
+      if(hit || pr.life <= 0 || pr.x < -20 || pr.x > W + 20) projectiles.splice(i, 1);
+    } else if(pr.kind === 'grenade'){
+      pr.vy += G * 0.7;
+      pr.x += pr.vx; pr.y += pr.vy;
+      // Bounce off ground
+      const g = groundYAt(pr.x);
+      if(pr.y > g){ pr.y = g; pr.vy = -pr.vy * 0.4; pr.vx *= 0.7; }
+      if(pr.x < 10) { pr.x = 10; pr.vx *= -0.6; }
+      if(pr.x > W - 10) { pr.x = W - 10; pr.vx *= -0.6; }
+      pr.fuse--;
+      if(pr.fuse <= 0){
         // Boom
-        const bx = p.body.position.x, by = p.body.position.y;
         const r = WEAPONS.grenade.radius;
         for(const other of fighters){
           if(!other.alive) continue;
-          for(const [partName, body] of Object.entries(other.parts)){
-            const d = Math.hypot(body.position.x - bx, body.position.y - by);
+          const parts = fighterPartsHitboxes(other);
+          for(const part of parts){
+            const d = Math.hypot(part.x - pr.x, part.y - pr.y);
             if(d < r){
               const falloff = 1 - d / r;
-              applyDamage(other, partName, WEAPONS.grenade.base * falloff, p.body.owner);
-              const ang = Math.atan2(body.position.y - by, body.position.x - bx);
-              Body.applyForce(body, body.position, { x: Math.cos(ang) * 0.3 * falloff, y: Math.sin(ang) * 0.3 * falloff });
+              applyHit(other, part.name, WEAPONS.grenade.base * falloff, pr.owner, Math.sign(part.x - pr.x));
             }
           }
         }
-        spawnHitParticles(bx, by, '#fbbf24', 36);
-        spawnHitParticles(bx, by, '#ef4444', 20);
-        World.remove(engine.world, p.body);
+        spawnParticles(pr.x, pr.y, '#fbbf24', 40);
+        spawnParticles(pr.x, pr.y, '#ef4444', 20);
         projectiles.splice(i, 1);
-      }
-    }
-  }
-}
-
-// ─── Pit / fall detection ─────────────────────────────────
-function checkFalls(){
-  for(const f of fighters){
-    if(!f.alive) continue;
-    if(f.parts.torso.position.y > H + 60){ killFighter(f); }
-  }
-}
-
-// ─── Rendering ────────────────────────────────────────────
-function draw(){
-  // Background
-  currentMap.bg(ctx);
-
-  // Ground
-  for(const g of currentMap.ground){
-    ctx.fillStyle = g.c;
-    ctx.fillRect(g.x, g.y, g.w, g.h);
-    ctx.strokeStyle = 'rgba(0,0,0,.4)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(g.x, g.y, g.w, g.h);
-  }
-  for(const w of currentMap.walls){
-    ctx.fillStyle = w.c;
-    ctx.fillRect(w.x, w.y, w.w, w.h);
-  }
-
-  // Weapon pickups (glowing on the ground)
-  for(const p of pickups){
-    const spec = WEAPONS[p.pickupKind];
-    const bob = Math.sin((frame + p.position.x) * 0.06) * 3;
-    ctx.save();
-    ctx.translate(p.position.x, p.position.y + bob);
-    // Halo
-    ctx.fillStyle = 'rgba(251,191,36,.25)';
-    ctx.beginPath(); ctx.arc(0, 0, 22, 0, Math.PI*2); ctx.fill();
-    drawWeapon(0, 0, 0, spec);
-    ctx.restore();
-  }
-
-  // Fighters
-  for(const f of fighters) drawFighter(f);
-
-  // Projectiles
-  for(const p of projectiles){
-    if(p.kind === 'bullet'){
-      ctx.strokeStyle = '#fef08a';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(p.x - p.vx * 0.6, p.y - p.vy * 0.6);
-      ctx.lineTo(p.x, p.y);
-      ctx.stroke();
-    } else if(p.kind === 'grenadeBody'){
-      ctx.fillStyle = '#16a34a';
-      ctx.beginPath(); ctx.arc(p.body.position.x, p.body.position.y, 7, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = '#052e16'; ctx.lineWidth = 2; ctx.stroke();
-      // Fuse flash
-      const flash = p.body.fuse < 40 && Math.floor(p.body.fuse / 4) % 2 === 0;
-      if(flash){
-        ctx.fillStyle = '#fef3c7';
-        ctx.beginPath(); ctx.arc(p.body.position.x, p.body.position.y - 8, 2.5, 0, Math.PI*2); ctx.fill();
       }
     }
   }
 
   // Particles
-  for(const pa of hitParticles){
-    ctx.fillStyle = pa.color;
-    ctx.globalAlpha = Math.min(1, pa.life / 24);
-    ctx.beginPath(); ctx.arc(pa.x, pa.y, 2.5, 0, Math.PI*2); ctx.fill();
+  for(const pa of particles){
+    pa.x += pa.vx; pa.y += pa.vy; pa.vy += 0.3; pa.life--;
+  }
+  particles = particles.filter(pa => pa.life > 0);
+
+  updateHUD();
+}
+
+function groundYAt(x){
+  const m = currentMap;
+  // Default ground
+  let g = GROUND_Y;
+  // Check slabs (if map has pits)
+  if(m.slabs){
+    let onSlab = false;
+    for(const s of m.slabs){ if(x >= s.x && x <= s.x + s.w){ onSlab = true; break; } }
+    if(!onSlab) g = H + 200;  // free fall through pit
+  }
+  return g;
+}
+function isInKillZone(x){
+  const m = currentMap;
+  if(m.slabs) return false;  // slabs already handle pits
+  if(m.kills) return x < m.kills.xMin || x > m.kills.xMax;
+  return false;
+}
+
+// ─── Player controller ────────────────────────────────────
+function updatePlayer(p){
+  const spec = WEAPONS[p.weapon];
+  const left  = keys.KeyA || keys.ArrowLeft;
+  const right = keys.KeyD || keys.ArrowRight;
+  const speed = 3.2;
+  if(left)  { p.vx = Math.max(p.vx - 0.6, -speed); p.facing = -1; }
+  if(right) { p.vx = Math.min(p.vx + 0.6,  speed); p.facing = 1; }
+
+  // Face mouse when attacking
+  if(clickBuffered) p.facing = mouseX > p.x ? 1 : -1;
+
+  // Jump
+  if((keys.Space || keys.KeyW || keys.ArrowUp) && p.grounded && p.jumpCool === 0){
+    p.vy = -10; p.grounded = false; p.jumpCool = 10;
+  }
+
+  // Attack
+  if(clickBuffered && p.cooldown === 0 && p.attackPhase === 0){
+    doAttack(p, mouseX, mouseY);
+  }
+  clickBuffered = false;
+}
+
+// ─── AI controller ────────────────────────────────────────
+function updateAI(f){
+  const ai = f.ai;
+  const spec = WEAPONS[f.weapon];
+
+  // Pick a target periodically
+  if(ai.retarget-- <= 0){
+    let best = null, bestD = Infinity;
+    for(const other of fighters){
+      if(other === f || !other.alive) continue;
+      const d = Math.hypot(other.x - f.x, other.y - f.y);
+      if(d < bestD){ bestD = d; best = other; }
+    }
+    ai.targetIdx = best ? fighters.indexOf(best) : null;
+    ai.retarget = 30 + Math.floor(Math.random() * 40);
+  }
+  const target = ai.targetIdx !== null ? fighters[ai.targetIdx] : null;
+  if(!target || !target.alive) return;
+
+  const dx = target.x - f.x;
+  const dist = Math.hypot(dx, target.y - f.y);
+  f.facing = dx > 0 ? 1 : -1;
+
+  // Keep optimal distance for weapon
+  const sweet = spec.ranged ? 240 : spec.reach * 0.75;
+  const speed = 2.6;
+  if(dist > sweet + 30){
+    f.vx = Math.max(Math.min(f.vx + Math.sign(dx) * 0.4, speed), -speed);
+  } else if(dist < sweet - 30){
+    f.vx = Math.max(Math.min(f.vx - Math.sign(dx) * 0.4, speed), -speed);
+  } else {
+    f.vx *= 0.7;
+  }
+
+  // Occasional jump
+  if(f.grounded && ai.wantJump-- <= 0 && Math.random() < 0.02){
+    f.vy = -9; f.grounded = false; ai.wantJump = 60;
+  }
+
+  // Attack when in reach
+  if(f.cooldown === 0 && f.attackPhase === 0){
+    const inReach = spec.ranged ? dist < spec.reach : dist < spec.reach + 10;
+    if(inReach){
+      // Human-feel reaction delay — AI occasionally misses an opening
+      if(Math.random() < 0.4){ doAttack(f, target.x, target.y); }
+      else { f.cooldown = 10; }
+    }
+  }
+}
+
+// ─── Attack dispatch ──────────────────────────────────────
+function doAttack(f, aimX, aimY){
+  const spec = WEAPONS[f.weapon];
+  f.attackPhase = 1;
+  f.cooldown = spec.cool;
+
+  if(spec.ranged){
+    // Pistol: insta-fire bullet
+    if(f.ammo <= 0){
+      // Out of ammo — fall back to fist for the rest of the round
+      f.weapon = 'fist'; f.ammo = Infinity; return;
+    }
+    f.ammo--;
+    const ang = Math.atan2(aimY - (f.y - 60), aimX - f.x);
+    projectiles.push({
+      kind: 'bullet',
+      x: f.x + Math.cos(ang) * 30, y: (f.y - 60) + Math.sin(ang) * 6,
+      vx: Math.cos(ang) * 16, vy: Math.sin(ang) * 16,
+      owner: f, dmg: spec.base, life: 50,
+    });
+    spawnParticles(f.x + Math.cos(ang) * 32, f.y - 60, '#fde68a', 4);
+  } else if(spec.throws){
+    // Grenade
+    const ang = Math.atan2(aimY - (f.y - 50), aimX - f.x);
+    projectiles.push({
+      kind: 'grenade',
+      x: f.x + Math.cos(ang) * 20, y: f.y - 60,
+      vx: Math.cos(ang) * 9, vy: Math.sin(ang) * 9 - 3,
+      fuse: spec.fuse, owner: f,
+    });
+  }
+  // Melee hit detection happens in the middle of the swing animation
+  // (handled in checkMeleeHit which runs each frame while attackPhase is active)
+}
+
+// Called during active frames of melee swing (frame 6-12 of the animation)
+function checkMeleeHit(f){
+  const spec = WEAPONS[f.weapon];
+  if(spec.ranged || spec.throws) return;
+  // Only in the sweet-spot of the swing (middle portion)
+  const sweetStart = Math.floor(spec.swing * 0.35);
+  const sweetEnd   = Math.floor(spec.swing * 0.75);
+  if(f.attackPhase < sweetStart || f.attackPhase > sweetEnd) return;
+  if(f.attackHit) return;   // only hit once per swing
+
+  const hitX = f.x + f.facing * (spec.reach * 0.6);
+  const hitY = f.y - 55 + Math.sin((f.attackPhase / spec.swing) * Math.PI) * 10;
+
+  for(const other of fighters){
+    if(other === f || !other.alive) continue;
+    const parts = fighterPartsHitboxes(other);
+    for(const part of parts){
+      const d = Math.hypot(part.x - hitX, part.y - hitY);
+      if(d < spec.reach * 0.45){
+        applyHit(other, part.name, spec.base, f, f.facing);
+        f.attackHit = true;
+        return;
+      }
+    }
+  }
+}
+
+// ─── Hit / damage ─────────────────────────────────────────
+function applyHit(target, partName, base, source, knockDir){
+  if(!target.alive) return;
+  const mul = PART_DMG[partName] || 1;
+  const dmg = Math.max(1, Math.round(base * mul));
+  target.hp = Math.max(0, target.hp - dmg);
+  target.hurtPhase = 12;
+  // Little knockback
+  target.vx += knockDir * (1 + base / 20);
+  target.vy -= 2;
+  spawnParticles(target.x, target.y - 50, '#dc2626', 6);
+  // Damage number float
+  particles.push({
+    x: target.x + (Math.random() - .5) * 20, y: target.y - 80,
+    vx: 0, vy: -1.5, life: 32,
+    color: partName === 'head' ? '#fbbf24' : '#f87171',
+    text: '-' + dmg, isText: true,
+  });
+  if(target.hp === 0) killFighter(target);
+}
+
+function killFighter(f){
+  f.alive = false;
+  // Spawn KO ragdoll — simple joint chain that falls with gravity
+  f.rag = createRagdoll(f);
+  spawnParticles(f.x, f.y - 60, '#dc2626', 20);
+  setTimeout(() => {
+    const alive = fighters.filter(x => x.alive);
+    if(gameState === 'fight' && alive.length <= 1){
+      gameState = 'ended';
+      showWinScreen(alive[0] || null);
+    }
+  }, 600);
+}
+
+// ─── Hitboxes for a stickman (used by projectiles + melee) ──
+function fighterPartsHitboxes(f){
+  const s = buildSkeleton(f);  // positions of head/torso/limbs
+  return [
+    { name: 'head',      x: s.head.x,     y: s.head.y,     r: 12 },
+    { name: 'torso',     x: s.torso.cx,   y: s.torso.cy,   r: 16 },
+    { name: 'upperArm',  x: s.armUpR.x,   y: s.armUpR.y,   r: 7 },
+    { name: 'lowerArm',  x: s.armLoR.x,   y: s.armLoR.y,   r: 7 },
+    { name: 'upperArm',  x: s.armUpL.x,   y: s.armUpL.y,   r: 7 },
+    { name: 'lowerArm',  x: s.armLoL.x,   y: s.armLoL.y,   r: 7 },
+    { name: 'upperLeg',  x: s.legUpL.x,   y: s.legUpL.y,   r: 8 },
+    { name: 'lowerLeg',  x: s.legLoL.x,   y: s.legLoL.y,   r: 8 },
+    { name: 'upperLeg',  x: s.legUpR.x,   y: s.legUpR.y,   r: 8 },
+    { name: 'lowerLeg',  x: s.legLoR.x,   y: s.legLoR.y,   r: 8 },
+  ];
+}
+
+// ─── Skeleton builder (procedural animation) ──────────────
+// Returns {head, torso, armUpL, armLoL, armUpR, armLoR, legUpL, legLoL, legUpR, legLoR}
+// All in world coordinates. Pose depends on walk / attack / hurt phases.
+function buildSkeleton(f){
+  const spec = WEAPONS[f.weapon];
+  const walk = Math.sin(f.walkPhase);      // -1..1
+  const inAir = !f.grounded;
+  // Base points: feet at y, hips 50 above
+  const hipY = f.y - 50;
+  const torsoTop = hipY - 50;
+  const headY = torsoTop - 16;
+
+  // Hurt: slight body lean backward
+  const hurt = f.hurtPhase > 0 ? -f.facing * (f.hurtPhase / 12) * 6 : 0;
+
+  const torso = {
+    cx: f.x + hurt * 0.3, cy: (hipY + torsoTop) / 2,
+    topX: f.x + hurt, topY: torsoTop,
+    botX: f.x, botY: hipY,
+  };
+  const head = { x: torso.topX + hurt * 0.4, y: headY + hurt * 0.1 };
+
+  // Legs — swing based on walk phase; hover knees-tucked when in air
+  const legSwing = inAir ? 0.2 : walk * 0.35;
+  const legUpL = { x: f.x - 4, y: hipY + 14 - legSwing * 10 };
+  const legUpR = { x: f.x + 4, y: hipY + 14 + legSwing * 10 };
+  const legLoL = { x: f.x - 4 + legSwing * 8,  y: f.y - 2 - (inAir ? 10 : 0) };
+  const legLoR = { x: f.x + 4 - legSwing * 8,  y: f.y - 2 - (inAir ? 6 : 0) };
+
+  // Arms — idle sway opposite legs; attack overrides with weapon swing arc
+  let armSwing = -walk * 0.3;
+  const shoulderL = { x: torso.topX - 10, y: torso.topY + 4 };
+  const shoulderR = { x: torso.topX + 10, y: torso.topY + 4 };
+
+  let armUpR = { x: shoulderR.x + armSwing * 6, y: shoulderR.y + 20 - Math.abs(armSwing) * 4 };
+  let armLoR = { x: armUpR.x + armSwing * 10, y: armUpR.y + 20 };
+  let armUpL = { x: shoulderL.x - armSwing * 6, y: shoulderL.y + 20 - Math.abs(armSwing) * 4 };
+  let armLoL = { x: armUpL.x - armSwing * 10, y: armUpL.y + 20 };
+
+  // Attack animation — right arm swings up→forward→down
+  let weaponAng = 0;            // visual angle for weapon
+  if(f.attackPhase > 0){
+    const t = f.attackPhase / spec.swing;  // 0..1
+    if(spec.throws){
+      // Overhand throw
+      const a = -1.2 + t * 2.6;              // arm sweeps front→over head→forward
+      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 14, y: shoulderR.y + Math.sin(a) * 14 };
+      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.4) * 18, y: armUpR.y + Math.sin(a + 0.4) * 18 };
+    } else if(spec.ranged){
+      // Pistol: aim forward
+      armUpR = { x: shoulderR.x + f.facing * 10, y: shoulderR.y + 6 };
+      armLoR = { x: armUpR.x + f.facing * 16, y: armUpR.y + 2 };
+    } else {
+      // Melee swing: arc from above-head through forward
+      const a = -1.4 + t * 2.6;
+      armUpR = { x: shoulderR.x + f.facing * Math.cos(a) * 14, y: shoulderR.y + Math.sin(a) * 14 };
+      armLoR = { x: armUpR.x + f.facing * Math.cos(a + 0.3) * 20, y: armUpR.y + Math.sin(a + 0.3) * 20 };
+      weaponAng = a + 0.3;
+    }
+  }
+
+  return { head, torso, armUpL, armLoL, armUpR, armLoR,
+           legUpL, legLoL, legUpR, legLoR, weaponAng, shoulderL, shoulderR };
+}
+
+// ─── Rendering ────────────────────────────────────────────
+function draw(){
+  currentMap.bg(ctx);
+
+  // Ground
+  if(currentMap.slabs){
+    for(const s of currentMap.slabs){
+      ctx.fillStyle = currentMap.groundColor;
+      ctx.fillRect(s.x, currentMap.ground, s.w, H - currentMap.ground);
+      ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 2;
+      ctx.strokeRect(s.x, currentMap.ground, s.w, H - currentMap.ground);
+    }
+  } else {
+    ctx.fillStyle = currentMap.groundColor;
+    ctx.fillRect(0, currentMap.ground, W, H - currentMap.ground);
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, currentMap.ground); ctx.lineTo(W, currentMap.ground); ctx.stroke();
+  }
+  // Floating platforms
+  if(currentMap.platforms) for(const p of currentMap.platforms){
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(p.x, p.y, p.w, 12);
+  }
+
+  // Fighters (sorted: alive ones in front)
+  const order = [...fighters].sort((a, b) => (a.alive?1:0) - (b.alive?1:0));
+  for(const f of order){
+    if(f.alive){
+      drawFighter(f);
+      // Melee hit check — run while swinging (visual + damage frame)
+      if(f.attackPhase > 0){
+        f.attackHit = f.attackHit || false;
+        checkMeleeHit(f);
+        if(f.attackPhase === 1) f.attackHit = false;
+      }
+    } else if(f.rag){
+      drawRagdoll(f);
+    }
+  }
+
+  // Projectiles
+  for(const pr of projectiles){
+    if(pr.kind === 'bullet'){
+      ctx.strokeStyle = '#fef3c7'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(pr.x - pr.vx * 0.6, pr.y - pr.vy * 0.6); ctx.lineTo(pr.x, pr.y); ctx.stroke();
+    } else if(pr.kind === 'grenade'){
+      ctx.fillStyle = '#16a34a'; ctx.beginPath(); ctx.arc(pr.x, pr.y, 7, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#052e16'; ctx.lineWidth = 2; ctx.stroke();
+      if(pr.fuse < 30 && Math.floor(pr.fuse / 4) % 2 === 0){
+        ctx.fillStyle = '#fef3c7';
+        ctx.beginPath(); ctx.arc(pr.x, pr.y - 10, 3, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+
+  // Particles
+  for(const pa of particles){
+    if(pa.isText){
+      ctx.font = 'bold 15px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = pa.color;
+      ctx.globalAlpha = Math.min(1, pa.life / 20);
+      ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.lineWidth = 3;
+      ctx.strokeText(pa.text, pa.x, pa.y);
+      ctx.fillText(pa.text, pa.x, pa.y);
+    } else {
+      ctx.fillStyle = pa.color;
+      ctx.globalAlpha = Math.min(1, pa.life / 20);
+      ctx.beginPath(); ctx.arc(pa.x, pa.y, 2.5, 0, Math.PI*2); ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
-
-  // Pickup hint
-  const hintEl = document.getElementById('pickHint');
-  if(gameState === 'fight' && fighters[0]?.alive){
-    const hand = fighters[0].parts.lowerArmR.position;
-    let near = null;
-    for(const p of pickups){
-      if(Math.hypot(p.position.x - hand.x, p.position.y - hand.y) < 70){ near = p; break; }
-    }
-    if(near || fighters[0].weapon){
-      const label = near ? `Pick up ${WEAPONS[near.pickupKind].label}` :
-                           `Drop ${WEAPONS[fighters[0].weapon.kind].label}`;
-      hintEl.innerHTML = `🤚 Press <b>E</b> to ${label.toLowerCase()}`;
-      hintEl.classList.add('show');
-    } else hintEl.classList.remove('show');
-  } else hintEl.classList.remove('show');
 }
 
 function drawFighter(f){
+  const s = buildSkeleton(f);
   const col = f.color;
   const limbW = 5;
-  const lineCol = f.alive ? col.line : '#71717a';
-  const accentCol = f.alive ? col.accent : '#3f3f46';
+  const hurtFlash = f.hurtPhase > 0 && Math.floor(f.hurtPhase / 3) % 2 === 0;
+  const lineCol = hurtFlash ? '#fecaca' : col.line;
 
-  // Shadow under feet
-  const feetY = Math.max(f.parts.lowerLegL.position.y, f.parts.lowerLegR.position.y) + 14;
-  const centerX = f.parts.torso.position.x;
+  // Shadow
   ctx.fillStyle = 'rgba(0,0,0,.35)';
-  ctx.beginPath(); ctx.ellipse(centerX, feetY, 20, 5, 0, 0, Math.PI*2); ctx.fill();
-
-  // Draw bones as thick capsules between joint anchors
-  function bone(bA, bB){
-    ctx.strokeStyle = lineCol;
-    ctx.lineWidth = limbW;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(bA.position.x, bA.position.y);
-    ctx.lineTo(bB.position.x, bB.position.y);
-    ctx.stroke();
-  }
+  ctx.beginPath(); ctx.ellipse(f.x, f.y + 6, 20, 5, 0, 0, Math.PI*2); ctx.fill();
 
   // Legs
-  bone(f.parts.torso, f.parts.upperLegL);
-  bone(f.parts.upperLegL, f.parts.lowerLegL);
-  bone(f.parts.torso, f.parts.upperLegR);
-  bone(f.parts.upperLegR, f.parts.lowerLegR);
-  // Torso line
-  ctx.strokeStyle = lineCol;
-  ctx.lineWidth = limbW + 2;
-  ctx.beginPath();
-  ctx.moveTo(f.parts.torso.position.x, f.parts.torso.position.y - 22);
-  ctx.lineTo(f.parts.torso.position.x, f.parts.torso.position.y + 22);
-  ctx.stroke();
-  // Arms
-  bone(f.parts.torso, f.parts.upperArmL);
-  bone(f.parts.upperArmL, f.parts.lowerArmL);
-  bone(f.parts.torso, f.parts.upperArmR);
-  bone(f.parts.upperArmR, f.parts.lowerArmR);
+  stroke(s.torso.botX - 4, s.torso.botY, s.legUpL.x, s.legUpL.y, lineCol, limbW);
+  stroke(s.legUpL.x, s.legUpL.y, s.legLoL.x, s.legLoL.y, lineCol, limbW);
+  stroke(s.torso.botX + 4, s.torso.botY, s.legUpR.x, s.legUpR.y, lineCol, limbW);
+  stroke(s.legUpR.x, s.legUpR.y, s.legLoR.x, s.legLoR.y, lineCol, limbW);
+
+  // Torso
+  stroke(s.torso.topX, s.torso.topY, s.torso.botX, s.torso.botY, lineCol, limbW + 2);
+
+  // Left arm (background)
+  stroke(s.shoulderL.x, s.shoulderL.y, s.armUpL.x, s.armUpL.y, lineCol, limbW);
+  stroke(s.armUpL.x, s.armUpL.y, s.armLoL.x, s.armLoL.y, lineCol, limbW);
+
+  // Right arm (foreground — holds weapon)
+  stroke(s.shoulderR.x, s.shoulderR.y, s.armUpR.x, s.armUpR.y, lineCol, limbW);
+  stroke(s.armUpR.x, s.armUpR.y, s.armLoR.x, s.armLoR.y, lineCol, limbW);
 
   // Head
-  const h = f.parts.head.position;
   ctx.fillStyle = col.skin;
-  ctx.beginPath(); ctx.arc(h.x, h.y, 11, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(s.head.x, s.head.y, 11, 0, Math.PI*2); ctx.fill();
   ctx.strokeStyle = lineCol; ctx.lineWidth = 2.5; ctx.stroke();
-  // Eye (facing)
-  if(f.alive){
-    ctx.fillStyle = '#111';
-    ctx.beginPath(); ctx.arc(h.x + f.facing * 3, h.y - 1, 1.8, 0, Math.PI*2); ctx.fill();
-  } else {
-    // X eyes for KO
-    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(h.x - 5, h.y - 3); ctx.lineTo(h.x - 1, h.y + 1);
-    ctx.moveTo(h.x - 1, h.y - 3); ctx.lineTo(h.x - 5, h.y + 1);
-    ctx.moveTo(h.x + 1, h.y - 3); ctx.lineTo(h.x + 5, h.y + 1);
-    ctx.moveTo(h.x + 5, h.y - 3); ctx.lineTo(h.x + 1, h.y + 1); ctx.stroke();
-  }
+  // Eye
+  ctx.fillStyle = '#111';
+  ctx.beginPath(); ctx.arc(s.head.x + f.facing * 3, s.head.y - 1, 1.8, 0, Math.PI*2); ctx.fill();
 
   // Weapon in hand
-  if(f.weapon && f.weaponBody){
-    const spec = WEAPONS[f.weapon.kind];
-    const wb = f.weaponBody;
-    drawWeapon(wb.position.x, wb.position.y, wb.angle, spec);
-  }
+  drawWeapon(s.armLoR.x, s.armLoR.y, f, s);
 }
 
-function drawWeapon(x, y, angle, spec){
+function stroke(x1, y1, x2, y2, color, width){
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function drawWeapon(x, y, f, s){
+  const spec = WEAPONS[f.weapon];
+  if(f.weapon === 'fist') return;  // just a hand
   ctx.save();
-  ctx.translate(x, y); ctx.rotate(angle);
-  if(spec === WEAPONS.bat){
+  ctx.translate(x, y);
+  // Compute weapon angle: along the forearm direction
+  const ang = Math.atan2(s.armLoR.y - s.armUpR.y, s.armLoR.x - s.armUpR.x);
+  ctx.rotate(ang);
+  if(f.weapon === 'bat'){
     ctx.fillStyle = spec.color;
-    ctx.fillRect(-28, -4, 56, 8);
-    ctx.fillStyle = '#44403c';
-    ctx.fillRect(-28, -3, 12, 6);
-  } else if(spec === WEAPONS.sword){
+    ctx.fillRect(0, -4, 48, 8);
+    ctx.fillStyle = '#44403c'; ctx.fillRect(0, -3, 10, 6);
+  } else if(f.weapon === 'sword'){
     ctx.fillStyle = spec.color;
     ctx.beginPath();
-    ctx.moveTo(-10, -2); ctx.lineTo(28, -3); ctx.lineTo(32, 0);
-    ctx.lineTo(28, 3); ctx.lineTo(-10, 2); ctx.closePath(); ctx.fill();
+    ctx.moveTo(0, -2); ctx.lineTo(42, -3); ctx.lineTo(46, 0); ctx.lineTo(42, 3); ctx.lineTo(0, 2); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.fillStyle = '#78350f'; ctx.fillRect(-16, -3, 7, 6);
-    ctx.fillStyle = '#854d0e'; ctx.fillRect(-20, -4, 4, 8);
-  } else if(spec === WEAPONS.pistol){
+    ctx.fillStyle = '#78350f'; ctx.fillRect(-10, -3, 7, 6);
+    ctx.fillStyle = '#854d0e'; ctx.fillRect(-14, -4, 4, 8);
+  } else if(f.weapon === 'pistol'){
     ctx.fillStyle = spec.color;
-    ctx.fillRect(-4, -4, 20, 8);
-    ctx.fillRect(-6, 2, 8, 10);
+    ctx.fillRect(0, -4, 22, 8);
+    ctx.fillRect(-2, 2, 8, 10);
     ctx.fillStyle = '#1e293b';
-    ctx.fillRect(14, -3, 4, 3);
-  } else if(spec === WEAPONS.grenade){
+    ctx.fillRect(20, -3, 4, 3);
+  } else if(f.weapon === 'grenade'){
     ctx.fillStyle = spec.color;
-    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8, 0, 7, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = '#334155';
-    ctx.fillRect(-1, -11, 3, 5);
-  } else {
-    // Fist / generic
-    ctx.fillStyle = '#fef3c7';
-    ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillRect(7, -11, 3, 5);
   }
   ctx.restore();
 }
 
-// ─── HUD update ───────────────────────────────────────────
+// ─── Ragdoll (KO) — simple particle chain with gravity ───
+function createRagdoll(f){
+  const s = buildSkeleton(f);
+  const parts = {};
+  for(const k of ['head','armUpL','armLoL','armUpR','armLoR','legUpL','legLoL','legUpR','legLoR']){
+    const p = s[k];
+    parts[k] = { x: p.x, y: p.y, vx: (Math.random() - .5) * 6, vy: -3 - Math.random() * 3 };
+  }
+  parts.torsoTop = { x: s.torso.topX, y: s.torso.topY, vx: (Math.random() - .5) * 2, vy: -4 };
+  parts.torsoBot = { x: s.torso.botX, y: s.torso.botY, vx: (Math.random() - .5) * 2, vy: -2 };
+  return { parts, color: f.color, limbW: 5, settled: false };
+}
+function updateRagdoll(rag){
+  const g = GROUND_Y + 10;
+  for(const k in rag.parts){
+    const p = rag.parts[k];
+    p.vy += 0.5; p.x += p.vx; p.y += p.vy;
+    if(p.y > g){ p.y = g; p.vy *= -0.3; p.vx *= 0.7; }
+    if(Math.abs(p.vx) < 0.05 && p.y === g) p.vx = 0;
+  }
+}
+function drawRagdoll(f){
+  const r = f.rag, p = r.parts, c = r.color, w = r.limbW;
+  ctx.fillStyle = 'rgba(0,0,0,.35)';
+  ctx.beginPath(); ctx.ellipse(p.torsoBot.x, GROUND_Y + 10, 22, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Limbs
+  stroke(p.torsoBot.x - 4, p.torsoBot.y, p.legUpL.x, p.legUpL.y, c.line, w);
+  stroke(p.legUpL.x, p.legUpL.y, p.legLoL.x, p.legLoL.y, c.line, w);
+  stroke(p.torsoBot.x + 4, p.torsoBot.y, p.legUpR.x, p.legUpR.y, c.line, w);
+  stroke(p.legUpR.x, p.legUpR.y, p.legLoR.x, p.legLoR.y, c.line, w);
+  stroke(p.torsoTop.x, p.torsoTop.y, p.torsoBot.x, p.torsoBot.y, c.line, w + 2);
+  stroke(p.torsoTop.x - 8, p.torsoTop.y + 4, p.armUpL.x, p.armUpL.y, c.line, w);
+  stroke(p.armUpL.x, p.armUpL.y, p.armLoL.x, p.armLoL.y, c.line, w);
+  stroke(p.torsoTop.x + 8, p.torsoTop.y + 4, p.armUpR.x, p.armUpR.y, c.line, w);
+  stroke(p.armUpR.x, p.armUpR.y, p.armLoR.x, p.armLoR.y, c.line, w);
+  ctx.fillStyle = c.skin;
+  ctx.beginPath(); ctx.arc(p.head.x, p.head.y, 11, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = c.line; ctx.lineWidth = 2.5; ctx.stroke();
+  // X eyes
+  ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+  const hx = p.head.x, hy = p.head.y;
+  ctx.beginPath();
+  ctx.moveTo(hx - 5, hy - 3); ctx.lineTo(hx - 1, hy + 1);
+  ctx.moveTo(hx - 1, hy - 3); ctx.lineTo(hx - 5, hy + 1);
+  ctx.moveTo(hx + 1, hy - 3); ctx.lineTo(hx + 5, hy + 1);
+  ctx.moveTo(hx + 5, hy - 3); ctx.lineTo(hx + 1, hy + 1);
+  ctx.stroke();
+}
+
+// ─── Utility ──────────────────────────────────────────────
+function spawnParticles(x, y, color, n){
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, sp = 1 + Math.random() * 3;
+    particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1, life: 24 + Math.random() * 10, color });
+  }
+}
+
+// ─── HUD ──────────────────────────────────────────────────
 function updateHUD(){
-  const names = ['n1','n2','n3'], bars = ['b1','b2','b3'], nums = ['hp1','hp2','hp3'];
-  const box3 = document.getElementById('box3');
-  box3.style.display = mode === '1v1v1' ? '' : 'none';
+  const names = ['n1','n2','n3'], bars = ['b1','b2','b3'], nums = ['hp1','hp2','hp3'], weps = ['w1','w2','w3'];
+  document.getElementById('box3').style.display = mode === '1v1v1' ? '' : 'none';
   for(let i = 0; i < fighters.length; i++){
     const f = fighters[i];
     document.getElementById(names[i]).textContent = f.name;
+    document.getElementById(weps[i]).textContent = WEAPONS[f.weapon].icon + ' ' + WEAPONS[f.weapon].label.toUpperCase();
     const pct = (f.hp / f.maxHp) * 100;
     const bar = document.getElementById(bars[i]);
     bar.style.width = pct + '%';
@@ -931,16 +893,74 @@ function updateHUD(){
   }
 }
 
-// ─── Win screen ───────────────────────────────────────────
+// ─── Menu / weapon select ─────────────────────────────────
+function renderWeaponButtons(){
+  const container = document.getElementById('weps');
+  container.innerHTML = '';
+  for(const kind of Object.keys(WEAPONS)){
+    const spec = WEAPONS[kind];
+    const b = document.createElement('button');
+    b.className = 'wepbtn';
+    b.dataset.kind = kind;
+    b.innerHTML = `<span class="ico">${spec.icon}</span>
+                   <span class="lbl">${spec.label}</span>
+                   <span class="dmg">${spec.base} dmg${spec.ranged ? ' · '+spec.ammo+' shots' : ''}</span>`;
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.wepbtn').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      playerWeapon = kind;
+      const startBtn = document.getElementById('startBtn');
+      startBtn.disabled = false;
+      startBtn.textContent = 'Fight';
+    });
+    container.appendChild(b);
+  }
+}
+
+document.querySelectorAll('.modebtn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.modebtn').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    mode = b.dataset.mode;
+  });
+});
+
+function startMatch(){
+  document.getElementById('menu').classList.add('hidden');
+  document.getElementById('winOv').classList.add('hidden');
+  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
+  fighters = []; projectiles = []; particles = [];
+  if(mode === '1v1'){
+    fighters.push(createFighter(220, 0, false, playerWeapon));
+    fighters.push(createFighter(740, 1, true, randomAIWeapon()));
+  } else {
+    fighters.push(createFighter(180, 0, false, playerWeapon));
+    fighters.push(createFighter(500, 1, true, randomAIWeapon()));
+    fighters.push(createFighter(780, 2, true, randomAIWeapon()));
+  }
+  gameState = 'fight';
+}
+function randomAIWeapon(){
+  const keys = Object.keys(WEAPONS);
+  return keys[Math.floor(Math.random() * keys.length)];
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  if(!playerWeapon) return;
+  startMatch();
+});
+document.getElementById('rematchBtn').addEventListener('click', () => {
+  document.getElementById('winOv').classList.add('hidden');
+  document.getElementById('menu').classList.remove('hidden');
+  gameState = 'menu';
+});
+
 function showWinScreen(winner){
   const ov = document.getElementById('winOv');
   const txt = document.getElementById('winText');
   const sub = document.getElementById('winSub');
-  if(!winner){
-    txt.textContent = 'DRAW';
-    txt.className = 'winbanner draw';
-    sub.textContent = 'Everyone fell.';
-  } else {
+  if(!winner){ txt.textContent = 'DRAW'; txt.className = 'winbanner draw'; sub.textContent = 'Nobody made it.'; }
+  else {
     const isPlayer = winner === fighters[0];
     txt.textContent = isPlayer ? 'VICTORY' : 'KO';
     txt.className = 'winbanner p' + (winner.id + 1);
@@ -949,48 +969,14 @@ function showWinScreen(winner){
   ov.classList.remove('hidden');
 }
 
-function restartMatch(){
-  document.getElementById('winOv').classList.add('hidden');
-  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
-  buildScene();
-  gameState = 'fight';
-}
-
 // ─── Main loop ────────────────────────────────────────────
 function loop(){
   frame++;
-  if(gameState === 'fight'){
-    if(fighters[0]) updatePlayer(fighters[0]);
-    for(let i = 1; i < fighters.length; i++) updateAI(fighters[i]);
-    Engine.update(engine, 1000 / 60);
-    updateProjectiles();
-    checkFalls();
-    updateHUD();
-  }
-  // Particles decay regardless (looks better for the KO screen)
-  for(const pa of hitParticles){
-    pa.x += pa.vx; pa.y += pa.vy; pa.vy += 0.2; pa.life--;
-  }
-  hitParticles = hitParticles.filter(pa => pa.life > 0);
+  update();
   draw();
   requestAnimationFrame(loop);
 }
-
-// ─── Menu wiring ──────────────────────────────────────────
-document.querySelectorAll('.modebtn').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('.modebtn').forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    mode = b.dataset.mode;
-  });
-});
-document.getElementById('startBtn').addEventListener('click', () => {
-  document.getElementById('menu').classList.add('hidden');
-  currentMap = MAPS[Math.floor(Math.random() * MAPS.length)];
-  buildScene();
-  gameState = 'fight';
-});
-
+renderWeaponButtons();
 loop();
 </script>
 </body>
