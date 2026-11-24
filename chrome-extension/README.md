@@ -1,4 +1,4 @@
-# Unlimited Games — Chrome Extension
+# Geek Games — Chrome Extension
 
 A tiny browser extension that opens [unlimitedgames.vercel.app](https://unlimitedgames.vercel.app)
 in a new tab when you click its toolbar icon. The actual games live on the

@@ -88,7 +88,7 @@ export default function HomePage() {
 
       <div className="text-center mb-12">
         <h1 className="text-5xl font-black tracking-tight mb-3">
-          <span className="text-white">Unlimited </span>
+          <span className="text-white">Geek </span>
           <span className="text-purple-400" style={{ textShadow: "0 0 30px rgba(168,85,247,0.5)" }}>
             Games
           </span>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: "How Unlimited Games handles your data.",
+  description: "How Geek Games handles your data.",
 };
 
 export default function PrivacyPage() {
@@ -14,7 +14,7 @@ export default function PrivacyPage() {
         <p className="text-sm text-slate-500 mb-8">Last updated: May 2026</p>
 
         <p className="mb-6">
-          Unlimited Games is a free browser-based game collection. We try to collect
+          Geek Games is a free browser-based game collection. We try to collect
           as little data as possible. This page explains exactly what does, and does
           not, happen when you play.
         </p>

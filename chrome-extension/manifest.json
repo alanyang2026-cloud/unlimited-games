@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Unlimited Games — Free Browser Games",
-  "short_name": "Unlimited Games",
-  "version": "1.13.6",
+  "name": "Geek Games — Free Browser Games",
+  "short_name": "Geek Games",
+  "version": "1.14.0",
   "description": "A tiny game center that lives under your toolbar icon. Open it whenever you have a spare minute, pick a game, and play.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
@@ -16,7 +16,7 @@
       "16": "icons/icon-16.png",
       "32": "icons/icon-32.png"
     },
-    "default_title": "Unlimited Games — pick & play",
+    "default_title": "Geek Games — pick & play",
     "default_popup": "popup.html"
   },
   "permissions": [],

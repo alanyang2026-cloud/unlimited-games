@@ -1,4 +1,4 @@
-/* Unlimited Games — service worker.
+/* Geek Games — service worker.
  *
  * Strategy:
  *  - On install, precache the small "app shell" + every game HTML file

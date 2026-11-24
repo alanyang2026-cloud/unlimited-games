@@ -10,12 +10,12 @@ const SITE_URL = "https://unlimitedgames.vercel.app";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Unlimited Games — free browser games, no downloads",
-    template: "%s · Unlimited Games",
+    default: "Geek Games — free browser games, no downloads",
+    template: "%s · Geek Games",
   },
   description:
     "A growing collection of free browser games: snake, chess, fishing, fighting, a 3D tavern bluffer, and more. No downloads, no logins, just play.",
-  applicationName: "Unlimited Games",
+  applicationName: "Geek Games",
   authors: [{ name: "Alan Yang" }],
   creator: "Alan Yang",
   keywords: [
@@ -35,15 +35,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     url: SITE_URL,
-    siteName: "Unlimited Games",
-    title: "Unlimited Games — free browser games",
+    siteName: "Geek Games",
+    title: "Geek Games — free browser games",
     description:
       "Snake, chess, fishing, fighting, 3D liar's bar, and more. Free, instant, in your browser.",
     locale: "en_NZ",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Unlimited Games",
+    title: "Geek Games",
     description: "Free browser games — no downloads, just play.",
   },
   robots: { index: true, follow: true },
