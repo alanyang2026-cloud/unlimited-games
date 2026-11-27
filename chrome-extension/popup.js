@@ -1,4 +1,4 @@
-// Popup runs at a fixed 764×528 (via the CSS in popup.html).
+// Popup runs at a fixed 780×540 (via the CSS in popup.html).
 // Clicking a game swaps the popup's own body into the "playing" state,
 // which hides the menu and reveals an iframe filling the remaining
 // space below the toolbar. Everything lives inside the popup — no
@@ -12,9 +12,9 @@ const SITE = 'https://unlimitedgames.vercel.app';
 
 // Each game carries its natural design size (nw / nh). We render the
 // iframe at that natural size and CSS-scale the whole element down
-// to fit inside the 764×492 game area (528 popup minus 36 title bar)
+// to fit inside the 780×502 game area (540 popup minus 38 title bar)
 // so nothing gets cropped, and users still see the full game.
-const AVAIL_W = 764, AVAIL_H = 492;
+const AVAIL_W = 780, AVAIL_H = 502;
 
 const GAMES = [
   { id:'snake',           title:'Snake',           emoji:'🐍', url:'/games/snake.html',           c1:'#16a34a', c2:'#0d9488', nw:480, nh:520, offline:true },
@@ -132,7 +132,7 @@ function launchGame(g){
   // Let the iframe fill the entire game pane and defer to each game's
   // own responsive CSS for its layout. Every game has viewport meta +
   // flex-centered content + max-width:100vw on canvases, so they size
-  // themselves correctly at 764×492 without the extra outer scale that
+  // themselves correctly at 780×502 without the extra outer scale that
   // used to leave big black gutters on portrait titles.
   iframe.style.width  = '100%';
   iframe.style.height = '100%';
@@ -169,7 +169,7 @@ document.getElementById('back').addEventListener('click', backToMenu);
 // If the iframe navigates back to the site homepage (user hit the
 // "← Games" link inside a game), the site posts us a message and we
 // swap the popup back to the compact game menu — otherwise the user
-// would see the full 3-column site homepage inside 764×528 instead
+// would see the full 3-column site homepage inside 780×540 instead
 // of our little grid. Games also post this message when the user
 // presses Esc inside them (see public/games/_esc-back.js).
 window.addEventListener('message', ev => {

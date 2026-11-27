@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Geek Games — Free Browser Games",
   "short_name": "Geek Games",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "description": "A tiny game center that lives under your toolbar icon. Open it whenever you have a spare minute, pick a game, and play.",
   "homepage_url": "https://unlimitedgames.vercel.app",
   "icons": {
