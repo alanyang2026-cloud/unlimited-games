@@ -5,11 +5,18 @@
 <meta name="viewport" content="width=764,initial-scale=1">
 <title>Geek Games</title>
 <style>
+  /* Bundled pixel font — kept local so the popup renders offline and
+     dodges MV3's flaky external-font behavior. */
+  @font-face{
+    font-family:"Press Start 2P";
+    src:url("fonts/PressStart2P.woff2") format("woff2");
+    font-weight:400;
+    font-style:normal;
+    font-display:block;
+  }
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  /* Chrome sizes the popup to the <html> element; forcing both html
-     and body to exactly 764×528 (no min/max variance) prevents Chrome
-     from auto-shrinking to fit content when the grid doesn't fill
-     the whole box. */
+
+  /* Fixed popup size (Chrome auto-shrinks otherwise) */
   html{
     width:764px !important;
     height:528px !important;
@@ -17,73 +24,104 @@
     min-height:528px;
     overflow:hidden;
   }
+
+  /* ─── Geek Games cyberpunk neon theme ───
+     Palette: deep navy base, electric cyan + hot pink accents, arcade
+     yellow for bonuses. Pixel font ("Press Start 2P") for the brand,
+     clean sans-serif for body. Subtle scanlines give the CRT feel
+     without hurting legibility. */
   body{
     width:764px;
     height:528px;
-    background:#07070d;
-    color:#fff;
+    color:#e2e8f0;
     font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif;
     overflow:hidden;
     user-select:none;
-  }
-  body{
     display:flex;
     flex-direction:column;
     background:
-      radial-gradient(circle at 30% 0%, rgba(168,85,247,.35), transparent 60%),
-      radial-gradient(circle at 100% 100%, rgba(236,72,153,.25), transparent 50%),
-      #07070d;
+      radial-gradient(circle at 20% 0%, rgba(255,46,136,.22), transparent 55%),
+      radial-gradient(circle at 100% 100%, rgba(0,229,255,.18), transparent 55%),
+      #060a16;
+    position:relative;
+  }
+  /* CRT scanline overlay on top of everything */
+  body::after{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:999;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0) 0,
+      rgba(255,255,255,0) 2px,
+      rgba(0,0,0,.055) 3px,
+      rgba(0,0,0,.055) 4px
+    );
   }
 
-  /* ─── Top bar (persistent) ─── */
+  /* ─── Top bar ─── */
   .bar{
     flex-shrink:0;
-    height:36px;
+    height:38px;
     display:flex;
     align-items:center;
     padding:0 12px;
-    background:linear-gradient(180deg, #1e1b4b, #0a0612);
-    border-bottom:1px solid rgba(168,85,247,.3);
+    background:linear-gradient(180deg,#0a1024 0%, #050814 100%);
+    border-bottom:1px solid rgba(0,229,255,.35);
+    box-shadow:0 1px 0 rgba(255,46,136,.15), 0 2px 12px rgba(0,229,255,.1);
     gap:8px;
   }
   .bar .title{
     flex:1;
-    font-size:13px;
-    font-weight:800;
-    letter-spacing:1px;
-    background:linear-gradient(90deg,#fef3c7,#fbbf24);
+    font-family:"Press Start 2P",monospace;
+    font-size:11px;
+    letter-spacing:1.5px;
+    background:linear-gradient(90deg,#FF2E88 10%, #a855f7 50%, #00E5FF 90%);
     -webkit-background-clip:text;background-clip:text;
     color:transparent;
+    text-shadow:0 0 20px rgba(0,229,255,.3);
+    display:flex;align-items:center;gap:7px;
+    padding-left:2px;
   }
-  .bar .title .g{
-    background:linear-gradient(90deg,#c4b5fd,#a855f7);
-    -webkit-background-clip:text;background-clip:text;
-    color:transparent;
+  .bar .title .mask{
+    font-size:14px;line-height:1;
+    filter:drop-shadow(0 0 4px rgba(0,229,255,.7));
   }
   .bar button{
     all:unset;
     cursor:pointer;
-    width:24px;height:24px;
+    width:26px;height:24px;
     border-radius:5px;
-    background:rgba(255,255,255,.1);
-    color:#fef3c7;
+    background:rgba(0,229,255,.1);
+    color:#e2e8f0;
     font-size:14px;font-weight:700;
     text-align:center;line-height:24px;
-    transition:background .15s;
+    transition:all .15s;
+    border:1px solid rgba(0,229,255,.25);
   }
-  .bar button:hover{background:rgba(255,255,255,.2)}
-  .bar button.close{background:#dc2626;color:#fff}
-  .bar button.close:hover{background:#ef4444}
-  /* Clear focus rings — pure-keyboard users can see where they are */
-  .bar button:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
-  .card:focus-visible{outline:2px solid #fbbf24;outline-offset:2px;box-shadow:0 0 0 3px rgba(251,191,36,.35)}
-  .ftr a:focus-visible{outline:2px solid #a855f7;outline-offset:2px}
+  .bar button:hover{
+    background:rgba(0,229,255,.2);
+    border-color:rgba(0,229,255,.6);
+    box-shadow:0 0 10px rgba(0,229,255,.4);
+  }
+  .bar button.close{
+    background:rgba(255,46,136,.18);
+    color:#fff;
+    border-color:rgba(255,46,136,.5);
+  }
+  .bar button.close:hover{
+    background:rgba(255,46,136,.4);
+    box-shadow:0 0 12px rgba(255,46,136,.6);
+  }
+  .bar button:focus-visible{outline:2px solid #00E5FF;outline-offset:2px}
+  .card:focus-visible{outline:2px solid #00E5FF;outline-offset:2px;box-shadow:0 0 0 3px rgba(0,229,255,.35)}
+  .ftr a:focus-visible{outline:2px solid #00E5FF;outline-offset:2px}
   .bar .back{display:none}
   body.playing .bar .back{display:inline-block}
   body.playing .bar .title{display:none}
   .bar .game-title{
     display:none;flex:1;
-    font-size:13px;font-weight:700;color:#fef3c7;
+    font-family:"Press Start 2P",monospace;
+    font-size:10px;letter-spacing:1px;color:#00E5FF;
+    text-shadow:0 0 8px rgba(0,229,255,.5);
   }
   body.playing .bar .game-title{display:block}
 
@@ -92,6 +130,8 @@
     flex:1;
     overflow:auto;
     padding:14px;
+    position:relative;
+    z-index:1;
   }
   body.playing .menu{display:none}
   .grid{
@@ -100,32 +140,35 @@
     gap:10px;
   }
   .card{
-    /* Rendered as a <button> for a11y — reset native chrome */
     all:unset;
     box-sizing:border-box;
     display:block;
     position:relative;
     aspect-ratio:1/1;
     width:100%;
-    border-radius:12px;
+    border-radius:10px;
     cursor:pointer;
     overflow:hidden;
-    border:1px solid rgba(255,255,255,.06);
+    border:1px solid rgba(0,229,255,.15);
     background:transparent;
     color:inherit;
     font:inherit;
-    transition:transform .12s ease, box-shadow .12s ease;
+    transition:transform .14s ease, box-shadow .14s ease, border-color .14s;
   }
   .card:hover{
     transform:translateY(-3px) scale(1.05);
-    box-shadow:0 6px 14px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.2);
+    border-color:rgba(0,229,255,.75);
+    box-shadow:
+      0 6px 16px rgba(0,0,0,.65),
+      0 0 0 1px rgba(0,229,255,.6),
+      0 0 18px rgba(0,229,255,.4);
     z-index:2;
   }
   .card:active{transform:translateY(-1px) scale(1.02)}
   .card .bg{
     position:absolute;inset:0;
     background:linear-gradient(160deg,var(--c1),var(--c2));
-    opacity:.92;
+    opacity:.9;
   }
   .card:hover .bg{opacity:1}
   .card .inner{
@@ -141,44 +184,44 @@
   .card .emoji{
     font-size:30px;line-height:1;
     margin-bottom:5px;
-    filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));
   }
   .card .name{
     font-size:10px;font-weight:800;
     letter-spacing:.4px;color:#fff;
     line-height:1.1;
-    text-shadow:0 1px 2px rgba(0,0,0,.7);
+    text-shadow:0 1px 2px rgba(0,0,0,.8);
   }
+  /* LIVE badge — cyan neon */
   .card.live::after{
     content:"LIVE";
     position:absolute;top:4px;right:4px;
-    background:#ec4899;color:#fff;
-    font-size:8px;font-weight:900;letter-spacing:.5px;
-    padding:1.5px 4px;border-radius:3px;
-    box-shadow:0 0 6px rgba(236,72,153,.6);
+    background:rgba(0,229,255,.95);color:#042f2e;
+    font-family:"Press Start 2P",monospace;
+    font-size:6px;font-weight:900;letter-spacing:.5px;
+    padding:3px 5px;border-radius:3px;
+    box-shadow:0 0 8px rgba(0,229,255,.8);
   }
-  /* 🔥 Hot badge — shown on the top-3 most-clicked games
-     (last-7-day rolling window). Overrides .live in the rare case the
-     same card has both tags; LIVE goes to the bottom-right instead. */
+  /* HOT badge — neon pink pulsing */
   .card.hot .hotTag{
     position:absolute;top:4px;right:4px;z-index:3;
     display:inline-flex;align-items:center;gap:2px;
-    font-size:9px;font-weight:900;letter-spacing:.3px;
-    padding:2px 5px;border-radius:999px;
-    background:rgba(220,38,38,.92);color:#fff;
+    font-family:"Press Start 2P",monospace;
+    font-size:6px;font-weight:900;letter-spacing:.5px;
+    padding:3px 5px;border-radius:999px;
+    background:rgba(255,46,136,.95);color:#fff;
     border:1px solid rgba(255,220,180,.6);
-    box-shadow:0 0 10px rgba(220,38,38,.75);
+    box-shadow:0 0 10px rgba(255,46,136,.8);
     animation:hotPulse 1.3s ease-in-out infinite;
     pointer-events:none;
   }
   .card.hot.live::after{top:auto;bottom:4px}
   @keyframes hotPulse{
-    0%,100%{transform:scale(1);box-shadow:0 0 10px rgba(220,38,38,.6)}
-    50%{transform:scale(1.1);box-shadow:0 0 18px rgba(220,38,38,.95)}
+    0%,100%{transform:scale(1);box-shadow:0 0 10px rgba(255,46,136,.7)}
+    50%{transform:scale(1.1);box-shadow:0 0 20px rgba(255,46,136,1)}
   }
 
-  /* Soft prompt row — invite + rate. Sits above the plain footer so
-     it's visible but not pushy (small, muted when idle, lights up on hover) */
+  /* ─── Promo row ─── */
   .promo{
     margin-top:14px;
     display:flex;
@@ -192,81 +235,95 @@
     font-size:11px;
     font-weight:700;
     letter-spacing:.3px;
-    padding:6px 12px;
+    padding:6px 14px;
     border-radius:999px;
-    color:#fef3c7;
-    background:rgba(168,85,247,.15);
-    border:1px solid rgba(168,85,247,.35);
-    transition:background .15s, transform .1s;
+    color:#00E5FF;
+    background:rgba(0,229,255,.06);
+    border:1px solid rgba(0,229,255,.4);
+    transition:all .15s;
     white-space:nowrap;
   }
-  .promo button:hover{background:rgba(168,85,247,.35);transform:translateY(-1px)}
+  .promo button:hover{
+    background:rgba(0,229,255,.18);
+    box-shadow:0 0 12px rgba(0,229,255,.4);
+    transform:translateY(-1px);
+  }
   .promo button:active{transform:translateY(0)}
-  .promo .rate{color:#fde047;border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1)}
-  .promo .rate:hover{background:rgba(251,191,36,.25)}
-  .promo button:focus-visible{outline:2px solid #fbbf24;outline-offset:2px}
+  .promo .rate{
+    color:#FFD60A;
+    border-color:rgba(255,214,10,.5);
+    background:rgba(255,214,10,.06);
+  }
+  .promo .rate:hover{
+    background:rgba(255,214,10,.18);
+    box-shadow:0 0 12px rgba(255,214,10,.5);
+  }
+  .promo button:focus-visible{outline:2px solid #00E5FF;outline-offset:2px}
   .promo .toast{
     position:fixed;
     left:50%;
     bottom:16px;
     transform:translateX(-50%);
-    background:#065f46;
-    color:#d1fae5;
-    font-size:12px;
-    font-weight:800;
-    padding:8px 14px;
-    border-radius:8px;
-    box-shadow:0 4px 14px rgba(0,0,0,.5);
-    z-index:999;
+    background:#042f2e;
+    color:#5eead4;
+    font-family:"Press Start 2P",monospace;
+    font-size:9px;letter-spacing:1px;
+    padding:9px 14px;border-radius:6px;
+    border:1px solid rgba(0,229,255,.5);
+    box-shadow:0 0 18px rgba(0,229,255,.4);
+    z-index:9999;
     pointer-events:none;
     opacity:0;
     transition:opacity .2s;
   }
   .promo .toast.show{opacity:1}
 
+  /* ─── Footer ─── */
   .ftr{
     margin-top:10px;
     text-align:center;
-    border-top:1px solid rgba(255,255,255,.07);
+    border-top:1px solid rgba(0,229,255,.12);
     padding-top:8px;
   }
   .ftr a{
     display:inline-block;
-    color:#c4b5fd;
+    color:#67e8f9;
     font-size:11px;
     text-decoration:none;
     padding:5px 12px;
     border-radius:6px;
-    transition:background .15s;
+    transition:all .15s;
     cursor:pointer;
   }
-  .ftr a:hover{background:rgba(168,85,247,.15);color:#fff}
-  .ftr .sep{color:#374151;margin:0 4px}
+  .ftr a:hover{
+    background:rgba(0,229,255,.1);
+    color:#00E5FF;
+    text-shadow:0 0 8px rgba(0,229,255,.6);
+  }
+  .ftr .sep{color:#1e293b;margin:0 4px}
 
   /* ─── Game view ─── */
   .game{
     flex:1;
     display:none;
-    width:764px;height:492px;
-    overflow:hidden;                     /* clip any transform overshoot */
-    background:#07070d;
+    width:764px;height:490px;
+    overflow:hidden;
+    background:#060a16;
     position:relative;
+    z-index:1;
   }
   body.playing .game{display:block}
   .game iframe{
     display:block;
     border:0;
-    background:#07070d;
-    /* width / height / transform / margins are set per-game by
-       launchGame() so each game renders at its own natural design
-       size and is scaled down to fit AVAIL_W × AVAIL_H. */
+    background:#060a16;
   }
 </style>
 </head>
 <body>
   <div class="bar">
     <button class="back" id="back" title="Back to games">←</button>
-    <div class="title">🎮 Unlimited <span class="g">Games</span></div>
+    <div class="title"><span class="mask">🎭</span><span>GEEK GAMES</span></div>
     <div class="game-title" id="gameTitle"></div>
     <button id="newTab" title="Open in new tab">⤢</button>
     <button class="close" id="close" title="Close">×</button>
